@@ -1,0 +1,1324 @@
+using Ookii.Dialogs.Wpf;
+using Serilog;
+using StatisticAnalysisTool.Extractor;
+using StatisticAnalysisTool.Extractor.Enums;
+using StatisticsAnalysisTool.Common;
+using StatisticsAnalysisTool.Common.UserSettings;
+using StatisticsAnalysisTool.Diagnostics;
+using StatisticsAnalysisTool.Enumerations;
+using StatisticsAnalysisTool.Localization;
+using StatisticsAnalysisTool.Models;
+using StatisticsAnalysisTool.Models.TranslationModel;
+using StatisticsAnalysisTool.Network.Manager;
+using StatisticsAnalysisTool.Network.PacketProviders;
+using StatisticsAnalysisTool.Notification;
+using StatisticsAnalysisTool.Views;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Drawing;
+using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media.Imaging;
+
+namespace StatisticsAnalysisTool.ViewModels;
+
+public class SettingsWindowViewModel : BaseViewModel
+{
+    private const double DefaultSoundVolumePercentage = 100;
+
+    private static ObservableCollection<FileInformation> _languages = [];
+    private static FileInformation _languagesSelection;
+
+    public SettingsWindowViewModel()
+    {
+        InitializeSettings();
+        Translation = new SettingsWindowTranslation();
+    }
+
+    private void InitializeSettings()
+    {
+        InitLanguageFiles();
+        InitNaviTabVisibilities();
+        InitNotificationAreas();
+        InitPacketProvider();
+        InitStartupUserDataServers();
+        InitServerTypes();
+        InitNetworkDevices();
+        MainTrackingCharacterName = SettingsController.CurrentSettings.MainTrackingCharacterName;
+
+        // Debug console filter
+        DebugConsoleFilter = SettingsController.CurrentSettings.DebugConsoleFilter;
+        IsOpenDebugConsoleWhenStartingTheToolChecked = SettingsController.CurrentSettings.IsOpenDebugConsoleWhenStartingTheToolChecked;
+
+        // Proxy url
+        ProxyUrlWithPort = SettingsController.CurrentSettings.ProxyUrlWithPort;
+
+        // Backup interval by days
+        InitDropDownDownByDays(BackupIntervalByDays);
+        BackupIntervalByDaysSelection = BackupIntervalByDays.FirstOrDefault(x => x.Value == SettingsController.CurrentSettings.BackupIntervalByDays);
+
+        // Maximum number of backups
+        InitMaxAmountOfBackups(MaximumNumberOfBackups);
+        MaximumNumberOfBackupsSelection = MaximumNumberOfBackups.FirstOrDefault(x => x.Value == SettingsController.CurrentSettings.MaximumNumberOfBackups);
+
+        // Backup storage dir path
+        BackupStorageDirectoryPath = AppDataPaths.BackupsDirectory;
+
+        // Another app to start path
+        AnotherAppToStartPath = SettingsController.CurrentSettings.AnotherAppToStartPath;
+
+        // Main game folder path
+        MainGameFolderPath = SettingsController.CurrentSettings.MainGameFolderPath ?? string.Empty;
+
+        // Alert sounds
+        InitAlertSounds();
+        AlertSoundVolumePercentage = NormalizeSoundVolume(SettingsController.CurrentSettings.AlertSoundVolumePercentage);
+        DeathAlertSoundVolumePercentage = NormalizeSoundVolume(SettingsController.CurrentSettings.DeathAlertSoundVolumePercentage);
+
+        // Api urls
+        AlbionDataProjectBaseUrlWest = SettingsController.CurrentSettings.AlbionDataProjectBaseUrlWest;
+        AlbionDataProjectBaseUrlEast = SettingsController.CurrentSettings.AlbionDataProjectBaseUrlEast;
+        AlbionDataProjectBaseUrlEurope = SettingsController.CurrentSettings.AlbionDataProjectBaseUrlEurope;
+
+        // Auto update
+        IsSuggestPreReleaseUpdatesActive = SettingsController.CurrentSettings.IsSuggestPreReleaseUpdatesActive;
+
+        // Window and startup
+        IsStartWithWindowsActive = SettingsController.CurrentSettings.IsStartWithWindowsActive;
+        IsStartInSystemTrayActive = SettingsController.CurrentSettings.IsStartInSystemTrayActive;
+        IsOpenWithGameActive = SettingsController.CurrentSettings.IsOpenWithGameActive;
+        IsHideWithGameActive = SettingsController.CurrentSettings.IsHideWithGameActive;
+        IsStartTrackingWithGameActive = SettingsController.CurrentSettings.IsStartTrackingWithGameActive;
+        IsStopTrackingWithGameActive = SettingsController.CurrentSettings.IsStopTrackingWithGameActive;
+        IsMinimizeToSystemTrayActive = SettingsController.CurrentSettings.IsMinimizeToSystemTrayActive;
+
+        // Info window
+        ShowInfoWindowOnStartChecked = SettingsController.CurrentSettings.IsInfoWindowShownOnStart;
+
+        // Packet Filter
+        PacketFilter = SettingsController.CurrentSettings.PacketFilter;
+
+        // Player Selection with same name in db
+        PlayerSelectionWithSameNameInDb = SettingsController.CurrentSettings.ExactMatchPlayerNamesLineNumber;
+
+        // Another app to start
+        SetIconSourceToAnotherAppToStart();
+    }
+
+    public async Task SaveSettingsAsync()
+    {
+        var mainWindowViewModel = ServiceLocator.Resolve<MainWindowViewModel>();
+        var oldPacketProvider = SettingsController.CurrentSettings.PacketProvider;
+        var oldPacketFilter = SettingsController.CurrentSettings.PacketFilter;
+        var oldNetworkDevices = GetNetworkDeviceSettingsSnapshot(SettingsController.CurrentSettings.NetworkDevices);
+
+
+        SettingsController.CurrentSettings.PacketProvider = (PacketProviderKind) PacketProviderSelection.Value;
+        SetPacketFilter();
+        SetNetworkDevices();
+
+        SettingsController.CurrentSettings.AnotherAppToStartPath = AnotherAppToStartPath;
+
+        SettingsController.CurrentSettings.DebugConsoleFilter = DebugConsoleFilter;
+        SettingsController.CurrentSettings.IsOpenDebugConsoleWhenStartingTheToolChecked = IsOpenDebugConsoleWhenStartingTheToolChecked;
+        SettingsController.CurrentSettings.ProxyUrlWithPort = ProxyUrlWithPort;
+        SettingsController.CurrentSettings.MainTrackingCharacterName = MainTrackingCharacterName;
+        SettingsController.CurrentSettings.MainGameFolderPath = MainGameFolderPath ?? string.Empty;
+        SettingsController.CurrentSettings.BackupIntervalByDays = BackupIntervalByDaysSelection.Value;
+        SettingsController.CurrentSettings.MaximumNumberOfBackups = MaximumNumberOfBackupsSelection.Value;
+        SettingsController.CurrentSettings.IsInfoWindowShownOnStart = ShowInfoWindowOnStartChecked;
+        SettingsController.CurrentSettings.SelectedAlertSound = AlertSoundSelection?.Identifier ?? string.Empty;
+        SettingsController.CurrentSettings.SelectedDeathAlertSound = DeathAlertSoundSelection?.Identifier ?? string.Empty;
+        SettingsController.CurrentSettings.AlertSoundVolumePercentage = AlertSoundVolumePercentage;
+        SettingsController.CurrentSettings.DeathAlertSoundVolumePercentage = DeathAlertSoundVolumePercentage;
+
+        Culture.SetCulture(Culture.GetCultureByIetfLanguageTag(LanguagesSelection.FileName));
+
+        SettingsController.CurrentSettings.AlbionDataProjectBaseUrlWest = AlbionDataProjectBaseUrlWest;
+        SettingsController.CurrentSettings.AlbionDataProjectBaseUrlEast = AlbionDataProjectBaseUrlEast;
+        SettingsController.CurrentSettings.AlbionDataProjectBaseUrlEurope = AlbionDataProjectBaseUrlEurope;
+        SettingsController.CurrentSettings.StartupUserDataServerLocation = GetSelectedStartupUserDataServerLocation();
+        SettingsController.CurrentSettings.ServerType = (ServerType) ServerTypeSelection.Value;
+
+        SettingsController.CurrentSettings.IsSuggestPreReleaseUpdatesActive = IsSuggestPreReleaseUpdatesActive;
+        SetWindowsStartupSetting();
+        SettingsController.CurrentSettings.IsStartInSystemTrayActive = IsStartInSystemTrayActive;
+        SettingsController.CurrentSettings.IsOpenWithGameActive = IsOpenWithGameActive;
+        SettingsController.CurrentSettings.IsHideWithGameActive = IsHideWithGameActive;
+        SettingsController.CurrentSettings.IsStartTrackingWithGameActive = IsStartTrackingWithGameActive;
+        SettingsController.CurrentSettings.IsStopTrackingWithGameActive = IsStopTrackingWithGameActive;
+        SettingsController.CurrentSettings.IsMinimizeToSystemTrayActive = IsMinimizeToSystemTrayActive;
+        SettingsController.CurrentSettings.ExactMatchPlayerNamesLineNumber = PlayerSelectionWithSameNameInDb;
+
+        SetBackupStorageDirPath();
+        SetNaviTabVisibilities(mainWindowViewModel);
+        RefreshLocalization(mainWindowViewModel);
+        SetNotificationFilter();
+        SetIconSourceToAnotherAppToStart();
+
+        await SettingsController.SaveSettingsAsync();
+        UpdateAlbionGameProcessMonitoring();
+
+        if (HaveNetworkTrackingSettingsChanged(oldPacketProvider, oldPacketFilter, oldNetworkDevices))
+        {
+            await RestartNetworkTrackingAsync();
+        }
+    }
+
+    public void SaveSettings()
+    {
+        _ = SaveSettingsAsync();
+    }
+
+    public async Task ToggleTrackingAsync()
+    {
+        if (!ServiceLocator.IsServiceInDictionary<TrackingController>())
+        {
+            return;
+        }
+
+        try
+        {
+            var trackingController = ServiceLocator.Resolve<TrackingController>();
+            if (MainWindow?.IsTrackingActive == true)
+            {
+                trackingController.StopTracking();
+                return;
+            }
+
+            await trackingController.StartTrackingAsync();
+        }
+        catch (Exception exception)
+        {
+            Log.Error(exception, "Tracking could not be toggled from settings");
+        }
+    }
+
+    private static void UpdateAlbionGameProcessMonitoring()
+    {
+        if (!ServiceLocator.IsServiceInDictionary<AlbionGameProcessMonitor>())
+        {
+            return;
+        }
+
+        var monitor = ServiceLocator.Resolve<AlbionGameProcessMonitor>();
+        var isMonitoringRequired = AlbionGameProcessMonitor.IsMonitoringRequired(SettingsController.CurrentSettings);
+        monitor.SetMonitoringEnabled(isMonitoringRequired);
+    }
+
+    public void ReloadSettings()
+    {
+        MainTrackingCharacterName = SettingsController.CurrentSettings.MainTrackingCharacterName;
+        MainGameFolderPath = SettingsController.CurrentSettings.MainGameFolderPath;
+    }
+
+    private void SetWindowsStartupSetting()
+    {
+        if (WindowsStartupService.TrySetEnabled(IsStartWithWindowsActive))
+        {
+            SettingsController.CurrentSettings.IsStartWithWindowsActive = IsStartWithWindowsActive;
+            return;
+        }
+
+        IsStartWithWindowsActive = SettingsController.CurrentSettings.IsStartWithWindowsActive;
+        _ = MessageBox.Show(
+            LocalizationController.Translation("WINDOWS_STARTUP_SETTING_UPDATE_FAILED"),
+            LocalizationController.Translation("ERROR"));
+    }
+
+    private void RefreshLocalization(MainWindowViewModel mainWindowViewModel)
+    {
+        Translation = new SettingsWindowTranslation();
+        RefreshNaviTabVisibilityNames();
+        RefreshNotificationFilterNames();
+        InitPacketProvider();
+        InitStartupUserDataServers();
+        InitServerTypes();
+        InitDropDownDownByDays(BackupIntervalByDays);
+        BackupIntervalByDaysSelection = BackupIntervalByDays.FirstOrDefault(x => x.Value == SettingsController.CurrentSettings.BackupIntervalByDays);
+        mainWindowViewModel.RefreshLocalization();
+    }
+
+    private void RefreshNaviTabVisibilityNames()
+    {
+        SetNaviTabVisibilityName(NavigationTabFilterType.Dashboard, MainWindowTranslation.Dashboard);
+        SetNaviTabVisibilityName(NavigationTabFilterType.ItemSearch, MainWindowTranslation.ItemSearch);
+        SetNaviTabVisibilityName(NavigationTabFilterType.Logging, MainWindowTranslation.Logging);
+        SetNaviTabVisibilityName(NavigationTabFilterType.Guild, MainWindowTranslation.Guild);
+        SetNaviTabVisibilityName(NavigationTabFilterType.Dungeons, MainWindowTranslation.Dungeons);
+        SetNaviTabVisibilityName(NavigationTabFilterType.DamageMeter, MainWindowTranslation.DamageMeter);
+        SetNaviTabVisibilityName(NavigationTabFilterType.TradeMonitoring, MainWindowTranslation.TradeMonitoring);
+        SetNaviTabVisibilityName(NavigationTabFilterType.Gathering, MainWindowTranslation.Gathering);
+        SetNaviTabVisibilityName(NavigationTabFilterType.Crafting, MainWindowTranslation.Crafting);
+        SetNaviTabVisibilityName(NavigationTabFilterType.Party, MainWindowTranslation.Party);
+        SetNaviTabVisibilityName(NavigationTabFilterType.StorageHistory, MainWindowTranslation.StorageHistory);
+        SetNaviTabVisibilityName(NavigationTabFilterType.MapHistory, MainWindowTranslation.MapHistory);
+        SetNaviTabVisibilityName(NavigationTabFilterType.PlayerInformation, MainWindowTranslation.PlayerInformation);
+    }
+
+    private void SetNaviTabVisibilityName(NavigationTabFilterType navigationTabFilterType, string name)
+    {
+        var tabVisibility = TabVisibilities.FirstOrDefault(x => x.NavigationTabFilterType == navigationTabFilterType);
+        if (tabVisibility != null)
+        {
+            tabVisibility.Name = name;
+        }
+    }
+
+    private void RefreshNotificationFilterNames()
+    {
+        SetNotificationFilterName(NotificationFilterType.Trade, LocalizationController.Translation("ADDED_TRADES"));
+        SetNotificationFilterName(NotificationFilterType.TrackingStatus, LocalizationController.Translation("TRACKING_STATUS"));
+    }
+
+    private void SetNotificationFilterName(NotificationFilterType notificationFilterType, string name)
+    {
+        var notificationFilter = NotificationFilters.FirstOrDefault(x => x.NotificationFilterType == notificationFilterType);
+        if (notificationFilter != null)
+        {
+            notificationFilter.Name = name;
+        }
+    }
+
+    private void SetNaviTabVisibilities(MainWindowViewModel mainWindowViewModel)
+    {
+        SettingsController.CurrentSettings.IsDashboardNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.Dashboard)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsItemSearchNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.ItemSearch)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsLoggingNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.Logging)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsGuildTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.Guild)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsDungeonsNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.Dungeons)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsDamageMeterNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.DamageMeter)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsTradeMonitoringNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.TradeMonitoring)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsGatheringNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.Gathering)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsCraftingNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.Crafting)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsPartyNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.Party)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsStorageHistoryNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.StorageHistory)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsMapHistoryNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.MapHistory)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsPlayerInformationNaviTabActive = TabVisibilities?.FirstOrDefault(x => x?.NavigationTabFilterType == NavigationTabFilterType.PlayerInformation)?.IsSelected ?? true;
+
+        mainWindowViewModel.DashboardTabVisibility = SettingsController.CurrentSettings.IsDashboardNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.ItemSearchTabVisibility = SettingsController.CurrentSettings.IsItemSearchNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.LoggingTabVisibility = SettingsController.CurrentSettings.IsLoggingNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.DungeonsTabVisibility = SettingsController.CurrentSettings.IsDungeonsNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.DamageMeterTabVisibility = SettingsController.CurrentSettings.IsDamageMeterNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.TradeMonitoringTabVisibility = SettingsController.CurrentSettings.IsTradeMonitoringNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.GatheringTabVisibility = SettingsController.CurrentSettings.IsGatheringNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.CraftingTabVisibility = SettingsController.CurrentSettings.IsCraftingNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.PartyTabVisibility = SettingsController.CurrentSettings.IsPartyNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.StorageHistoryTabVisibility = SettingsController.CurrentSettings.IsStorageHistoryNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.MapHistoryTabVisibility = SettingsController.CurrentSettings.IsMapHistoryNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.PlayerInformationTabVisibility = SettingsController.CurrentSettings.IsPlayerInformationNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.GuildTabVisibility = SettingsController.CurrentSettings.IsGuildTabActive.BoolToVisibility();
+    }
+
+    private void SetPacketFilter()
+    {
+        if (SettingsController.CurrentSettings.PacketFilter == PacketFilter)
+        {
+            return;
+        }
+
+        SettingsController.CurrentSettings.PacketFilter = PacketFilter ?? string.Empty;
+    }
+
+    private void SetNetworkDevices()
+    {
+        if (NetworkDevices.Count == 0)
+        {
+            return;
+        }
+
+        var configuredDevices = SettingsController.CurrentSettings.NetworkDevices ?? [];
+        var visibleIdentifiers = NetworkDevices
+            .Where(device => !string.IsNullOrWhiteSpace(device.Identifier))
+            .Select(device => device.Identifier)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var networkDevices = NetworkDevices
+            .Where(device => !string.IsNullOrWhiteSpace(device.Identifier))
+            .Select(device => new NetworkDeviceSettingsObject
+            {
+                Identifier = device.Identifier,
+                Name = device.Name,
+                IsSelected = device.IsSelected == true
+            })
+            .ToList();
+
+        networkDevices.AddRange(configuredDevices
+            .Where(device => !string.IsNullOrWhiteSpace(device.Identifier)
+                             && !visibleIdentifiers.Contains(device.Identifier))
+            .Select(device => new NetworkDeviceSettingsObject
+            {
+                Identifier = device.Identifier,
+                Name = device.Name,
+                IsSelected = device.IsSelected
+            }));
+
+        SettingsController.CurrentSettings.NetworkDevices = networkDevices.All(device => device.IsSelected)
+            ? []
+            : networkDevices;
+    }
+
+    private static string GetNetworkDeviceSettingsSnapshot(IEnumerable<NetworkDeviceSettingsObject> networkDevices)
+    {
+        var persistedDevices = (networkDevices ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x?.Identifier))
+            .ToList();
+
+        if (persistedDevices.All(x => x.IsSelected))
+        {
+            return string.Empty;
+        }
+
+        return string.Join("|", persistedDevices
+            .OrderBy(x => x.Identifier, StringComparer.OrdinalIgnoreCase)
+            .Select(x => $"{x.Identifier}:{x.IsSelected}"));
+    }
+
+    private bool HaveNetworkTrackingSettingsChanged(PacketProviderKind oldPacketProvider, string oldPacketFilter, string oldNetworkDevices)
+    {
+        var newNetworkDevices = GetNetworkDeviceSettingsSnapshot(SettingsController.CurrentSettings.NetworkDevices);
+
+        return oldPacketProvider != SettingsController.CurrentSettings.PacketProvider
+               || !string.Equals(oldPacketFilter, SettingsController.CurrentSettings.PacketFilter, StringComparison.Ordinal)
+               || !string.Equals(oldNetworkDevices, newNetworkDevices, StringComparison.Ordinal);
+    }
+
+    public static async Task RestartNetworkTrackingAsync()
+    {
+        var trackingController = ServiceLocator.Resolve<TrackingController>();
+
+        if (trackingController is null)
+        {
+            return;
+        }
+
+        await trackingController.RestartTrackingAsync();
+    }
+
+    public void ResetPacketFilter()
+    {
+        const string defaultFilter = LibpcapPacketProvider.DefaultPacketFilter;
+
+        if (PacketFilter == defaultFilter)
+        {
+            return;
+        }
+
+        PacketFilter = defaultFilter;
+    }
+
+    private void SetNotificationFilter()
+    {
+        SettingsController.CurrentSettings.IsNotificationFilterTradeActive = NotificationFilters?.FirstOrDefault(x => x?.NotificationFilterType == NotificationFilterType.Trade)?.IsSelected ?? true;
+        SettingsController.CurrentSettings.IsNotificationTrackingStatusActive = NotificationFilters?.FirstOrDefault(x => x?.NotificationFilterType == NotificationFilterType.TrackingStatus)?.IsSelected ?? true;
+    }
+
+    public void ResetPlayerSelectionWithSameNameInDb()
+    {
+        const short defaultValue = 0;
+
+        if (PlayerSelectionWithSameNameInDb == defaultValue)
+        {
+            return;
+        }
+
+        PlayerSelectionWithSameNameInDb = defaultValue;
+    }
+
+    public void OpenMainGameFolderPathSelection()
+    {
+        var dialog = new VistaFolderBrowserDialog
+        {
+            Description = LocalizationController.Translation("SELECT_ALBION_ONLINE_MAIN_GAME_FOLDER"),
+            RootFolder = Environment.SpecialFolder.Desktop,
+            ShowNewFolderButton = false,
+            UseDescriptionForTitle = true,
+            Multiselect = false
+        };
+
+        if (Directory.Exists(MainGameFolderPath))
+        {
+            dialog.SelectedPath = MainGameFolderPath;
+        }
+
+        var result = dialog.ShowDialog();
+
+        if (result is not true)
+        {
+            return;
+        }
+
+        var selectedPath = dialog.SelectedPath ?? string.Empty;
+        if (Extractor.IsValidMainGameFolder(selectedPath, SettingsController.CurrentSettings.ServerType))
+        {
+            MainGameFolderPath = selectedPath;
+            return;
+        }
+
+        _ = MessageBox.Show(
+            LocalizationController.Translation("PLEASE_SELECT_A_CORRECT_FOLDER"),
+            LocalizationController.Translation("ERROR"));
+        Log.Warning("Settings validation failed. Setting={Setting}", nameof(MainGameFolderPath));
+    }
+
+    private void SetIconSourceToAnotherAppToStart()
+    {
+        AnotherAppToStartExeIcon = GetExeIcon(SettingsController.CurrentSettings.AnotherAppToStartPath);
+    }
+
+    private static BitmapImage GetExeIcon(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            Icon appIcon = Icon.ExtractAssociatedIcon(path);
+            Icon highDpiIcon = appIcon;
+            BitmapImage imageResult;
+
+            if (appIcon != null && appIcon.Handle != IntPtr.Zero)
+            {
+                highDpiIcon = Icon.FromHandle(new Icon(appIcon, new System.Drawing.Size(64, 64)).Handle);
+            }
+
+            using (MemoryStream stream = new MemoryStream())
+            {
+                highDpiIcon?.Save(stream);
+
+                stream.Seek(0, SeekOrigin.Begin);
+
+                BitmapImage bitmapImage = new BitmapImage();
+                bitmapImage.BeginInit();
+                bitmapImage.StreamSource = stream;
+                bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+                bitmapImage.EndInit();
+
+                imageResult = bitmapImage;
+            }
+
+            highDpiIcon?.Dispose();
+            appIcon?.Dispose();
+
+            return imageResult;
+        }
+        catch
+        {
+            // ignore
+        }
+
+        return null;
+    }
+
+    public struct SettingDataInformation
+    {
+        public string Name { get; set; }
+        public int Value { get; set; }
+    }
+
+    public struct SettingDataStringInformation
+    {
+        public string Name { get; set; }
+        public string Value { get; set; }
+    }
+
+    public static void OpenEventValidationWindow()
+    {
+        try
+        {
+            if (Utilities.IsWindowOpen<EventValidationWindow>())
+            {
+                var existWindow = Application.Current.Windows.OfType<EventValidationWindow>().FirstOrDefault();
+                existWindow?.Activate();
+            }
+            else
+            {
+                var window = new EventValidationWindow();
+                window.Show();
+            }
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+        }
+    }
+
+    private void SetBackupStorageDirPath()
+    {
+        BackupStorageDirectoryPath = AppDataPaths.BackupsDirectory;
+        SettingsController.CurrentSettings.BackupStorageDirectoryPath = AppDataPaths.BackupsDirectory;
+    }
+
+    public void ResetBackupStorageDirPath()
+    {
+        if (BackupStorageDirectoryPath == AppDataPaths.BackupsDirectory)
+        {
+            return;
+        }
+
+        BackupStorageDirectoryPath = AppDataPaths.BackupsDirectory;
+    }
+
+    #region Inits
+
+    private void InitLanguageFiles()
+    {
+        Languages = new ObservableCollection<FileInformation>(LocalizationController.GetLanguageInformation());
+        LanguagesSelection = Languages.FirstOrDefault(x => x.FileName == CultureInfo.DefaultThreadCurrentCulture?.TextInfo.CultureName);
+    }
+
+    private void InitNaviTabVisibilities()
+    {
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.Dashboard)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsDashboardNaviTabActive,
+            Name = MainWindowTranslation.Dashboard
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.ItemSearch)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsItemSearchNaviTabActive,
+            Name = MainWindowTranslation.ItemSearch
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.Logging)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsLoggingNaviTabActive,
+            Name = MainWindowTranslation.Logging
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.Guild)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsGuildTabActive,
+            Name = MainWindowTranslation.Guild
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.Dungeons)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsDungeonsNaviTabActive,
+            Name = MainWindowTranslation.Dungeons
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.DamageMeter)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsDamageMeterNaviTabActive,
+            Name = MainWindowTranslation.DamageMeter
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.TradeMonitoring)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsTradeMonitoringNaviTabActive,
+            Name = MainWindowTranslation.TradeMonitoring
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.Gathering)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsGatheringNaviTabActive,
+            Name = MainWindowTranslation.Gathering
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.Crafting)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsCraftingNaviTabActive,
+            Name = MainWindowTranslation.Crafting
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.Party)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsPartyNaviTabActive,
+            Name = MainWindowTranslation.Party
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.StorageHistory)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsStorageHistoryNaviTabActive,
+            Name = MainWindowTranslation.StorageHistory
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.MapHistory)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsMapHistoryNaviTabActive,
+            Name = MainWindowTranslation.MapHistory
+        });
+        TabVisibilities.Add(new TabVisibilityFilter(NavigationTabFilterType.PlayerInformation)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsPlayerInformationNaviTabActive,
+            Name = MainWindowTranslation.PlayerInformation
+        });
+
+        var mainWindowViewModel = ServiceLocator.Resolve<MainWindowViewModel>();
+        mainWindowViewModel.DashboardTabVisibility = SettingsController.CurrentSettings.IsDashboardNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.ItemSearchTabVisibility = SettingsController.CurrentSettings.IsItemSearchNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.LoggingTabVisibility = SettingsController.CurrentSettings.IsLoggingNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.DungeonsTabVisibility = SettingsController.CurrentSettings.IsDungeonsNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.DamageMeterTabVisibility = SettingsController.CurrentSettings.IsDamageMeterNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.TradeMonitoringTabVisibility = SettingsController.CurrentSettings.IsTradeMonitoringNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.GatheringTabVisibility = SettingsController.CurrentSettings.IsGatheringNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.CraftingTabVisibility = SettingsController.CurrentSettings.IsCraftingNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.PartyTabVisibility = SettingsController.CurrentSettings.IsPartyNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.StorageHistoryTabVisibility = SettingsController.CurrentSettings.IsStorageHistoryNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.MapHistoryTabVisibility = SettingsController.CurrentSettings.IsMapHistoryNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.PlayerInformationTabVisibility = SettingsController.CurrentSettings.IsPlayerInformationNaviTabActive.BoolToVisibility();
+        mainWindowViewModel.GuildTabVisibility = SettingsController.CurrentSettings.IsGuildTabActive.BoolToVisibility();
+    }
+
+    private void InitNotificationAreas()
+    {
+        NotificationFilters.Add(new NotificationFilter(NotificationFilterType.Trade)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsNotificationFilterTradeActive,
+            Name = LocalizationController.Translation("ADDED_TRADES")
+        });
+
+        NotificationFilters.Add(new NotificationFilter(NotificationFilterType.TrackingStatus)
+        {
+            IsSelected = SettingsController.CurrentSettings.IsNotificationTrackingStatusActive,
+            Name = LocalizationController.Translation("TRACKING_STATUS")
+        });
+    }
+
+    private void InitPacketProvider()
+    {
+        PacketProvider.Clear();
+        PacketProvider.Add(new SettingDataInformation { Name = $"Sockets ({LocalizationController.Translation("TOOL_MUST_BE_RUN_AS_ADMIN")})", Value = (int) PacketProviderKind.Sockets });
+        PacketProvider.Add(new SettingDataInformation { Name = "Npcap", Value = (int) PacketProviderKind.Npcap });
+        PacketProviderSelection = PacketProvider.FirstOrDefault(x => x.Value == (int) SettingsController.CurrentSettings.PacketProvider);
+    }
+
+    private void InitStartupUserDataServers()
+    {
+        StartupUserDataServers.Clear();
+        StartupUserDataServers.Add(new SettingDataInformation { Name = LocalizationController.Translation("AMERICA_SERVER"), Value = (int) ServerLocation.America });
+        StartupUserDataServers.Add(new SettingDataInformation { Name = LocalizationController.Translation("ASIA_SERVER"), Value = (int) ServerLocation.Asia });
+        StartupUserDataServers.Add(new SettingDataInformation { Name = LocalizationController.Translation("EUROPE_SERVER"), Value = (int) ServerLocation.Europe });
+
+        var selectedServer = StartupUserDataServers.FirstOrDefault(x => x.Value == (int) SettingsController.CurrentSettings.StartupUserDataServerLocation);
+        StartupUserDataServerSelection = IsKnownStartupUserDataServerValue(selectedServer.Value)
+            ? selectedServer
+            : StartupUserDataServers.First(x => x.Value == (int) ServerLocation.Europe);
+    }
+
+    private void InitServerTypes()
+    {
+        ServerTypes.Clear();
+        ServerTypes.Add(new SettingDataInformation { Name = "Live", Value = (int) ServerType.Live });
+        ServerTypes.Add(new SettingDataInformation { Name = "Stage", Value = (int) ServerType.Staging });
+        ServerTypes.Add(new SettingDataInformation { Name = "Playground", Value = (int) ServerType.Playground });
+
+        var selectedServerType = Enum.IsDefined(SettingsController.CurrentSettings.ServerType)
+            ? SettingsController.CurrentSettings.ServerType
+            : ServerType.Live;
+        ServerTypeSelection = ServerTypes.First(x => x.Value == (int) selectedServerType);
+    }
+
+    private ServerLocation GetSelectedStartupUserDataServerLocation()
+    {
+        return StartupUserDataServerSelection.Value switch
+        {
+            (int) ServerLocation.America => ServerLocation.America,
+            (int) ServerLocation.Asia => ServerLocation.Asia,
+            (int) ServerLocation.Europe => ServerLocation.Europe,
+            _ => ServerLocation.Europe
+        };
+    }
+
+    private static bool IsKnownStartupUserDataServerValue(int serverLocation)
+    {
+        return serverLocation is (int) ServerLocation.America or (int) ServerLocation.Asia or (int) ServerLocation.Europe;
+    }
+
+    private void InitNetworkDevices()
+    {
+        NetworkDevices.Clear();
+
+        try
+        {
+            var availableDevices = LibpcapPacketProvider.GetAvailableNetworkDevices();
+            var configuredDevices = SettingsController.CurrentSettings.NetworkDevices ?? new List<NetworkDeviceSettingsObject>();
+
+            foreach (var availableDevice in availableDevices)
+            {
+                var configuredDevice = configuredDevices
+                    .FirstOrDefault(x => string.Equals(x?.Identifier, availableDevice.Identifier, StringComparison.OrdinalIgnoreCase));
+
+                NetworkDevices.Add(new NetworkDeviceFilter
+                {
+                    Identifier = availableDevice.Identifier,
+                    Index = availableDevice.Index,
+                    IsSelected = configuredDevice?.IsSelected ?? true,
+                    Name = availableDevice.Name
+                });
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Warning(e, "Network devices could not be loaded from Npcap");
+        }
+    }
+
+    private void InitMaxAmountOfBackups(ICollection<SettingDataInformation> amountOfBackups)
+    {
+        amountOfBackups.Clear();
+        amountOfBackups.Add(new SettingDataInformation { Name = "5", Value = 5 });
+        amountOfBackups.Add(new SettingDataInformation { Name = "10", Value = 10 });
+        amountOfBackups.Add(new SettingDataInformation { Name = "20", Value = 20 });
+        amountOfBackups.Add(new SettingDataInformation { Name = "50", Value = 50 });
+        amountOfBackups.Add(new SettingDataInformation { Name = "100", Value = 100 });
+        amountOfBackups.Add(new SettingDataInformation { Name = "250", Value = 250 });
+    }
+
+    private static void InitDropDownDownByDays(ICollection<SettingDataInformation> updateJsonByDays)
+    {
+        updateJsonByDays.Clear();
+        updateJsonByDays.Add(new SettingDataInformation { Name = LocalizationController.Translation("EVERY_DAY"), Value = 1 });
+        updateJsonByDays.Add(new SettingDataInformation { Name = LocalizationController.Translation("EVERY_3_DAYS"), Value = 3 });
+        updateJsonByDays.Add(new SettingDataInformation { Name = LocalizationController.Translation("EVERY_7_DAYS"), Value = 7 });
+        updateJsonByDays.Add(new SettingDataInformation { Name = LocalizationController.Translation("EVERY_14_DAYS"), Value = 14 });
+        updateJsonByDays.Add(new SettingDataInformation { Name = LocalizationController.Translation("EVERY_28_DAYS"), Value = 28 });
+    }
+
+    public void PreviewAlertSound()
+    {
+        PreviewSound(AlertSoundSelection, AlertSoundVolumePercentage);
+    }
+
+    public void PreviewDeathAlertSound()
+    {
+        PreviewSound(DeathAlertSoundSelection, DeathAlertSoundVolumePercentage);
+    }
+
+    private static void PreviewSound(SoundOption soundOption, double volumePercentage)
+    {
+        if (!soundOption.IsPlayable)
+        {
+            return;
+        }
+
+        SoundController.PlayAlertSound(soundOption.FilePath, volumePercentage);
+    }
+
+    private void InitAlertSounds()
+    {
+        SoundController.InitializeSoundFilesFromDirectory();
+
+        // Item alert sounds
+        AlertSounds.Clear();
+        AlertSounds.Add(CreateNoSoundOption());
+        foreach (var sound in SoundController.Sounds.Where(x => x.FileName.Contains("alert") && !x.FileName.Contains("deathalert")))
+        {
+            AlertSounds.Add(new SoundOption(sound.FileName, sound.FileName, sound.FilePath));
+        }
+
+        AlertSoundSelection = AlertSounds.FirstOrDefault(x => x.Identifier == SettingsController.CurrentSettings.SelectedAlertSound)
+            ?? AlertSounds[0];
+
+        // Death alert sounds
+        DeathAlertSounds.Clear();
+        DeathAlertSounds.Add(CreateNoSoundOption());
+        foreach (var sound in SoundController.Sounds.Where(x => x.FileName.Contains("deathalert")))
+        {
+            DeathAlertSounds.Add(new SoundOption(sound.FileName, sound.FileName, sound.FilePath));
+        }
+
+        DeathAlertSoundSelection = DeathAlertSounds.FirstOrDefault(x => x.Identifier == SettingsController.CurrentSettings.SelectedDeathAlertSound)
+            ?? DeathAlertSounds[0];
+    }
+
+    private static SoundOption CreateNoSoundOption()
+    {
+        return new SoundOption(string.Empty, LocalizationController.Translation("NONE"), string.Empty);
+    }
+
+    private static double NormalizeSoundVolume(double volumePercentage)
+    {
+        return double.IsFinite(volumePercentage)
+            ? Math.Clamp(volumePercentage, 0, 100)
+            : DefaultSoundVolumePercentage;
+    }
+
+    #endregion
+
+    #region Bindings
+
+    public ObservableCollection<NotificationFilter> NotificationFilters
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public ObservableCollection<TabVisibilityFilter> TabVisibilities
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public ObservableCollection<SoundOption> AlertSounds
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public ObservableCollection<SoundOption> DeathAlertSounds
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public SoundOption AlertSoundSelection
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SoundOption DeathAlertSoundSelection
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double AlertSoundVolumePercentage
+    {
+        get;
+        set
+        {
+            field = NormalizeSoundVolume(value);
+            OnPropertyChanged();
+        }
+    } = DefaultSoundVolumePercentage;
+
+    public double DeathAlertSoundVolumePercentage
+    {
+        get;
+        set
+        {
+            field = NormalizeSoundVolume(value);
+            OnPropertyChanged();
+        }
+    } = DefaultSoundVolumePercentage;
+
+    public SettingDataInformation BackupIntervalByDaysSelection
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SettingDataInformation MaximumNumberOfBackupsSelection
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public ObservableCollection<SettingDataInformation> BackupIntervalByDays
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public ObservableCollection<SettingDataInformation> MaximumNumberOfBackups
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public string BackupStorageDirectoryPath
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string MainGameFolderPath
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+
+    public SettingDataInformation PacketProviderSelection
+    {
+        get;
+        set
+        {
+            field = value;
+            PacketFilterVisibility = field.Value == 2 ? Visibility.Visible : Visibility.Collapsed;
+            NetworkDevicesVisibility = field.Value == 2 ? Visibility.Visible : Visibility.Collapsed;
+            OnPropertyChanged();
+        }
+    }
+
+    public ObservableCollection<SettingDataInformation> PacketProvider
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public SettingDataInformation StartupUserDataServerSelection
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public ObservableCollection<SettingDataInformation> StartupUserDataServers
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public SettingDataInformation ServerTypeSelection
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public ObservableCollection<SettingDataInformation> ServerTypes
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public Visibility PacketFilterVisibility
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = Visibility.Collapsed;
+
+    public Visibility NetworkDevicesVisibility
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = Visibility.Collapsed;
+
+    public ObservableCollection<NetworkDeviceFilter> NetworkDevices
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = new();
+
+    public string PacketFilter
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public short PlayerSelectionWithSameNameInDb
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string MainTrackingCharacterName
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string ProxyUrlWithPort
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string DebugConsoleFilter
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public FileInformation LanguagesSelection
+    {
+        get => _languagesSelection;
+        set
+        {
+            _languagesSelection = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public ObservableCollection<FileInformation> Languages
+    {
+        get => _languages;
+        set
+        {
+            _languages = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string AnotherAppToStartPath
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public SettingsWindowTranslation Translation
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsOpenDebugConsoleWhenStartingTheToolChecked
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool ShowInfoWindowOnStartChecked
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string AlbionDataProjectBaseUrlWest
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string AlbionDataProjectBaseUrlEast
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string AlbionDataProjectBaseUrlEurope
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsSuggestPreReleaseUpdatesActive
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsStartWithWindowsActive
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsStartInSystemTrayActive
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsOpenWithGameActive
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsHideWithGameActive
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsStartTrackingWithGameActive
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsStopTrackingWithGameActive
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public MainWindowViewModel MainWindow => ServiceLocator.IsServiceInDictionary<MainWindowViewModel>()
+        ? ServiceLocator.Resolve<MainWindowViewModel>()
+        : null;
+
+    public bool IsMinimizeToSystemTrayActive
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool IsBackupNowButtonEnabled
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    } = true;
+
+    public BitmapImage AnotherAppToStartExeIcon
+    {
+        get;
+        set
+        {
+            field = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string ToolDirectory => AppDataPaths.InstallationDirectory;
+
+    public string UserDataDirectory => AppDataPaths.IsUserDataAvailable
+        ? AppDataPaths.UserDataDirectory
+        : AppDataPaths.RuntimeBaseDirectory;
+
+    #endregion Bindings
+}

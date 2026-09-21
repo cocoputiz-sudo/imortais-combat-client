@@ -1,0 +1,206 @@
+using Serilog;
+using StatisticsAnalysisTool.Common;
+using StatisticsAnalysisTool.Diagnostics;
+using StatisticsAnalysisTool.Enumerations;
+using StatisticsAnalysisTool.Network.Manager;
+using StatisticsAnalysisTool.Properties;
+using StatisticsAnalysisTool.ViewModels;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Data;
+
+namespace StatisticsAnalysisTool.Guild;
+
+public class GuildController
+{
+    private readonly TrackingController _trackingController;
+    private readonly MainWindowViewModel _mainWindowViewModel;
+    private int _currentTabId;
+
+    public GuildController(TrackingController trackingController, MainWindowViewModel mainWindowViewModel)
+    {
+        _trackingController = trackingController;
+        _mainWindowViewModel = mainWindowViewModel;
+    }
+
+    public void SetTabId(int id)
+    {
+        _currentTabId = id;
+    }
+
+    public void AddSiphonedEnergyEntry(string username, FixPoint quantity, long timestamp, bool isManualEntry = false)
+    {
+        AddSiphonedEnergyEntries(new List<string> { username }, new List<FixPoint> { quantity }, new List<long> { timestamp }, isManualEntry);
+    }
+
+    public void AddSiphonedEnergyEntries(List<string> usernames, List<FixPoint> quantities, List<long> timestamps, bool isManualEntry = false)
+    {
+        if (usernames.Count != quantities.Count || usernames.Count != timestamps.Count)
+        {
+            return;
+        }
+
+        if (!isManualEntry
+            && (_mainWindowViewModel.TrackingActivityBindings.TrackingActivityType != TrackingIconType.On || _currentTabId != 2))
+        {
+            return;
+        }
+
+        var newEntries = new List<SiphonedEnergyItem>();
+
+        for (int i = 0; i < quantities.Count; i++)
+        {
+            var siphonedEnergyEntry = new SiphonedEnergyItem()
+            {
+                GuildName = _trackingController.EntityController.LocalUserData.GuildName,
+                CharacterName = usernames[i],
+                Quantity = quantities[i],
+                Timestamp = new DateTime(timestamps[i])
+            };
+
+            if (!_mainWindowViewModel.GuildBindings.SiphonedEnergyList.Any(x =>
+                    x.CharacterName == siphonedEnergyEntry.CharacterName
+                    && x.Quantity.InternalValue == siphonedEnergyEntry.Quantity.InternalValue
+                    && x.Timestamp == siphonedEnergyEntry.Timestamp))
+            {
+                newEntries.Add(siphonedEnergyEntry);
+            }
+        }
+
+        RunOnUiThread(() =>
+        {
+            _mainWindowViewModel.GuildBindings.SiphonedEnergyList.AddRange(newEntries);
+            UpdateSiphonedEnergyOverview();
+            _mainWindowViewModel.GuildBindings.SiphonedEnergyLastUpdate = DateTime.UtcNow;
+            _mainWindowViewModel.GuildBindings.SiphonedEnergyLastUpdateVisibility = Visibility.Visible;
+        });
+    }
+
+    public void UpdateSiphonedEnergyOverview()
+    {
+        var siphonedEnergies = _mainWindowViewModel.GuildBindings.SiphonedEnergyList.ToList();
+
+        var grouped = siphonedEnergies
+            .Where(x => x.IsDisabled == false)
+            .GroupBy(x => x.CharacterName)
+            .Select(item => new SiphonedEnergyItem()
+            {
+                CharacterName = item.Key,
+                Quantity = FixPoint.FromInternalValue(item.Sum(x => x.Quantity.InternalValue)),
+                Timestamp = item.Max(x => x.Timestamp)
+            })
+            .OrderByDescending(x => x.Quantity.IntegerValue)
+            .ToList();
+
+        RunOnUiThread(() =>
+        {
+            _mainWindowViewModel.GuildBindings.SiphonedEnergyOverviewList = new ObservableRangeCollection<SiphonedEnergyItem>(grouped);
+            _mainWindowViewModel.GuildBindings.TotalSiphonedEnergyQuantity = grouped.Sum(x => x.Quantity.IntegerValue);
+        });
+    }
+
+    private static void RunOnUiThread(Action action)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.InvokeAsync(action);
+    }
+
+    public async Task RemoveTradesByIdsAsync(IEnumerable<int> hashCodes)
+    {
+        await Task.Run(async () =>
+        {
+            var itemToRemove = _mainWindowViewModel?.GuildBindings?.SiphonedEnergyList?.ToList().Where(x => hashCodes.Contains(x.GetHashCode())).ToList();
+            var newList = _mainWindowViewModel?.GuildBindings?.SiphonedEnergyList?.ToList();
+
+            if (itemToRemove != null && itemToRemove.Any())
+            {
+                foreach (var item in itemToRemove)
+                {
+                    newList?.Remove(item);
+                }
+            }
+
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                UpdateSiphonedEnergyList(newList);
+            });
+        });
+    }
+
+    private void UpdateSiphonedEnergyList(IEnumerable<SiphonedEnergyItem> updatedList)
+    {
+        var guildBindings = _mainWindowViewModel.GuildBindings;
+        guildBindings.SiphonedEnergyList.Clear();
+        guildBindings.SiphonedEnergyList.AddRange(updatedList);
+        guildBindings.SiphonedEnergyCollectionView = CollectionViewSource.GetDefaultView(guildBindings.SiphonedEnergyList) as ListCollectionView;
+
+        UpdateSiphonedEnergyOverview();
+    }
+
+    public string GetSiphonedEnergyListAsCsv()
+    {
+        try
+        {
+            const string csvHeader = "timestamp_utc;guild_name;character_name;quantity\n";
+
+            var siphonedEnergyList = _mainWindowViewModel.GuildBindings.SiphonedEnergyList;
+
+            var csvRows = siphonedEnergyList
+                .Where(x => !x.IsDisabled && !x.IsSelectedForDeletion)
+                .Select(item =>
+                    $"{item.Timestamp.ToUniversalTime():yyyy-MM-dd HH:mm:ss};" +
+                    $"{item.GuildName};" +
+                    $"{item.CharacterName};" +
+                    $"{item.Quantity.IntegerValue}"
+                );
+
+            return csvHeader + string.Join(Environment.NewLine, csvRows);
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return string.Empty;
+        }
+    }
+
+    #region Save / Load data
+
+    public async Task LoadFromFileAsync()
+    {
+        var dto = await FileController.LoadAsync<GuildDto>(
+            AppDataPaths.UserDataFile(Settings.Default.GuildFileName));
+        var guild = GuildMapping.Mapping(dto);
+
+        _mainWindowViewModel.GuildBindings.SiphonedEnergyList.Clear();
+        _mainWindowViewModel.GuildBindings.SiphonedEnergyList.AddRange(guild.SiphonedEnergies);
+        UpdateSiphonedEnergyOverview();
+    }
+
+    public async Task SaveInFileAsync()
+    {
+        if (!AppDataPaths.TryEnsureUserDataDirectory())
+        {
+            return;
+        }
+
+        await FileController.SaveAsync(new GuildDto()
+        {
+            SiphonedEnergies = _mainWindowViewModel.GuildBindings.SiphonedEnergyList.Select(GuildMapping.Mapping).ToList()
+        },
+            AppDataPaths.UserDataFile(Settings.Default.GuildFileName));
+        Log.Information("Guild data saved");
+    }
+
+    #endregion
+}

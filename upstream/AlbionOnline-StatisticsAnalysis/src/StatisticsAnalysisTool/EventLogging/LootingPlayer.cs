@@ -1,0 +1,298 @@
+using StatisticsAnalysisTool.Common;
+using StatisticsAnalysisTool.ViewModels;
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
+using System.Linq;
+using System.Windows;
+using System.Windows.Data;
+
+namespace StatisticsAnalysisTool.EventLogging;
+
+public class LootingPlayer : BaseViewModel
+{
+    private string _playerName;
+    private string _playerGuild;
+    private string _playerAlliance;
+    private ObservableCollection<LootedItem> _lootedItems = new();
+    private readonly object _lootedItemsSyncRoot = new();
+    private Visibility _lootingPlayerVisibility = Visibility.Visible;
+    private int _killCount;
+    private int _deathCount;
+
+    public LootingPlayer()
+    {
+        SubscribeLootedItems(_lootedItems);
+    }
+
+    public string PlayerName
+    {
+        get => _playerName;
+        set
+        {
+            _playerName = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayName));
+        }
+    }
+
+    public string PlayerGuild
+    {
+        get => _playerGuild;
+        set
+        {
+            _playerGuild = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayName));
+        }
+    }
+
+    public string PlayerAlliance
+    {
+        get => _playerAlliance;
+        set
+        {
+            _playerAlliance = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(DisplayName));
+        }
+    }
+
+    public string DisplayName
+        => BuildDisplayName();
+
+    public ObservableCollection<LootedItem> LootedItems
+    {
+        get => _lootedItems;
+        set
+        {
+            UnsubscribeLootedItems(_lootedItems);
+            _lootedItems = value ?? [];
+            SubscribeLootedItems(_lootedItems);
+            OnPropertyChanged();
+            NotifyLootSummaryChanged();
+        }
+    }
+
+    public Visibility LootingPlayerVisibility
+    {
+        get => _lootingPlayerVisibility;
+        set
+        {
+            if (_lootingPlayerVisibility == value)
+            {
+                return;
+            }
+
+            _lootingPlayerVisibility = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public long TotalEstimatedMarketValue
+        => GetLootedItemsSnapshot()
+            .Select(item => item.Quantity * (item.Item?.AverageEstMarketValue ?? 0))
+            .Where(estimatedMarketValue => estimatedMarketValue > 0)
+            .Sum();
+
+    public string TotalEstimatedMarketValueShortString
+        => TotalEstimatedMarketValue.ToShortNumberString();
+
+    public Visibility TotalEstimatedMarketValueVisibility
+        => TotalEstimatedMarketValue > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    public int KillCount => _killCount;
+
+    public int DeathCount => _deathCount;
+
+    public bool HasCombatEvents => KillCount > 0 || DeathCount > 0;
+
+    public bool HasLootLogEntries => HasCombatEvents
+                                     || GetLootedItemsSnapshot().Any(item => !item.IsItemFromVaultLog);
+
+    public int GrayItemCount
+        => GetLootedItemsSnapshot().Count(item => item.Status is LootedItemStatus.Lost or LootedItemStatus.Ignored);
+
+    public int GreenItemCount
+        => GetLootedItemsSnapshot().Count(item => item.Status == LootedItemStatus.Resolved);
+
+    public int BlueItemCount
+        => GetLootedItemsSnapshot().Count(item => item.Status == LootedItemStatus.Donated);
+
+    public int RedItemCount
+        => GetLootedItemsSnapshot().Count(item => item.Status == LootedItemStatus.Unknown);
+
+    private string BuildDisplayName()
+    {
+        if (string.IsNullOrWhiteSpace(PlayerName))
+        {
+            return string.Empty;
+        }
+
+        var affiliations = PlayerAffiliationFormatter.Format(PlayerGuild, PlayerAlliance);
+        return string.IsNullOrEmpty(affiliations) ? PlayerName : $"{PlayerName} ({affiliations})";
+    }
+
+    public int LootedItemCount
+    {
+        get
+        {
+            lock (_lootedItemsSyncRoot)
+            {
+                return _lootedItems.Count;
+            }
+        }
+    }
+
+    public List<LootedItem> GetLootedItemsSnapshot()
+    {
+        lock (_lootedItemsSyncRoot)
+        {
+            return _lootedItems.ToList();
+        }
+    }
+
+    public void AddLootedItem(LootedItem lootedItem)
+    {
+        if (lootedItem is null)
+        {
+            return;
+        }
+
+        lock (_lootedItemsSyncRoot)
+        {
+            _lootedItems.Add(lootedItem);
+        }
+    }
+
+    public void RemoveLootedItems(IEnumerable<LootedItem> lootedItems)
+    {
+        if (lootedItems is null)
+        {
+            return;
+        }
+
+        foreach (var lootedItem in lootedItems.ToList())
+        {
+            lock (_lootedItemsSyncRoot)
+            {
+                _lootedItems.Remove(lootedItem);
+            }
+        }
+    }
+
+    public void SetCombatCounts(int killCount, int deathCount)
+    {
+        var normalizedKillCount = Math.Max(killCount, 0);
+        var normalizedDeathCount = Math.Max(deathCount, 0);
+
+        if (_killCount != normalizedKillCount)
+        {
+            _killCount = normalizedKillCount;
+            OnPropertyChanged(nameof(KillCount));
+        }
+
+        if (_deathCount != normalizedDeathCount)
+        {
+            _deathCount = normalizedDeathCount;
+            OnPropertyChanged(nameof(DeathCount));
+        }
+
+        OnPropertyChanged(nameof(HasCombatEvents));
+        OnPropertyChanged(nameof(HasLootLogEntries));
+    }
+
+    private void SubscribeLootedItems(ObservableCollection<LootedItem> lootedItems)
+    {
+        if (lootedItems is null)
+        {
+            return;
+        }
+
+        BindingOperations.EnableCollectionSynchronization(lootedItems, _lootedItemsSyncRoot);
+        lootedItems.CollectionChanged += LootedItemsCollectionChanged;
+        lock (_lootedItemsSyncRoot)
+        {
+            foreach (var lootedItem in lootedItems)
+            {
+                lootedItem.PropertyChanged += LootedItemPropertyChanged;
+            }
+        }
+    }
+
+    private void UnsubscribeLootedItems(ObservableCollection<LootedItem> lootedItems)
+    {
+        if (lootedItems is null)
+        {
+            return;
+        }
+
+        lootedItems.CollectionChanged -= LootedItemsCollectionChanged;
+        BindingOperations.DisableCollectionSynchronization(lootedItems);
+        lock (_lootedItemsSyncRoot)
+        {
+            foreach (var lootedItem in lootedItems)
+            {
+                lootedItem.PropertyChanged -= LootedItemPropertyChanged;
+            }
+        }
+    }
+
+    private void LootedItemsCollectionChanged(object sender, NotifyCollectionChangedEventArgs args)
+    {
+        if (args.OldItems is not null)
+        {
+            foreach (LootedItem oldItem in args.OldItems)
+            {
+                oldItem.PropertyChanged -= LootedItemPropertyChanged;
+            }
+        }
+
+        if (args.NewItems is not null)
+        {
+            foreach (LootedItem newItem in args.NewItems)
+            {
+                newItem.PropertyChanged += LootedItemPropertyChanged;
+            }
+        }
+
+        NotifyLootSummaryChanged();
+    }
+
+    private void LootedItemPropertyChanged(object sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(LootedItem.ItemIndex) or nameof(LootedItem.Quantity))
+        {
+            NotifyEstimatedMarketValueChanged();
+        }
+
+        if (args.PropertyName == nameof(LootedItem.Status))
+        {
+            NotifyStatusCountsChanged();
+        }
+    }
+
+    private void NotifyLootSummaryChanged()
+    {
+        NotifyEstimatedMarketValueChanged();
+        NotifyStatusCountsChanged();
+        OnPropertyChanged(nameof(HasLootLogEntries));
+    }
+
+    private void NotifyEstimatedMarketValueChanged()
+    {
+        OnPropertyChanged(nameof(TotalEstimatedMarketValue));
+        OnPropertyChanged(nameof(TotalEstimatedMarketValueShortString));
+        OnPropertyChanged(nameof(TotalEstimatedMarketValueVisibility));
+    }
+
+    private void NotifyStatusCountsChanged()
+    {
+        OnPropertyChanged(nameof(GrayItemCount));
+        OnPropertyChanged(nameof(GreenItemCount));
+        OnPropertyChanged(nameof(BlueItemCount));
+        OnPropertyChanged(nameof(RedItemCount));
+    }
+}

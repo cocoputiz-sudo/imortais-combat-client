@@ -1,0 +1,967 @@
+<UserControl x:Class="StatisticsAnalysisTool.UserControls.TradeMonitoringControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:fa="clr-namespace:StatisticsAnalysisTool.Common.Controls"
+             xmlns:viewModels="clr-namespace:StatisticsAnalysisTool.ViewModels"
+             xmlns:vwp="clr-namespace:WpfToolkit.Controls;assembly=VirtualizingWrapPanel"
+             xmlns:trade="clr-namespace:StatisticsAnalysisTool.Trade"
+             xmlns:skia="clr-namespace:SkiaSharp.Views.WPF;assembly=SkiaSharp.Views.WPF"
+             xmlns:wpf="clr-namespace:LiveChartsCore.SkiaSharpView.WPF;assembly=LiveChartsCore.SkiaSharpView.WPF"
+             xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
+             mc:Ignorable="d" 
+             d:DesignHeight="1050" d:DesignWidth="1100"
+             d:DataContext="{d:DesignInstance Type=viewModels:MainWindowViewModel}">
+    <UserControl.Resources>
+        <trade:TradeDataTemplateSelector x:Key="TradeDataTemplateSelector"
+                                         MailMarketplaceBuyOrderExpiredTemplate="{StaticResource MailMarketplaceBuyOrderExpiredTemplate}"
+                                         MailMarketplaceBuyOrderFinishedTemplate="{StaticResource MailMarketplaceBuyOrderFinishedTemplate}"
+                                         MailMarketplaceSellOrderExpiredTemplate="{StaticResource MailMarketplaceSellOrderExpiredTemplate}"
+                                         MailMarketplaceSellOrderFinishedTemplate="{StaticResource MailMarketplaceSellOrderFinishedTemplate}"
+                                         InstantSellTemplate="{StaticResource InstantSellTemplate}" 
+                                         InstantBuyTemplate="{StaticResource InstantBuyTemplate}"
+                                         ManualSellTemplate="{StaticResource ManualSellTemplate}" 
+                                         ManualBuyTemplate="{StaticResource ManualBuyTemplate}" 
+                                         CraftingTemplate="{StaticResource CraftingTemplate}"
+                                         PlayerTradeTemplate="{StaticResource PlayerTradeTemplate}" />
+
+        <Style x:Key="TradeMonitoring.DatePicker" TargetType="{x:Type DatePicker}">
+            <Setter Property="Height" Value="{StaticResource App.ControlHeight}" />
+            <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Text.1}" />
+            <Setter Property="Background" Value="{StaticResource SolidColorBrush.Background.7}" />
+            <Setter Property="BorderBrush" Value="{StaticResource SolidColorBrush.Text.5}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+
+        <Style TargetType="{x:Type primitives:DatePickerTextBox}">
+            <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Text.1}" />
+            <Setter Property="Background" Value="{StaticResource SolidColorBrush.Background.7}" />
+            <Setter Property="BorderBrush" Value="{StaticResource SolidColorBrush.Text.5}" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type primitives:DatePickerTextBox}">
+                        <Grid Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
+                            <ScrollViewer x:Name="PART_ContentHost" Margin="0,0,0,0" VerticalAlignment="Center" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="TradeMonitoring.LocationColumnHeaderButton" TargetType="{x:Type Button}">
+            <Setter Property="OverridesDefaultStyle" Value="True" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Text.1}" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type Button}">
+                        <Border x:Name="HeaderSurface"
+                                Padding="{TemplateBinding Padding}"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="HeaderSurface"
+                                        Property="Background"
+                                        Value="{StaticResource SolidColorBrush.Background.4}" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="HeaderSurface"
+                                        Property="Background"
+                                        Value="{StaticResource SolidColorBrush.Background.2}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <DataTemplate x:Key="TradeItemRankingEntryTemplate" DataType="{x:Type trade:TradeItemRankingEntry}">
+            <Grid Margin="0,2,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="25" />
+                    <ColumnDefinition Width="38" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="{Binding RankDisplay}" Foreground="{StaticResource SolidColorBrush.Text.3}" VerticalAlignment="Top" />
+
+                <Border Grid.Column="1" Width="38" Height="38" VerticalAlignment="Center">
+                    <Image Source="{Binding ItemIcon}" Width="38" Height="38" Stretch="Uniform" />
+                </Border>
+
+                <StackPanel Grid.Column="2" Margin="5,0,0,0" Orientation="Vertical">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding TierLevelDisplay}" Margin="0,0,5,0" FontWeight="SemiBold" Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                        <TextBlock Text="{Binding ItemName}" Foreground="{StaticResource SolidColorBrush.Text.2}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding HighlightValueDisplay}" Margin="0,2,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Green.3}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHighlightValueNegative}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Red.3}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="TradeTransferRankingEntryTemplate" DataType="{x:Type trade:TradeItemRankingEntry}">
+            <Grid Margin="0,0,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="38" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="{Binding RankDisplay}" Foreground="{StaticResource SolidColorBrush.Text.3}" VerticalAlignment="Top" />
+
+                <Border Grid.Column="1" Width="38" Height="38" VerticalAlignment="Center">
+                    <Image Source="{Binding ItemIcon}" Width="38" Height="38" Stretch="Uniform" />
+                </Border>
+
+                <StackPanel Grid.Column="2" Margin="5,0,0,0" Orientation="Vertical">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding TransferQuantityPrefixDisplay}" Margin="0,0,5,0" FontWeight="SemiBold" Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                        <TextBlock Text="{Binding TierLevelDisplay}" Margin="0,0,5,0" FontWeight="SemiBold" Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                        <TextBlock Text="{Binding ItemName}" Foreground="{StaticResource SolidColorBrush.Text.2}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding HighlightValueDisplay}" Margin="0,2,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Green.3}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsHighlightValueNegative}" Value="True">
+                                        <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Red.3}" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
+        <DataTemplate x:Key="TradeVolumeRankingEntryTemplate" DataType="{x:Type trade:TradeItemRankingEntry}">
+            <Grid Margin="0,2,0,2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="25" />
+                    <ColumnDefinition Width="38" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Text="{Binding RankDisplay}" Foreground="{StaticResource SolidColorBrush.Text.3}" VerticalAlignment="Top" />
+
+                <Border Grid.Column="1" Width="38" Height="38" VerticalAlignment="Center">
+                    <Image Source="{Binding ItemIcon}" Width="38" Height="38" Stretch="Uniform" />
+                </Border>
+
+                <StackPanel Grid.Column="2" Margin="5,0,0,0" Orientation="Vertical">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding TierLevelDisplay}" Margin="0,0,5,0" FontWeight="SemiBold" Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                        <TextBlock Text="{Binding ItemName}" Foreground="{StaticResource SolidColorBrush.Text.2}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    </StackPanel>
+                    <TextBlock Text="{Binding HighlightValueDisplay}" Margin="0,2,0,0" Foreground="{StaticResource SolidColorBrush.Accent.Blue.3}" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+    </UserControl.Resources>
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="5" />
+            <RowDefinition Height="{Binding TradeMonitoringBindings.GridSplitterPosition, Mode=TwoWay, FallbackValue=125}" />
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0" Margin="15,10,15,8" Padding="0" Style="{StaticResource App.TopFilterCard}">
+            <DockPanel LastChildFill="True">
+                <Grid DockPanel.Dock="Top" Style="{StaticResource Dashboard.SectionHeader}" MouseLeftButtonDown="FilterCardToggle_OnMouseLeftButtonDown">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Margin="12,0,0,0"
+                               Text="{Binding Translation.Filter, FallbackValue=FILTER}"
+                               Style="{StaticResource Dashboard.SectionTitle}" />
+                    <fa:FontAwesomeImage Grid.Column="1">
+                        <fa:FontAwesomeImage.Style>
+                            <Style TargetType="{x:Type fa:FontAwesomeImage}" BasedOn="{StaticResource Dashboard.SectionToggleIcon}">
+                                <Setter Property="Icon" Value="SolidPlus" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding TradeMonitoringBindings.IsFilterCardExpanded}" Value="True">
+                                        <Setter Property="Icon" Value="SolidMinus" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </fa:FontAwesomeImage.Style>
+                    </fa:FontAwesomeImage>
+                </Grid>
+
+                <Border Padding="12,10"
+                        BorderBrush="{StaticResource SolidColorBrush.Background.4}"
+                        BorderThickness="0,1,0,0">
+                    <Border.Style>
+                        <Style TargetType="{x:Type Border}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding TradeMonitoringBindings.IsFilterCardExpanded}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <WrapPanel Grid.Row="0" VerticalAlignment="Bottom">
+                    <Border Style="{StaticResource App.FilterGroup}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Translation.Status, FallbackValue=STATUS}" Style="{StaticResource App.FilterLabel}" />
+                            <Button MinWidth="190" HorizontalAlignment="Stretch" Style="{StaticResource Style.Button.Neutral}"
+                                    ToolTip="{Binding TradeMonitoringBindings.TradeOptionsObject.TranslationTradeMonitoringActive, FallbackValue=TRADE__MONITORING__ACTIVE}"
+                                    Click="TradeMonitoringActivationToggle_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <fa:FontAwesomeImage Width="16" Height="16" Margin="0,0,8,0" IsHitTestVisible="False">
+                                        <fa:FontAwesomeImage.Style>
+                                            <Style TargetType="{x:Type fa:FontAwesomeImage}">
+                                                <Setter Property="Icon" Value="SolidToggleOff" />
+                                                <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Text.1}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TradeMonitoringBindings.TradeOptionsObject.IsTradeMonitoringActive}" Value="True">
+                                                        <Setter Property="Icon" Value="SolidToggleOn" />
+                                                        <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Blue.2}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </fa:FontAwesomeImage.Style>
+                                    </fa:FontAwesomeImage>
+                                    <TextBlock VerticalAlignment="Center">
+                                        <TextBlock.Style>
+                                            <Style TargetType="{x:Type TextBlock}">
+                                                <Setter Property="Text" Value="{Binding Translation.TrackingIsNotActive, FallbackValue=TRACKING__IS__NOT__ACTIVE}" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TradeMonitoringBindings.TradeOptionsObject.IsTradeMonitoringActive}" Value="True">
+                                                        <Setter Property="Text" Value="{Binding Translation.TrackingIsActive, FallbackValue=TRACKING__IS__ACTIVE}" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Width="220" Margin="0,0,12,8">
+                        <TextBlock Text="{Binding Translation.Search, FallbackValue=SEARCH}" Style="{StaticResource App.FilterLabel}" />
+                        <Grid MinHeight="34">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <fa:FontAwesomeImage Grid.Column="0" Icon="SolidMagnifyingGlass" Width="15" Height="15" Margin="0,0,8,0" VerticalAlignment="Center"
+                                              Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                            <TextBox Grid.Row="0" Grid.Column="1" Height="{StaticResource App.ControlHeight}"
+                                     Text="{Binding TradeMonitoringBindings.TradesSearchText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     TextChanged="SearchText_TextChanged" />
+                            <ProgressBar Grid.Row="1" Grid.Column="1" Height="2" IsIndeterminate="True" Visibility="{Binding TradeMonitoringBindings.FilteringIsRunningVisibility}" />
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Margin="0,0,12,8">
+                        <TextBlock Text="{Binding Translation.TimeRange, FallbackValue=TIME_RANGE}" Style="{StaticResource App.FilterLabel}" />
+                        <StackPanel Orientation="Horizontal">
+                            <DatePicker Width="112"
+                                        SelectedDate="{Binding TradeMonitoringBindings.DatePickerTradeFrom}"
+                                        SelectedDateChanged="DatePicker_OnSelectedDateChanged"
+                                        Style="{StaticResource TradeMonitoring.DatePicker}" />
+                            <TextBlock Margin="8,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{StaticResource SolidColorBrush.Text.2}"
+                                       Text="{Binding Translation.To, FallbackValue=TO}" />
+                            <DatePicker Width="112"
+                                        SelectedDate="{Binding TradeMonitoringBindings.DatePickerTradeTo}"
+                                        SelectedDateChanged="DatePicker_OnSelectedDateChanged"
+                                        Style="{StaticResource TradeMonitoring.DatePicker}" />
+                            <ItemsControl Margin="12,0,0,0"
+                                          ItemsSource="{Binding TradeMonitoringBindings.TimeRangeFilters}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type trade:TradeTimeRangeFilterOption}">
+                                        <primitives:ToggleButton Content="{Binding DisplayName}"
+                                                                 IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                 Style="{StaticResource App.FilterToggleButton}"
+                                                                 Click="TimeRangeFilter_OnClick" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Button Width="{StaticResource App.ControlHeight}" Margin="0,10,10,0" Padding="0"
+                            Style="{StaticResource Style.Button.Neutral}" ToolTip="{Binding Translation.ResetFilters, FallbackValue=RESET_FILTERS}"
+                            Click="FilterReset_Click">
+                        <fa:FontAwesomeImage Icon="SolidRotateRight" Width="14" Height="14" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                    </Button>
+
+                    <Button MinWidth="190" Margin="0,10,8,0"
+                            Content="{Binding Translation.DeleteSelectedTrades, FallbackValue=DELETE__SELECTED__TRADES}"
+                            Style="{StaticResource Style.Button.Danger}"
+                            IsEnabled="{Binding TradeMonitoringBindings.IsDeleteTradesButtonEnabled}"
+                            Click="BtnDeleteSelectedMails_Click" />
+                    <Button MinWidth="190" Margin="0,20,8,8"
+                            Content="{Binding Translation.SelectDeselectAll, FallbackValue=SELECT__DESELECT__ALL}"
+                            Style="{StaticResource Style.Button.Neutral}"
+                            Click="BtnSelectSwitchAllMails_Click" />
+                    <Grid Width="20" Height="20" Margin="0,26,0,0" VerticalAlignment="Top"
+                          MouseEnter="OpenMailMonitoringPopup_MouseEnter"
+                          MouseLeave="CloseMailMonitoringPopup_MouseLeave">
+                        <fa:FontAwesomeImage Icon="SolidCircleInfo" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                    </Grid>
+                </WrapPanel>
+
+                <Border Grid.Row="1" Padding="0,5,0,0" BorderBrush="{StaticResource SolidColorBrush.Background.4}">
+                    <WrapPanel>
+                        <StackPanel Margin="0,0,15,0">
+                            <TextBlock Text="{Binding Translation.Tier, FallbackValue=TIER}" Style="{StaticResource App.FilterLabel}" />
+                            <ItemsControl ItemsSource="{Binding TradeMonitoringBindings.TierFilters}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type trade:TradeNumericFilterOption}">
+                                        <primitives:ToggleButton Content="{Binding DisplayName}"
+                                                                 IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                 Style="{StaticResource App.FilterToggleButton}"
+                                                                 Click="TierFilter_OnClick" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <StackPanel>
+                            <TextBlock Text="{Binding Translation.Enchantment, FallbackValue=ENCHANTMENT}" Style="{StaticResource App.FilterLabel}" />
+                            <ItemsControl ItemsSource="{Binding TradeMonitoringBindings.EnchantmentFilters}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type trade:TradeNumericFilterOption}">
+                                        <primitives:ToggleButton Content="{Binding DisplayName}"
+                                                                 IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                 Style="{StaticResource App.FilterToggleButton}"
+                                                                 Click="EnchantmentFilter_OnClick" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </WrapPanel>
+                </Border>
+
+                <Border Grid.Row="2" Padding="0,5,0,0" BorderBrush="{StaticResource SolidColorBrush.Background.4}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding Translation.Locations, FallbackValue=LOCATIONS}" Style="{StaticResource App.FilterLabel}" />
+                        <ItemsControl ItemsSource="{Binding TradeMonitoringBindings.LocationFilters}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type trade:TradeLocationFilterOption}">
+                                    <primitives:ToggleButton Content="{Binding DisplayName}"
+                                                             IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                             Style="{StaticResource App.FilterToggleButton}"
+                                                             Click="LocationFilter_OnClick" />
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+                    </Grid>
+                </Border>
+            </DockPanel>
+        </Border>
+
+        <TabControl Grid.Row="1" Margin="0" Style="{StaticResource Dashboard.ContentTabControl}" ItemContainerStyle="{StaticResource Dashboard.ContentTabItem}">
+            <TabItem Margin="15,0,0,0" Header="{Binding Translation.TradeOverview, FallbackValue=TRADE_OVERVIEW}">
+                <ScrollViewer Margin="6,5,6,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <StackPanel MinWidth="700">
+                        <ContentControl ContentTemplate="{StaticResource MailStatsObjectTemplate}" Content="{Binding TradeMonitoringBindings.TradeStatsObject}" />
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Margin="0,0,4,0" Padding="12" Style="{StaticResource Dashboard.Card}">
+                                <ContentControl ContentTemplate="{StaticResource ManuallyMailMenuTemplate}" Content="{Binding TradeMonitoringBindings.ManuallyTradeMenuObject}" />
+                            </Border>
+
+                            <Border Grid.Column="1" Margin="4,0,0,0" Padding="12" Style="{StaticResource Dashboard.Card}">
+                                <ContentControl ContentTemplate="{StaticResource TradeExportTemplate}" Content="{Binding TradeMonitoringBindings.TradeExportTemplateObject}" />
+                            </Border>
+                        </Grid>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="{Binding Translation.ProfitOverTime, FallbackValue=PROFIT_OVER_TIME}">
+                <ScrollViewer x:Name="DiagramsScrollViewer" Margin="8" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <Grid MinWidth="1025">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+
+                        <Border Margin="0,0,4,0" Padding="12" Style="{StaticResource Dashboard.Section}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="300" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="{Binding TradeMonitoringBindings.ProfitOverTimeChartTitle, FallbackValue=PROFIT_OVER_TIME}"
+                                           Style="{StaticResource Dashboard.SectionTitle}" />
+
+                                <StackPanel Grid.Row="1" Margin="0,10,0,10" Orientation="Horizontal">
+                                    <ComboBox Width="160"
+                                              ItemsSource="{Binding TradeMonitoringBindings.ProfitOverTimeAggregationFilters}"
+                                              SelectedValue="{Binding TradeMonitoringBindings.SelectedProfitOverTimeAggregation, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Key"
+                                              DisplayMemberPath="Value"
+                                              SelectionChanged="ProfitOverTimeAggregation_OnSelectionChanged" />
+                                </StackPanel>
+
+                                <Border Grid.Row="2" Padding="6" Style="{StaticResource Dashboard.Card}">
+                                    <wpf:CartesianChart Background="Transparent"
+                                                        DrawMarginFrame="{x:Null}"
+                                                        FindingStrategy="ExactMatchTakeClosest"
+                                                        LegendPosition="Hidden"
+                                                        PreviewMouseWheel="DiagramsChart_OnPreviewMouseWheel"
+                                                        Series="{Binding TradeMonitoringBindings.ProfitOverTimeSeries}"
+                                                        TooltipPosition="Center"
+                                                        XAxes="{Binding TradeMonitoringBindings.ProfitOverTimeXAxes}"
+                                                        YAxes="{Binding TradeMonitoringBindings.ProfitOverTimeYAxes}" />
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Column="1"
+                                Margin="4,0,0,0"
+                                Padding="12"
+                                Style="{StaticResource Dashboard.Section}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="300" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="{Binding TradeMonitoringBindings.ProfitByTimeOfDayChartTitle, FallbackValue=PROFIT_BY_TIME_OF_DAY}"
+                                           Style="{StaticResource Dashboard.SectionTitle}" />
+
+                                <StackPanel Grid.Row="1"
+                                            Margin="0,10,0,10"
+                                            Orientation="Horizontal">
+                                    <ComboBox Width="140"
+                                              ItemsSource="{Binding TradeMonitoringBindings.ProfitByTimeOfDayChartModeFilters}"
+                                              SelectedValue="{Binding TradeMonitoringBindings.SelectedProfitByTimeOfDayChartMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Key"
+                                              DisplayMemberPath="Value"
+                                              SelectionChanged="ProfitByTimeOfDayChartMode_OnSelectionChanged" />
+                                    <ComboBox Width="210"
+                                              Margin="10,0,0,0"
+                                              ItemsSource="{Binding TradeMonitoringBindings.ProfitByTimeOfDayMetricFilters}"
+                                              SelectedValue="{Binding TradeMonitoringBindings.SelectedProfitByTimeOfDayMetric, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Key"
+                                              DisplayMemberPath="Value"
+                                              SelectionChanged="ProfitByTimeOfDayMetric_OnSelectionChanged" />
+                                </StackPanel>
+
+                                <Border Grid.Row="2"
+                                        Padding="6"
+                                        Style="{StaticResource Dashboard.Card}">
+                                    <Grid>
+                                        <skia:SKElement x:Name="ProfitByTimeOfDayHeatmap"
+                                                        PaintSurface="ProfitByTimeOfDayHeatmap_OnPaintSurface"
+                                                        MouseMove="ProfitByTimeOfDayHeatmap_OnMouseMove"
+                                                        MouseLeave="ProfitByTimeOfDayHeatmap_OnMouseLeave"
+                                                        PreviewMouseWheel="DiagramsChart_OnPreviewMouseWheel"
+                                                        Visibility="{Binding TradeMonitoringBindings.ProfitByTimeOfDayHeatmapVisibility}" />
+
+                                        <wpf:CartesianChart Background="Transparent"
+                                                            DrawMarginFrame="{x:Null}"
+                                                            FindingStrategy="ExactMatchTakeClosest"
+                                                            LegendPosition="Hidden"
+                                                            PreviewMouseWheel="DiagramsChart_OnPreviewMouseWheel"
+                                                            Series="{Binding TradeMonitoringBindings.ProfitByTimeOfDaySeries}"
+                                                            TooltipPosition="Center"
+                                                            Visibility="{Binding TradeMonitoringBindings.ProfitByTimeOfDayBarChartVisibility}"
+                                                            XAxes="{Binding TradeMonitoringBindings.ProfitByTimeOfDayXAxes}"
+                                                            YAxes="{Binding TradeMonitoringBindings.ProfitByTimeOfDayYAxes}" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="{Binding Translation.TopItemRanking, FallbackValue=TOP_ITEM_RANKING}">
+                <ScrollViewer x:Name="TopItemRankingScrollViewer"
+                              Margin="8"
+                              HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Auto">
+                    <Grid MinWidth="1025">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border Margin="0,0,4,8"
+                                Padding="12"
+                                Style="{StaticResource Dashboard.Section}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="{Binding Translation.TopTransferByProfit, FallbackValue=TOP_TRANSFER_BY_PROFIT}"
+                                           Style="{StaticResource Dashboard.SectionTitle}" />
+
+                                <ListBox Grid.Row="1"
+                                         Margin="0,12,0,0"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Focusable="False"
+                                         IsHitTestVisible="False"
+                                         IsTabStop="False"
+                                         ItemTemplate="{StaticResource TradeTransferRankingEntryTemplate}"
+                                         ItemsSource="{Binding TradeMonitoringBindings.TopItemsByProfit}"
+                                         PreviewMouseWheel="TopItemRankingList_OnPreviewMouseWheel"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="0" Grid.Column="1" Margin="4,0,0,8" Padding="12" Style="{StaticResource Dashboard.Section}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="{Binding Translation.TopTransferByLoss, FallbackValue=TOP_TRANSFER_BY_LOSS}" Style="{StaticResource Dashboard.SectionTitle}" />
+
+                                <ListBox Grid.Row="1"
+                                         Margin="0,12,0,0"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Focusable="False"
+                                         IsHitTestVisible="False"
+                                         IsTabStop="False"
+                                         ItemTemplate="{StaticResource TradeTransferRankingEntryTemplate}"
+                                         ItemsSource="{Binding TradeMonitoringBindings.TopItemsByLoss}"
+                                         PreviewMouseWheel="TopItemRankingList_OnPreviewMouseWheel"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Grid.Column="0" Margin="0,0,4,8" Padding="12" Style="{StaticResource Dashboard.Section}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="{Binding Translation.TopSoldItemsByVolume, FallbackValue=TOP_SOLD_ITEMS_BY_VOLUME}"
+                                           Style="{StaticResource Dashboard.SectionTitle}" />
+
+                                <ListBox Grid.Row="1"
+                                         Margin="0,12,0,0"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Focusable="False"
+                                         IsHitTestVisible="False"
+                                         IsTabStop="False"
+                                         ItemTemplate="{StaticResource TradeVolumeRankingEntryTemplate}"
+                                         ItemsSource="{Binding TradeMonitoringBindings.TopSoldItemsByVolume}"
+                                         PreviewMouseWheel="TopItemRankingList_OnPreviewMouseWheel"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Grid.Column="1" Margin="4,0,0,8" Padding="12" Style="{StaticResource Dashboard.Section}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="{Binding Translation.TopBoughtItemsByVolume, FallbackValue=TOP_BOUGHT_ITEMS_BY_VOLUME}"
+                                           Style="{StaticResource Dashboard.SectionTitle}" />
+
+                                <ListBox Grid.Row="1"
+                                         Margin="0,12,0,0"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Focusable="False"
+                                         IsHitTestVisible="False"
+                                         IsTabStop="False"
+                                         ItemTemplate="{StaticResource TradeVolumeRankingEntryTemplate}"
+                                         ItemsSource="{Binding TradeMonitoringBindings.TopBoughtItemsByVolume}"
+                                         PreviewMouseWheel="TopItemRankingList_OnPreviewMouseWheel"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2" Grid.ColumnSpan="2" Grid.Column="0" Padding="12" Style="{StaticResource Dashboard.Section}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="*" />
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Text="{Binding Translation.TopItemsByRoi, FallbackValue=TOP_ITEMS_BY_ROI}"
+                                           Style="{StaticResource Dashboard.SectionTitle}" />
+
+                                <ListBox Grid.Row="1"
+                                         Margin="0,12,0,0"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Focusable="False"
+                                         IsHitTestVisible="False"
+                                         IsTabStop="False"
+                                         ItemTemplate="{StaticResource TradeItemRankingEntryTemplate}"
+                                         ItemsSource="{Binding TradeMonitoringBindings.TopItemsByRoi}"
+                                         PreviewMouseWheel="TopItemRankingList_OnPreviewMouseWheel"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         ScrollViewer.VerticalScrollBarVisibility="Disabled" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="{Binding Translation.Locations, FallbackValue=LOCATIONS}">
+                <ScrollViewer Margin="8" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <Border MinWidth="1025" Style="{StaticResource App.FilterCard}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Margin="0,0,0,10"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource SolidColorBrush.Text.1}"
+                                       Text="{Binding Translation.TradingActivityByLocation, FallbackValue=TRADING_ACTIVITY_BY_LOCATION}" />
+
+                            <Border Grid.Row="1"
+                                    Padding="10,8"
+                                    Background="{StaticResource SolidColorBrush.Background.3}"
+                                    BorderBrush="{StaticResource SolidColorBrush.Background.4}"
+                                    BorderThickness="1">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="155" />
+                                        <ColumnDefinition Width="145" />
+                                        <ColumnDefinition Width="145" />
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="115" />
+                                        <ColumnDefinition Width="205" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button HorizontalContentAlignment="Left"
+                                            Tag="LocationName"
+                                            Click="LocationColumnHeader_OnClick"
+                                            Style="{StaticResource TradeMonitoring.LocationColumnHeaderButton}">
+                                        <TextBlock VerticalAlignment="Center"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding Translation.Location, FallbackValue=LOCATION}" />
+                                    </Button>
+
+                                    <Button Grid.Column="1"
+                                            Tag="SalesCount"
+                                            Click="LocationColumnHeader_OnClick"
+                                            Style="{StaticResource TradeMonitoring.LocationColumnHeaderButton}">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock HorizontalAlignment="Center"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding Translation.Sales, FallbackValue=SALES}" />
+                                            <TextBlock HorizontalAlignment="Center"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource SolidColorBrush.Text.3}">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}({0} / {1})">
+                                                        <Binding Path="Translation.Count" />
+                                                        <Binding Path="Translation.Value" />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button Grid.Column="2"
+                                            Tag="PurchasesCount"
+                                            Click="LocationColumnHeader_OnClick"
+                                            Style="{StaticResource TradeMonitoring.LocationColumnHeaderButton}">
+                                        <StackPanel HorizontalAlignment="Center">
+                                            <TextBlock HorizontalAlignment="Center"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding Translation.Purchases, FallbackValue=PURCHASES}" />
+                                            <TextBlock HorizontalAlignment="Center"
+                                                       FontSize="10"
+                                                       Foreground="{StaticResource SolidColorBrush.Text.3}">
+                                                <TextBlock.Text>
+                                                    <MultiBinding StringFormat="{}({0} / {1})">
+                                                        <Binding Path="Translation.Count" />
+                                                        <Binding Path="Translation.Value" />
+                                                    </MultiBinding>
+                                                </TextBlock.Text>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Button Grid.Column="3"
+                                            HorizontalContentAlignment="Right"
+                                            Tag="NetProfit"
+                                            Click="LocationColumnHeader_OnClick"
+                                            Style="{StaticResource TradeMonitoring.LocationColumnHeaderButton}">
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="{Binding Translation.NetProfit, FallbackValue=NET_PROFIT}" />
+                                    </Button>
+                                    <Button Grid.Column="4"
+                                            HorizontalContentAlignment="Right"
+                                            Tag="Margin"
+                                            Click="LocationColumnHeader_OnClick"
+                                            Style="{StaticResource TradeMonitoring.LocationColumnHeaderButton}">
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="{Binding Translation.Margin, FallbackValue=MARGIN}" />
+                                    </Button>
+                                    <Button Grid.Column="5"
+                                            HorizontalContentAlignment="Right"
+                                            Tag="TaxPaid"
+                                            Click="LocationColumnHeader_OnClick"
+                                            Style="{StaticResource TradeMonitoring.LocationColumnHeaderButton}">
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="{Binding Translation.TaxPaid, FallbackValue=TAX_PAID}" />
+                                    </Button>
+                                    <Button Grid.Column="6"
+                                            Margin="18,0,0,0"
+                                            HorizontalContentAlignment="Left"
+                                            Tag="MostTradedCategory"
+                                            Click="LocationColumnHeader_OnClick"
+                                            Style="{StaticResource TradeMonitoring.LocationColumnHeaderButton}">
+                                        <TextBlock FontWeight="SemiBold"
+                                                   Text="{Binding Translation.MostTradedCategory, FallbackValue=MOST_TRADED_CATEGORY}" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+
+                            <ItemsControl Grid.Row="2" ItemsSource="{Binding TradeMonitoringBindings.LocationStatistics}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type trade:TradeLocationStatisticsEntry}">
+                                        <Border Padding="10,9"
+                                                BorderBrush="{StaticResource SolidColorBrush.Background.4}"
+                                                BorderThickness="1,0,1,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="155" />
+                                                    <ColumnDefinition Width="145" />
+                                                    <ColumnDefinition Width="145" />
+                                                    <ColumnDefinition Width="120" />
+                                                    <ColumnDefinition Width="90" />
+                                                    <ColumnDefinition Width="115" />
+                                                    <ColumnDefinition Width="205" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <TextBlock VerticalAlignment="Center"
+                                                           FontWeight="SemiBold"
+                                                           Text="{Binding LocationName}">
+                                                    <TextBlock.Foreground>
+                                                        <SolidColorBrush Color="{Binding LocationColor}" />
+                                                    </TextBlock.Foreground>
+                                                </TextBlock>
+
+                                                <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                                                    <TextBlock HorizontalAlignment="Right"
+                                                               Foreground="{StaticResource SolidColorBrush.Text.2}"
+                                                               Text="{Binding SalesCount, StringFormat='{}{0:N0}'}" />
+                                                    <TextBlock HorizontalAlignment="Right"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource SolidColorBrush.Text.3}"
+                                                               Text="{Binding SalesValue, StringFormat='{}{0:N0}'}" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2" HorizontalAlignment="Right">
+                                                    <TextBlock HorizontalAlignment="Right"
+                                                               Foreground="{StaticResource SolidColorBrush.Text.2}"
+                                                               Text="{Binding PurchasesCount, StringFormat='{}{0:N0}'}" />
+                                                    <TextBlock HorizontalAlignment="Right"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource SolidColorBrush.Text.3}"
+                                                               Text="{Binding PurchasesValue, StringFormat='{}{0:N0}'}" />
+                                                </StackPanel>
+
+                                                <TextBlock Grid.Column="3"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"
+                                                           Text="{Binding NetProfit, StringFormat='{}{0:N0}'}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="{x:Type TextBlock}">
+                                                            <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Green.3}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsNetProfitNegative}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Red.3}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <TextBlock Grid.Column="4"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"
+                                                           Text="{Binding Margin, StringFormat='{}{0:N1}%'}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="{x:Type TextBlock}">
+                                                            <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Green.3}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsMarginNegative}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource SolidColorBrush.Accent.Red.3}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <TextBlock Grid.Column="5"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource SolidColorBrush.Accent.Red.3}"
+                                                           Text="{Binding TaxPaidDisplayValue, StringFormat='{}{0:N0}'}" />
+                                                <TextBlock Grid.Column="6"
+                                                           Margin="18,0,0,0"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{StaticResource SolidColorBrush.Text.2}"
+                                                           Text="{Binding MostTradedCategory}"
+                                                           TextTrimming="CharacterEllipsis" />
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Grid>
+                    </Border>
+                </ScrollViewer>
+            </TabItem>
+            <TabItem Header="{Binding Translation.Settings, FallbackValue=SETTINGS}">
+                <ScrollViewer Margin="8" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                    <ContentControl MinWidth="1025" ContentTemplate="{StaticResource MailOptionsObjectTemplate}" Content="{Binding TradeMonitoringBindings.TradeOptionsObject}" />
+                </ScrollViewer>
+            </TabItem>
+
+        </TabControl>
+
+        <GridSplitter Grid.Row="2" Margin="8,0" HorizontalAlignment="Stretch" ResizeDirection="Rows" ResizeBehavior="PreviousAndNext" Background="{StaticResource SolidColorBrush.Background.4}" />
+
+        <Border Grid.Row="3" Margin="8,0,8,4" Padding="0" Style="{StaticResource Dashboard.Section}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="32" />
+                </Grid.RowDefinitions>
+
+                <vwp:VirtualizingItemsControl Grid.Row="0"
+                                              ItemsSource="{Binding TradeMonitoringBindings.TradeCollectionView, IsAsync=True, Mode=OneWay}"
+                                              ItemTemplateSelector="{StaticResource TradeDataTemplateSelector}"
+                                              VirtualizingPanel.CacheLengthUnit="Item"
+                                              VirtualizingPanel.CacheLength="10,10"
+                                              VirtualizingPanel.ScrollUnit="Pixel"
+                                              VirtualizingPanel.VirtualizationMode="Recycling"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                              ScrollViewer.VerticalScrollBarVisibility="Visible" />
+
+                <Border Grid.Row="1" Padding="10,0" Background="{StaticResource SolidColorBrush.Background.3}" BorderBrush="{StaticResource SolidColorBrush.Background.4}"
+                        BorderThickness="0,0,0,1">
+                    <StackPanel HorizontalAlignment="Right" Orientation="Horizontal">
+                        <TextBlock Margin="0,0,8,0"
+                                   VerticalAlignment="Center"
+                                   Foreground="{StaticResource SolidColorBrush.Text.3}">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0} / {1}" FallbackValue="0 / 0">
+                                    <Binding Path="TradeMonitoringBindings.CurrentTradeCounts" IsAsync="True" Mode="OneWay" />
+                                    <Binding Path="TradeMonitoringBindings.TotalTradeCounts" IsAsync="True" Mode="OneWay" />
+                                </MultiBinding>
+                            </TextBlock.Text>
+                        </TextBlock>
+                        <fa:FontAwesomeImage Width="16"
+                                          Height="16"
+                                          VerticalAlignment="Center"
+                                          Icon="SolidRectangleList"
+                                          Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Grid Grid.Row="0" Grid.RowSpan="4" Panel.ZIndex="10"
+              Visibility="{Binding TradeMonitoringBindings.IsTradeMonitoringPopupVisible, FallbackValue=Collapsed}"
+              Margin="8,140,8,0" Background="{StaticResource SolidColorBrush.Background.2}">
+            <StackPanel CanHorizontallyScroll="False" CanVerticallyScroll="True" Margin="10,0">
+                <DockPanel Margin="0,0,0,16">
+                    <Grid Height="16" Width="16" Margin="0,3,10,0" VerticalAlignment="Top">
+                        <fa:FontAwesomeImage Icon="RegularCircleDot" Foreground="{StaticResource SolidColorBrush.Accent.Blue.3}" />
+                    </Grid>
+                    <TextBlock Text="{Binding Translation.TradeMonitoringDescription1}" Foreground="{StaticResource SolidColorBrush.Text.1}" 
+                               FontSize="16" TextWrapping="Wrap" Width="auto" />
+                </DockPanel>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</UserControl>

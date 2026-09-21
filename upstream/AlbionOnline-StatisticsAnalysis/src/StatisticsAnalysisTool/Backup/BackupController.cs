@@ -1,0 +1,190 @@
+﻿using Serilog;
+using StatisticsAnalysisTool.Common;
+using StatisticsAnalysisTool.Common.UserSettings;
+using StatisticsAnalysisTool.Localization;
+using StatisticsAnalysisTool.Notification;
+using StatisticsAnalysisTool.Properties;
+using System;
+using System.IO;
+using System.IO.Compression;
+using System.Linq;
+using System.Reflection;
+using System.Threading.Tasks;
+using StatisticsAnalysisTool.Diagnostics;
+
+namespace StatisticsAnalysisTool.Backup;
+
+public static class BackupController
+{
+    private static bool _isBackupRunning;
+    
+    public static bool Save()
+    {
+        if (_isBackupRunning)
+        {
+            return false;
+        }
+
+        _isBackupRunning = true;
+
+        if (!CreateBackupDirWhenNotExist())
+        {
+            _isBackupRunning = false;
+            return false;
+        }
+
+        var backupDirPath = AppDataPaths.BackupsDirectory;
+        var backupFilePath = Path.Combine(backupDirPath, GetBackupFileName());
+
+        try
+        {
+            var sourceFolderPaths = AppDataPaths.ServerUserDataDirectories
+                .Where(Directory.Exists)
+                .ToList();
+
+            if (sourceFolderPaths.Count == 0)
+            {
+                _isBackupRunning = false;
+                return false;
+            }
+
+            using var zipArchive = ZipFile.Open(backupFilePath, ZipArchiveMode.Create);
+            foreach (var sourceFolderPath in sourceFolderPaths)
+            {
+                foreach (var file in Directory.GetFiles(sourceFolderPath, "*.json", SearchOption.AllDirectories))
+                {
+                    var serverDirectoryName = Path.GetFileName(sourceFolderPath);
+                    var relativeFilePath = Path.GetRelativePath(sourceFolderPath, file);
+                    var entryName = Path.Combine(serverDirectoryName, relativeFilePath).Replace(Path.DirectorySeparatorChar, '/');
+                    zipArchive.CreateEntryFromFile(file, entryName);
+                }
+            }
+
+            DebugConsole.WriteInfo(MethodBase.GetCurrentMethod()?.DeclaringType, LocalizationController.Translation("BACKUP_CREATED"));
+            _ = ServiceLocator.Resolve<SatNotificationManager>()
+                .ShowTrackingStatusAsync(LocalizationController.Translation("BACKUP_CREATED"), LocalizationController.Translation("A_BACKUP_HAS_BEEN_CREATED"));
+            _isBackupRunning = false;
+            return true;
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            _isBackupRunning = false;
+            return false;
+        }
+    }
+
+    private static string GetBackupFileName()
+    {
+        var date = DateTime.UtcNow;
+        var secondsOfDay = (int) Math.Round((date - date.Date).TotalMilliseconds);
+        return $"{date:yyyy}{date:MM}{date:dd}-{secondsOfDay}-UserData-backup.zip";
+    }
+
+    public static bool ExistBackupOnSettingConditions()
+    {
+        var backupDirPath = AppDataPaths.BackupsDirectory;
+
+        if (!Directory.Exists(backupDirPath))
+        {
+            return false;
+        }
+
+        var backupFiles = Directory.GetFiles(backupDirPath, "*.zip")
+            .Select(filePath => new FileInfo(filePath))
+            .OrderByDescending(fileInfo => fileInfo.LastWriteTimeUtc)
+            .ToList();
+
+        if (backupFiles.Count == 0)
+        {
+            return false;
+        }
+
+        var newestBackup = backupFiles.FirstOrDefault();
+
+        if (newestBackup == null)
+        {
+            return false;
+        }
+
+        var currentDate = DateTime.UtcNow;
+
+        var sevenDaysAgo = currentDate.AddDays(SettingsController.CurrentSettings.BackupIntervalByDays);
+        return newestBackup.LastWriteTimeUtc >= sevenDaysAgo;
+    }
+
+    public static async Task DeleteOldestBackupsIfNeededAsync()
+    {
+        var backupDirPath = AppDataPaths.BackupsDirectory;
+
+        if (!Directory.Exists(backupDirPath))
+        {
+            return;
+        }
+
+        var maxBackups = SettingsController.CurrentSettings.MaximumNumberOfBackups;
+        if (maxBackups <= 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var backupFiles = Directory.GetFiles(backupDirPath, "*.zip")
+                .Select(filePath => new FileInfo(filePath))
+                .OrderBy(fileInfo => fileInfo.LastWriteTimeUtc)
+                .ToList();
+
+            if (backupFiles.Count <= maxBackups)
+            {
+                return;
+            }
+
+            int backupsToDeleteCount = backupFiles.Count - maxBackups;
+            for (int i = 0; i < backupsToDeleteCount; i++)
+            {
+                await DeleteBackupAsync(backupFiles[i].FullName);
+            }
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+        }
+    }
+
+    private static async Task DeleteBackupAsync(string filePath)
+    {
+        try
+        {
+            await Task.Run(() => File.Delete(filePath));
+        }
+        catch (IOException e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+        }
+    }
+
+    private static bool CreateBackupDirWhenNotExist()
+    {
+        try
+        {
+            var backupDirPath = AppDataPaths.BackupsDirectory;
+
+            if (string.IsNullOrEmpty(SettingsController.CurrentSettings.BackupStorageDirectoryPath))
+            {
+                SettingsController.CurrentSettings.BackupStorageDirectoryPath = backupDirPath;
+            }
+            
+            return DirectoryController.CreateDirectoryWhenNotExists(backupDirPath);
+        }
+        catch (IOException e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return false;
+        }
+    }
+}

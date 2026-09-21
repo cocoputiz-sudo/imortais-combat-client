@@ -1,0 +1,78 @@
+using FluentAssertions;
+using NUnit.Framework;
+using StatisticsAnalysisTool.Common.UserSettings;
+using System.Text.Json;
+
+namespace StatisticsAnalysisTool.UnitTests.Common;
+
+[TestFixture]
+public class SettingsObjectTests
+{
+    [Test]
+    public void SettingsObject_WithoutDungeonTrackingSetting_ShouldKeepDungeonTrackingEnabled()
+    {
+        var result = JsonSerializer.Deserialize<SettingsObject>("{}");
+
+        result.Should().NotBeNull();
+        result!.IsDungeonTrackingActive.Should().BeTrue();
+    }
+
+    [Test]
+    public void SettingsObject_WithoutLoggingTrackingSetting_ShouldKeepLoggingTrackingEnabled()
+    {
+        var result = JsonSerializer.Deserialize<SettingsObject>("{}");
+
+        result.Should().NotBeNull();
+        result!.IsLoggingTrackingActive.Should().BeTrue();
+    }
+
+    [Test]
+    public void SettingsObject_WithoutLootComparatorTrackingSetting_ShouldKeepLootComparatorTrackingEnabled()
+    {
+        var result = JsonSerializer.Deserialize<SettingsObject>("{}");
+
+        result.Should().NotBeNull();
+        result!.IsLootComparatorTrackingActive.Should().BeTrue();
+    }
+
+    [Test]
+    public void SettingsObject_WithNetworkDevices_ShouldSerializeAndDeserialize()
+    {
+        var settings = new SettingsObject
+        {
+            NetworkDevices =
+            [
+                new NetworkDeviceSettingsObject
+                {
+                    Identifier = "\\Device\\NPF_Test",
+                    Name = "Test network adapter",
+                    IsSelected = true
+                }
+            ]
+        };
+
+        var json = JsonSerializer.Serialize(settings);
+        var result = JsonSerializer.Deserialize<SettingsObject>(json);
+
+        result.Should().NotBeNull();
+        result!.NetworkDevices.Should().ContainSingle();
+        result.NetworkDevices[0].Identifier.Should().Be("\\Device\\NPF_Test");
+        result.NetworkDevices[0].Name.Should().Be("Test network adapter");
+        result.NetworkDevices[0].IsSelected.Should().BeTrue();
+    }
+
+    [Test]
+    public void SettingsObject_WithoutWindowBehaviorSettings_ShouldKeepAllWindowAutomationDisabled()
+    {
+        var result = JsonSerializer.Deserialize<SettingsObject>("{}");
+
+        result.Should().NotBeNull();
+        result!.IsStartWithWindowsActive.Should().BeFalse();
+        result.IsStartInSystemTrayActive.Should().BeFalse();
+        result.IsOpenWithGameActive.Should().BeFalse();
+        result.IsHideWithGameActive.Should().BeFalse();
+        result.IsStartTrackingWithGameActive.Should().BeFalse();
+        result.IsStopTrackingWithGameActive.Should().BeFalse();
+        result.IsMinimizeToSystemTrayActive.Should().BeFalse();
+    }
+}

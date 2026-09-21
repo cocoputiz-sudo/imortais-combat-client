@@ -10,4 +10,8 @@ outbox.ndjson
 *.snk
 .env
 secrets.*
-upstream/
+
+
+dist/
+*.backup
+.imortais-backup-*/

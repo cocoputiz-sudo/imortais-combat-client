@@ -1,0 +1,183 @@
+using Serilog;
+using StatisticsAnalysisTool.Abstractions;
+using StatisticsAnalysisTool.Common;
+using StatisticsAnalysisTool.Common.UserSettings;
+using StatisticsAnalysisTool.Diagnostics;
+using StatisticsAnalysisTool.Localization;
+using StatisticsAnalysisTool.Network.Handler;
+using StatisticsAnalysisTool.Network.Manager;
+using StatisticsAnalysisTool.Network.PacketProviders;
+using StatisticsAnalysisTool.Notification;
+using System.Reflection;
+
+namespace StatisticsAnalysisTool.Network;
+
+public class NetworkManager
+{
+    private readonly PacketProvider _packetProvider;
+
+    public NetworkManager(TrackingController trackingController)
+    {
+        IPhotonReceiver photonReceiver = Build(trackingController);
+        var albionServerDetectionService = ServiceLocator.IsServiceInDictionary<AlbionServerDetectionService>()
+            ? ServiceLocator.Resolve<AlbionServerDetectionService>()
+            : new AlbionServerDetectionService();
+
+        if (!ServiceLocator.IsServiceInDictionary<AlbionServerDetectionService>())
+        {
+            ServiceLocator.Register<AlbionServerDetectionService>(albionServerDetectionService);
+        }
+
+        if (SettingsController.CurrentSettings.PacketProvider == PacketProviderKind.Npcap)
+        {
+            _packetProvider = new LibpcapPacketProvider(photonReceiver, albionServerDetectionService);
+            Log.Information("Used packet provider: {PacketProviderKind}", PacketProviderKind.Npcap);
+        }
+        else
+        {
+            _packetProvider = new SocketsPacketProvider(photonReceiver, albionServerDetectionService);
+            Log.Information("Used packet provider: {PacketProviderKind}", PacketProviderKind.Sockets);
+        }
+
+        _packetProvider.GameDataDetected += (_, _) => trackingController.NotifyGameDataDetected();
+    }
+
+    private static IPhotonReceiver Build(TrackingController trackingController)
+    {
+        ReceiverBuilder builder = ReceiverBuilder.Create();
+
+        // Event
+        builder.AddEventHandler(new NewEquipmentItemEventHandler(trackingController));
+        builder.AddEventHandler(new NewSiegeBannerItemEventHandler());
+        builder.AddEventHandler(new NewSimpleItemEventHandler(trackingController));
+        builder.AddEventHandler(new NewFurnitureItemEventHandler(trackingController));
+        builder.AddEventHandler(new NewKillTrophyItemHandler(trackingController));
+        builder.AddEventHandler(new NewJournalItemEventHandler(trackingController));
+        builder.AddEventHandler(new NewLaborerItemEventHandler(trackingController));
+        builder.AddEventHandler(new OtherGrabbedLootEventHandler(trackingController));
+        builder.AddEventHandler(new InventoryDeleteItemEventHandler(trackingController));
+        //builder.AddEventHandler(new InventoryPutItemEventHandler(trackingController));
+        builder.AddEventHandler(new TakeSilverEventHandler(trackingController));
+        builder.AddEventHandler(new CraftItemFinishedEventHandler(trackingController));
+        builder.AddEventHandler(new ActionOnBuildingFinishedEventHandler(trackingController));
+        builder.AddEventHandler(new RerollItemTraitValueFinishedEventHandler(trackingController));
+        builder.AddEventHandler(new ItemRerollQualityFinishedEventHandler(trackingController));
+        builder.AddEventHandler(new UpdateFameEventHandler(trackingController));
+        builder.AddEventHandler(new UpdateMoneyEventHandler(trackingController));
+        builder.AddEventHandler(new UpdateReSpecPointsEventHandler(trackingController));
+        builder.AddEventHandler(new UpdateCurrencyEventHandler(trackingController));
+        builder.AddEventHandler(new KilledPlayerEventHandler(trackingController));
+        builder.AddEventHandler(new DiedEventHandler(trackingController));
+        builder.AddEventHandler(new KnockedDownEventHandler(trackingController));
+        builder.AddEventHandler(new NewLootChestEventHandler(trackingController));
+        builder.AddEventHandler(new UpdateLootChestEventHandler(trackingController));
+        //builder.AddEventHandler(new LootChestOpenedEventHandler(trackingController));
+        builder.AddEventHandler(new LeaveEventHandler(trackingController));
+        builder.AddEventHandler(new InCombatStateUpdateEventHandler(trackingController));
+        builder.AddEventHandler(new NewShrineEventHandler(trackingController));
+        builder.AddEventHandler(new HealthUpdateEventHandler(trackingController));
+        builder.AddEventHandler(new HealthUpdatesEventHandler(trackingController));
+        builder.AddEventHandler(new PartyDisbandedEventHandler(trackingController));
+        builder.AddEventHandler(new PartyJoinedEventHandler(trackingController));
+        builder.AddEventHandler(new PartyPlayerJoinedEventHandler(trackingController));
+        builder.AddEventHandler(new PartyPlayerLeftEventHandler(trackingController));
+        //builder.AddEventHandler(new PartyChangedOrderEventHandler(trackingController));
+        builder.AddEventHandler(new NewCharacterEventHandler(trackingController));
+        builder.AddEventHandler(new TreasureChestUsingStartEventHandler(trackingController));
+        builder.AddEventHandler(new CharacterEquipmentChangedEventHandler(trackingController));
+        builder.AddEventHandler(new NewMobEventHandler(trackingController));
+        builder.AddEventHandler(new ActiveSpellEffectsUpdateEventHandler(trackingController));
+        builder.AddEventHandler(new UpdateFactionStandingEventHandler(trackingController));
+        //builder.AddEventHandler(new ReceivedSeasonPointsEventHandler(trackingController));
+        builder.AddEventHandler(new MightAndFavorReceivedEventHandler(trackingController));
+        builder.AddEventHandler(new BankVaultInfoEventHandler(trackingController));
+        builder.AddEventHandler(new GuildVaultInfoEventHandler(trackingController));
+        builder.AddEventHandler(new NewLootEventHandler(trackingController));
+        builder.AddEventHandler(new AttachItemContainerEventHandler(trackingController));
+        builder.AddEventHandler(new HarvestFinishedEventHandler(trackingController));
+        builder.AddEventHandler(new RewardGrantedEventHandler(trackingController));
+        builder.AddEventHandler(new NewExpeditionCheckPointHandler(trackingController));
+        builder.AddEventHandler(new UpdateStandingEventHandler(trackingController));
+        builder.AddEventHandler(new CraftBuildingInfoEventHandler(trackingController));
+        builder.AddEventHandler(new NewHellDungeonRoomShrineObjectEventHandler(trackingController));
+        builder.AddEventHandler(new NewRandomDungeonExitEventHandler(trackingController));
+        builder.AddEventHandler(new InvitationPlayerTradeEventHandler(trackingController));
+        builder.AddEventHandler(new PlayerTradeUpdateEventHandler(trackingController));
+        builder.AddEventHandler(new PlayerTradeFinishedEventHandler(trackingController));
+        builder.AddEventHandler(new PlayerTradeCancelEventHandler(trackingController));
+
+        // Request
+        builder.AddRequestHandler(new InventoryMoveItemRequestHandler(trackingController));
+        builder.AddRequestHandler(new InventoryMoveGivenItemsRequestHandler(trackingController));
+        builder.AddRequestHandler(new UseShrineRequestHandler(trackingController));
+        builder.AddRequestHandler(new ClaimPaymentTransactionRequestHandler(trackingController));
+        builder.AddRequestHandler(new ActionOnBuildingStartRequestHandler(trackingController));
+        builder.AddRequestHandler(new RegisterToObjectRequestHandler(trackingController));
+        builder.AddRequestHandler(new UnRegisterFromObjectRequestHandler(trackingController));
+        builder.AddRequestHandler(new AuctionBuyOfferRequestHandler(trackingController));
+        builder.AddRequestHandler(new AuctionSellSpecificItemRequestHandler(trackingController));
+        builder.AddRequestHandler(new AuctionGetItemAverageStatsRequestHandler(trackingController));
+        builder.AddRequestHandler(new FishingStartEventRequestHandler(trackingController));
+        builder.AddRequestHandler(new FishingCatchRequestHandler(trackingController));
+        builder.AddRequestHandler(new FishingFinishRequestHandler(trackingController));
+        builder.AddRequestHandler(new FishingCancelRequestHandler(trackingController));
+        builder.AddRequestHandler(new LogoutStartRequestHandler(trackingController));
+        builder.AddRequestHandler(new ExitEnterStartRequestHandler(trackingController));
+        builder.AddRequestHandler(new ChangeClusterRequestHandler(trackingController));
+        builder.AddRequestHandler(new LogoutCancelRequestHandler(trackingController));
+        builder.AddRequestHandler(new GetGuildAccountLogsRequestHandler(trackingController));
+
+        // Response
+        builder.AddResponseHandler(new ChangeClusterResponseHandler(trackingController));
+        builder.AddResponseHandler(new PartyMakeLeaderResponseHandler(trackingController));
+        builder.AddResponseHandler(new JoinResponseHandler(trackingController));
+        builder.AddResponseHandler(new GetMailInfosResponseHandler(trackingController));
+        builder.AddResponseHandler(new ReadMailResponseHandler(trackingController));
+        builder.AddResponseHandler(new AuctionGetOffersResponseHandler(trackingController));
+        builder.AddResponseHandler(new AuctionGetRequestsResponseHandler(trackingController));
+        builder.AddResponseHandler(new AuctionGetItemAverageStatsResponseHandler(trackingController));
+        builder.AddResponseHandler(new GetCharacterEquipmentResponseHandler(trackingController));
+        builder.AddResponseHandler(new FishingFinishResponseHandler());
+        builder.AddResponseHandler(new AuctionGetLoadoutOffersResponseHandler(trackingController));
+        builder.AddResponseHandler(new AuctionBuyLoadoutOfferResponseHandler(trackingController));
+        builder.AddResponseHandler(new GetGuildAccountLogsResponseHandler(trackingController));
+        builder.AddResponseHandler(new InviteToPlayerTradeResponseHandler(trackingController));
+        builder.AddResponseHandler(new GoldMarketBuyGoldResponseHandler(trackingController));
+        builder.AddResponseHandler(new GoldMarketSellGoldResponseHandler(trackingController));
+
+        return builder.Build();
+    }
+
+    public PacketProviderStartResult Start()
+    {
+        DebugConsole.WriteInfo(MethodBase.GetCurrentMethod()?.DeclaringType, "Start Capture");
+
+        var result = _packetProvider.Start();
+        if (!result.IsSuccessful)
+        {
+            Log.Warning("Packet provider could not start because no capture source was opened");
+            return result;
+        }
+
+        _ = ServiceLocator.Resolve<SatNotificationManager>().ShowTrackingStatusAsync(LocalizationController.Translation("START_TRACKING"), LocalizationController.Translation("GAME_TRACKING_IS_STARTED"));
+        return result;
+    }
+
+    public void Stop()
+    {
+        DebugConsole.WriteInfo(MethodBase.GetCurrentMethod()?.DeclaringType, "Stop Capture");
+
+        var wasRunning = _packetProvider.IsRunning;
+        _packetProvider.Stop();
+
+        if (wasRunning)
+        {
+            _ = ServiceLocator.Resolve<SatNotificationManager>().ShowTrackingStatusAsync(LocalizationController.Translation("STOP_TRACKING"), LocalizationController.Translation("GAME_TRACKING_IS_STOPPED"));
+        }
+    }
+
+    public bool IsAnySocketActive()
+    {
+        return _packetProvider.IsRunning;
+    }
+}

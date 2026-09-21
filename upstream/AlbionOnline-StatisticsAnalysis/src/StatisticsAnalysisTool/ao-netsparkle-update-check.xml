@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>Statistics Analysis Tool</title>
+    <description>Most recent changes with link to updates.</description>
+    <language>en</language>
+    <item>
+      <title>Statistics Analysis Tool v10.0.2</title>
+      <description><![CDATA[<a href="https://github.com/Triky313/AlbionOnline-StatisticsAnalysis/releases/tag/v10.0.2">View full patch notes on GitHub</a>]]></description>
+      <pubDate>Sun, 06 Sep 2026 17:27:00 +0000</pubDate>
+      <enclosure url="https://github.com/Triky313/AlbionOnline-StatisticsAnalysis/releases/download/v10.0.2/StatisticsAnalysis-AlbionOnline-v10.0.2-windows-x64.exe" sparkle:version="10.0.2" sparkle:shortVersionString="10.0.2" sparkle:os="windows-x64" length="60900485" type="application/octet-stream" sparkle:edSignature="n+vopg1DugnMX4+62V/L5o+8OBC/YgFduTBzogolMOAa6FelalMWzJOB0+kM6O7USxUdatNsqwWH158KW/SIDw==" sparkle:signature="n+vopg1DugnMX4+62V/L5o+8OBC/YgFduTBzogolMOAa6FelalMWzJOB0+kM6O7USxUdatNsqwWH158KW/SIDw==" />
+    </item>
+  </channel>
+</rss>

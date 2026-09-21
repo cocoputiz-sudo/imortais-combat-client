@@ -1,0 +1,697 @@
+using Serilog;
+using StatisticsAnalysisTool.Common.UserSettings;
+using StatisticsAnalysisTool.Diagnostics;
+using StatisticsAnalysisTool.Enumerations;
+using StatisticsAnalysisTool.Exceptions;
+using StatisticsAnalysisTool.Models;
+using StatisticsAnalysisTool.Models.ApiModel;
+using StatisticsAnalysisTool.Network;
+using StatisticsAnalysisTool.Properties;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Net.Http;
+using System.Reflection;
+using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace StatisticsAnalysisTool.Common;
+
+public static class ApiController
+{
+    private static readonly HttpClient ApiClient = CreateHttpClient();
+
+    /// <summary>
+    ///     Returns a list of all city item prices by uniqueName.
+    /// </summary>
+    /// <exception cref="TooManyRequestsException"></exception>
+    public static async Task<List<MarketResponse>> GetCityItemPricesFromJsonAsync(string uniqueName)
+    {
+        var locations = Locations.GetAllMarketLocations();
+        return await GetCityItemPricesFromJsonAsync(uniqueName, locations, [1, 2, 3, 4, 5]);
+    }
+
+    /// <summary>
+    ///     Returns a list of city item prices by uniqueName, locations and qualities.
+    /// </summary>
+    /// <exception cref="TooManyRequestsException"></exception>
+    public static async Task<List<MarketResponse>> GetCityItemPricesFromJsonAsync(string uniqueName, List<string> marketLocations, List<int> qualities)
+    {
+        if (string.IsNullOrEmpty(uniqueName))
+        {
+            return new List<MarketResponse>();
+        }
+
+        var url = Path.Combine(GetAoDataProjectServerBaseUrlByCurrentServer(), "stats/prices/");
+        url += uniqueName;
+
+        if (marketLocations?.Count >= 1)
+        {
+            url += "?locations=";
+            url = marketLocations.Aggregate(url, (current, location) => current + $"{location},");
+        }
+
+        if (qualities?.Count >= 1)
+        {
+            url += "&qualities=";
+            url = qualities.Aggregate(url, (current, quality) => current + $"{quality},");
+        }
+
+        using var timeoutCts = CreateTimeout(30);
+
+        try
+        {
+            using var response = await ApiClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+            if (response.StatusCode == (HttpStatusCode) 429)
+            {
+                throw new TooManyRequestsException();
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var result = await DeserializeResponseAsync<List<MarketResponse>>(response, timeoutCts.Token);
+            return MergeMarketAndPortalLocations(result);
+        }
+        catch (TooManyRequestsException)
+        {
+            DebugConsole.WriteWarn(MethodBase.GetCurrentMethod()?.DeclaringType, new TooManyRequestsException());
+            throw new TooManyRequestsException();
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return null;
+        }
+    }
+
+    public static async Task<List<MarketHistoriesResponse>> GetHistoryItemPricesFromJsonAsync(string uniqueName, IList<MarketLocation> locations, DateTime? date, int quality, int timeScale = 24)
+    {
+        var locationsString = locations?.Count > 0 ? string.Join(",", locations.Select(GetApiMarketLocation)) : "";
+        var qualitiesString = quality.ToString();
+
+        var url = Path.Combine(GetAoDataProjectServerBaseUrlByCurrentServer(), "stats/history/");
+        url += uniqueName;
+        url += $"?locations={locationsString}";
+        if (date.HasValue)
+        {
+            url += $"&date={date.Value:yyyy-M-d}";
+        }
+        url += $"&qualities={qualitiesString}";
+        url += $"&time-scale={timeScale}";
+
+        using var timeoutCts = CreateTimeout(300);
+
+        try
+        {
+            using var response = await ApiClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+
+            if (response.StatusCode == (HttpStatusCode) 429)
+            {
+                throw new TooManyRequestsException();
+
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            var result = await DeserializeResponseAsync<List<MarketHistoriesResponse>>(response, timeoutCts.Token);
+            return MergeCityAndPortalCity(result);
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return null;
+        }
+    }
+
+    public static Task<GameInfoSearchResponse> GetGameInfoSearchFromJsonAsync(string username)
+    {
+        return GetGameInfoSearchFromJsonAsync(username, GetCurrentServerLocation());
+    }
+
+    public static async Task<GameInfoSearchResponse> GetGameInfoSearchFromJsonAsync(
+        string username,
+        ServerLocation serverLocation,
+        CancellationToken cancellationToken = default)
+    {
+        var gameInfoSearchResponse = new GameInfoSearchResponse();
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            return gameInfoSearchResponse;
+        }
+
+        var url = $"{GetServerBaseUrl(serverLocation)}/api/gameinfo/search?q={Uri.EscapeDataString(username)}";
+
+        using var timeoutCts = CreateTimeout(120, cancellationToken);
+
+        try
+        {
+            using var response = await ApiClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return gameInfoSearchResponse;
+            }
+
+            return await DeserializeResponseAsync<GameInfoSearchResponse>(response, timeoutCts.Token)
+                   ?? gameInfoSearchResponse;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return gameInfoSearchResponse;
+        }
+        catch (JsonException ex)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, ex);
+            return gameInfoSearchResponse;
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return gameInfoSearchResponse;
+        }
+    }
+
+    public static Task<GameInfoPlayersResponse> GetGameInfoPlayersFromJsonAsync(string userid)
+    {
+        return GetGameInfoPlayersFromJsonAsync(userid, GetCurrentServerLocation());
+    }
+
+    public static async Task<GameInfoPlayersResponse> GetGameInfoPlayersFromJsonAsync(
+        string userid,
+        ServerLocation serverLocation,
+        CancellationToken cancellationToken = default)
+    {
+        var gameInfoPlayerResponse = new GameInfoPlayersResponse();
+        if (string.IsNullOrWhiteSpace(userid))
+        {
+            return gameInfoPlayerResponse;
+        }
+
+        var url = $"{GetServerBaseUrl(serverLocation)}/api/gameinfo/players/{Uri.EscapeDataString(userid)}";
+
+        using var timeoutCts = CreateTimeout(120, cancellationToken);
+
+        try
+        {
+            using var response = await ApiClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return gameInfoPlayerResponse;
+            }
+
+            return await DeserializeResponseAsync<GameInfoPlayersResponse>(response, timeoutCts.Token)
+                   ?? gameInfoPlayerResponse;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return gameInfoPlayerResponse;
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return gameInfoPlayerResponse;
+        }
+    }
+
+    public static Task<List<GameInfoPlayerKillsDeaths>> GetGameInfoPlayerKillsDeathsFromJsonAsync(
+        string userid,
+        GameInfoPlayersType gameInfoPlayersType)
+    {
+        return GetGameInfoPlayerKillsDeathsFromJsonAsync(
+            userid,
+            gameInfoPlayersType,
+            GetCurrentServerLocation());
+    }
+
+    public static async Task<List<GameInfoPlayerKillsDeaths>> GetGameInfoPlayerKillsDeathsFromJsonAsync(
+        string userid,
+        GameInfoPlayersType gameInfoPlayersType,
+        ServerLocation serverLocation,
+        int limit = 0,
+        CancellationToken cancellationToken = default)
+    {
+        var values = new List<GameInfoPlayerKillsDeaths>();
+
+        if (string.IsNullOrWhiteSpace(userid))
+        {
+            return values;
+        }
+
+        var killsDeathsExtensionString = gameInfoPlayersType == GameInfoPlayersType.Kills ? "kills" : "deaths";
+        var limitQuery = limit > 0 ? $"?limit={Math.Clamp(limit, 1, 50)}" : string.Empty;
+        var url = $"{GetServerBaseUrl(serverLocation)}/api/gameinfo/players/{Uri.EscapeDataString(userid)}/{killsDeathsExtensionString}{limitQuery}";
+
+        using var timeoutCts = CreateTimeout(120, cancellationToken);
+
+        try
+        {
+            using var response = await ApiClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return values;
+            }
+
+            return await DeserializeResponseAsync<List<GameInfoPlayerKillsDeaths>>(response, timeoutCts.Token)
+                   ?? values;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return values;
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return values;
+        }
+    }
+
+    public static async Task<List<GameInfoPlayerKillsDeaths>> GetGameInfoPlayerTopKillsFromJsonAsync(string userid, UnitOfTime unitOfTime)
+    {
+        var values = new List<GameInfoPlayerKillsDeaths>();
+
+        if (string.IsNullOrEmpty(userid))
+        {
+            return values;
+        }
+
+        var unitOfTimeString = unitOfTime switch
+        {
+            UnitOfTime.Day => "day",
+            UnitOfTime.Week => "week",
+            UnitOfTime.LastWeek => "lastWeek",
+            UnitOfTime.Month => "month",
+            UnitOfTime.LastMonth => "lastMonth",
+            _ => ""
+        };
+
+        var url = $"{GetServerBaseUrlByCurrentServer()}/api/gameinfo/players/{userid}/topkills?range={unitOfTimeString}&offset=0";
+
+        using var timeoutCts = CreateTimeout(120);
+
+        try
+        {
+            using var response = await ApiClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+
+            return await DeserializeResponseAsync<List<GameInfoPlayerKillsDeaths>>(response, timeoutCts.Token)
+                   ?? values;
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return values;
+        }
+    }
+
+    public static async Task<List<GameInfoPlayerKillsDeaths>> GetGameInfoPlayerSoloKillsFromJsonAsync(string userid, UnitOfTime unitOfTime)
+    {
+        var values = new List<GameInfoPlayerKillsDeaths>();
+        if (string.IsNullOrEmpty(userid))
+        {
+            return values;
+        }
+
+        var unitOfTimeString = unitOfTime switch
+        {
+            UnitOfTime.Day => "day",
+            UnitOfTime.Week => "week",
+            UnitOfTime.LastWeek => "lastWeek",
+            UnitOfTime.Month => "month",
+            UnitOfTime.LastMonth => "lastMonth",
+            _ => ""
+        };
+
+        var url = $"{GetServerBaseUrlByCurrentServer()}/api/gameinfo/players/{userid}/solokills?range={unitOfTimeString}&offset=0";
+
+        using var timeoutCts = CreateTimeout(120);
+
+        try
+        {
+            using var response = await ApiClient.GetAsync(
+                url,
+                HttpCompletionOption.ResponseHeadersRead,
+                timeoutCts.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                Log.Warning("Request failed: {url}, Status: {statusCode}, Reason: {reason}", url, response.StatusCode, response.ReasonPhrase);
+                return values;
+            }
+
+            return await DeserializeResponseAsync<List<GameInfoPlayerKillsDeaths>>(response, timeoutCts.Token)
+                   ?? values;
+        }
+        catch (JsonException e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "JSON deserialization failed. URL: {url}", url);
+        }
+        catch (TaskCanceledException e)
+        {
+            DebugConsole.WriteWarn(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Warning(e, "Request timed out: {url}", url);
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "Unexpected error: {url}", url);
+        }
+
+        return values;
+    }
+
+    public static async Task<List<GoldResponseModel>> GetGoldPricesFromJsonAsync(int count, int timeout = 300)
+    {
+        var url = Path.Combine(GetAoDataProjectServerBaseUrlByCurrentServer(), "stats/");
+        url += $"gold?count={count}";
+
+        using var timeoutCts = CreateTimeout(timeout);
+        try
+        {
+            using var response = await ApiClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+
+            response.EnsureSuccessStatusCode();
+
+            var result = await DeserializeResponseAsync<List<GoldResponseModel>>(response, timeoutCts.Token);
+            return result ?? new List<GoldResponseModel>();
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return new List<GoldResponseModel>();
+        }
+    }
+
+    public static async Task<List<Donation>> GetDonationsFromJsonAsync()
+    {
+        var values = new List<Donation>();
+        var url = Settings.Default.DonationsUrl;
+
+        using var timeoutCts = CreateTimeout(600);
+
+        try
+        {
+            using var response = await ApiClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeoutCts.Token);
+            return await DeserializeResponseAsync<List<Donation>>(response, timeoutCts.Token) ?? values;
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+            Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            return values;
+        }
+    }
+
+    private static HttpClient CreateHttpClient()
+    {
+        var handler = new HttpClientHandler
+        {
+            SslProtocols = System.Security.Authentication.SslProtocols.Tls13 | System.Security.Authentication.SslProtocols.Tls12,
+            ServerCertificateCustomValidationCallback = (_, _, _, _) => true,
+            AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli
+        };
+
+        return new HttpClient(handler)
+        {
+            Timeout = Timeout.InfiniteTimeSpan
+        };
+    }
+
+    private static CancellationTokenSource CreateTimeout(int seconds)
+    {
+        return new CancellationTokenSource(TimeSpan.FromSeconds(seconds));
+    }
+
+    private static CancellationTokenSource CreateTimeout(int seconds, CancellationToken cancellationToken)
+    {
+        var timeoutCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeoutCts.CancelAfter(TimeSpan.FromSeconds(seconds));
+        return timeoutCts;
+    }
+
+    private static async Task<T> DeserializeResponseAsync<T>(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        await using var responseStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+        return await JsonSerializer.DeserializeAsync<T>(
+            responseStream,
+            cancellationToken: cancellationToken);
+    }
+
+    #region Merge history data
+
+    private static List<MarketHistoriesResponse> MergeCityAndPortalCity(List<MarketHistoriesResponse> values)
+    {
+        foreach (MarketHistoriesResponse item in values.Where(item => item.IsSmugglersNetworkLocation()))
+        {
+            item.Location = "Smuggler's Den";
+        }
+
+        var fortSterlingMarketResponses = values.Where(x => x.Location.GetMarketLocationByLocationNameOrId() is MarketLocation.FortSterlingMarket or MarketLocation.FortSterlingPortal).ToList();
+        SetMarketHistoriesResponseByQuality(fortSterlingMarketResponses, values, MarketLocation.FortSterlingMarket);
+
+        var martlockMarketResponses = values.Where(x => x.Location.GetMarketLocationByLocationNameOrId() is MarketLocation.MartlockMarket or MarketLocation.MartlockPortal).ToList();
+        SetMarketHistoriesResponseByQuality(martlockMarketResponses, values, MarketLocation.MartlockMarket);
+
+        var lymhurstMarketResponses = values.Where(x => x.Location.GetMarketLocationByLocationNameOrId() is MarketLocation.LymhurstMarket or MarketLocation.LymhurstPortal).ToList();
+        SetMarketHistoriesResponseByQuality(lymhurstMarketResponses, values, MarketLocation.LymhurstMarket);
+
+        var thetfordMarketResponses = values.Where(x => x.Location.GetMarketLocationByLocationNameOrId() is MarketLocation.ThetfordMarket or MarketLocation.ThetfordPortal).ToList();
+        SetMarketHistoriesResponseByQuality(thetfordMarketResponses, values, MarketLocation.ThetfordMarket);
+
+        var bridgewatchMarketResponses = values.Where(x => x.Location.GetMarketLocationByLocationNameOrId() is MarketLocation.BridgewatchMarket or MarketLocation.BridgewatchPortal).ToList();
+        SetMarketHistoriesResponseByQuality(bridgewatchMarketResponses, values, MarketLocation.BridgewatchMarket);
+
+        var smugglersDenResponses = values.Where(x => x.Location.GetMarketLocationByLocationNameOrId() is MarketLocation.SmugglersDen).ToList();
+        SetMarketHistoriesResponseByQuality(smugglersDenResponses, values, MarketLocation.SmugglersDen);
+
+        return values;
+    }
+
+    private static void SetMarketHistoriesResponseByQuality(List<MarketHistoriesResponse> filteredValues, List<MarketHistoriesResponse> usedValues, MarketLocation marketLocation)
+    {
+        for (var i = 1; i <= 5; i++)
+        {
+            var marketResponsesByQuality = GetMarketHistoriesResponseByQuality(i, filteredValues);
+            var result = MergeMarketAndPortalPrices(marketResponsesByQuality, Locations.GetDisplayName(marketLocation));
+
+            if (string.IsNullOrEmpty(result?.ItemId))
+            {
+                continue;
+            }
+
+            foreach (var marketResponse in marketResponsesByQuality)
+            {
+                usedValues.Remove(marketResponse);
+            }
+            usedValues.Add(result);
+        }
+    }
+
+    private static List<MarketHistoriesResponse> GetMarketHistoriesResponseByQuality(int quality, IEnumerable<MarketHistoriesResponse> marketResponses)
+    {
+        return marketResponses.Where(x => x.Quality == quality).ToList();
+    }
+
+    private static MarketHistoriesResponse MergeMarketAndPortalPrices(List<MarketHistoriesResponse> list, string locationName)
+    {
+        foreach (var marketResponse in list)
+        {
+            marketResponse.Location = locationName;
+        }
+
+        var marketHistoryResult = list.FirstOrDefault();
+        foreach (var marketResponse in list)
+        {
+            if (marketResponse?.Data?.Max(x => x?.Timestamp) > marketHistoryResult?.Data?.Max(x => x?.Timestamp))
+            {
+                marketHistoryResult = marketResponse;
+            }
+
+        }
+
+        return marketHistoryResult;
+    }
+
+    #endregion
+
+    #region Merge market data
+
+    private static List<MarketResponse> MergeMarketAndPortalLocations(List<MarketResponse> values)
+    {
+        var fortSterlingMarketResponses = values.Where(x => x.City.GetMarketLocationByLocationNameOrId() is MarketLocation.FortSterlingMarket or MarketLocation.FortSterlingPortal).ToList();
+        SetMarketResponseByQuality(fortSterlingMarketResponses, values, MarketLocation.FortSterlingMarket);
+
+        var martlockMarketResponses = values.Where(x => x.City.GetMarketLocationByLocationNameOrId() is MarketLocation.MartlockMarket or MarketLocation.MartlockPortal).ToList();
+        SetMarketResponseByQuality(martlockMarketResponses, values, MarketLocation.MartlockMarket);
+
+        var lymhurstMarketResponses = values.Where(x => x.City.GetMarketLocationByLocationNameOrId() is MarketLocation.LymhurstMarket or MarketLocation.LymhurstPortal).ToList();
+        SetMarketResponseByQuality(lymhurstMarketResponses, values, MarketLocation.LymhurstMarket);
+
+        var thetfordMarketResponses = values.Where(x => x.City.GetMarketLocationByLocationNameOrId() is MarketLocation.ThetfordMarket or MarketLocation.ThetfordPortal).ToList();
+        SetMarketResponseByQuality(thetfordMarketResponses, values, MarketLocation.ThetfordMarket);
+
+        var bridgewatchMarketResponses = values.Where(x => x.City.GetMarketLocationByLocationNameOrId() is MarketLocation.BridgewatchMarket or MarketLocation.BridgewatchPortal).ToList();
+        SetMarketResponseByQuality(bridgewatchMarketResponses, values, MarketLocation.BridgewatchMarket);
+
+        return values;
+    }
+
+    private static void SetMarketResponseByQuality(List<MarketResponse> filteredValues, List<MarketResponse> usedValues, MarketLocation marketLocation)
+    {
+        for (var i = 1; i <= 5; i++)
+        {
+            var marketResponsesByQuality = GetMarketResponsesByQuality(i, filteredValues);
+            var result = MergeMarketAndPortalPrices(marketResponsesByQuality, Locations.GetDisplayName(marketLocation));
+
+            if (string.IsNullOrEmpty(result.ItemTypeId))
+            {
+                continue;
+            }
+
+            foreach (var marketResponse in marketResponsesByQuality)
+            {
+                usedValues.Remove(marketResponse);
+            }
+            usedValues.Add(result);
+        }
+    }
+
+    private static List<MarketResponse> GetMarketResponsesByQuality(int quality, IEnumerable<MarketResponse> marketResponses)
+    {
+        return marketResponses.Where(x => x.QualityLevel == quality).ToList();
+    }
+
+    private static MarketResponse MergeMarketAndPortalPrices(List<MarketResponse> list, string locationName)
+    {
+        foreach (var marketResponse in list)
+        {
+            marketResponse.City = locationName;
+        }
+
+        var buyPriceMaxDate = DateTime.MinValue;
+        var buyPriceMax = 0UL;
+        var buyPriceMinDate = DateTime.MinValue;
+        var buyPriceMin = 0UL;
+        var sellPriceMaxDate = DateTime.MinValue;
+        var sellPriceMax = 0UL;
+        var sellPriceMinDate = DateTime.MinValue;
+        var sellPriceMin = 0UL;
+
+        foreach (var marketResponse in list)
+        {
+            if (marketResponse.BuyPriceMaxDate > buyPriceMaxDate)
+            {
+                buyPriceMaxDate = marketResponse.BuyPriceMaxDate;
+                buyPriceMax = marketResponse.BuyPriceMax;
+            }
+
+            if (marketResponse.BuyPriceMinDate > buyPriceMinDate)
+            {
+                buyPriceMinDate = marketResponse.BuyPriceMinDate;
+                buyPriceMin = marketResponse.BuyPriceMin;
+            }
+
+            if (marketResponse.SellPriceMaxDate > sellPriceMaxDate)
+            {
+                sellPriceMaxDate = marketResponse.SellPriceMaxDate;
+                sellPriceMax = marketResponse.SellPriceMax;
+            }
+
+            if (marketResponse.SellPriceMinDate > sellPriceMinDate)
+            {
+                sellPriceMinDate = marketResponse.SellPriceMinDate;
+                sellPriceMin = marketResponse.SellPriceMin;
+            }
+        }
+
+        var firstMarketResponse = list.FirstOrDefault();
+
+        return new MarketResponse()
+        {
+            BuyPriceMax = buyPriceMax,
+            BuyPriceMaxDate = buyPriceMaxDate,
+            BuyPriceMin = buyPriceMin,
+            BuyPriceMinDate = buyPriceMinDate,
+            SellPriceMax = sellPriceMax,
+            SellPriceMaxDate = sellPriceMaxDate,
+            SellPriceMin = sellPriceMin,
+            SellPriceMinDate = sellPriceMinDate,
+            City = firstMarketResponse?.City,
+            ItemTypeId = firstMarketResponse?.ItemTypeId ?? string.Empty,
+            QualityLevel = (firstMarketResponse?.QualityLevel ?? -1)
+        };
+    }
+
+    #endregion
+
+    private static string GetAoDataProjectServerBaseUrlByCurrentServer()
+    {
+        return GetCurrentServerLocation() switch
+        {
+            ServerLocation.America => SettingsController.CurrentSettings.AlbionDataProjectBaseUrlWest,
+            ServerLocation.Asia => SettingsController.CurrentSettings.AlbionDataProjectBaseUrlEast,
+            ServerLocation.Europe => SettingsController.CurrentSettings.AlbionDataProjectBaseUrlEurope,
+            _ => SettingsController.CurrentSettings.AlbionDataProjectBaseUrlWest
+        };
+    }
+
+    private static string GetServerBaseUrlByCurrentServer()
+    {
+        return GetServerBaseUrl(GetCurrentServerLocation());
+    }
+
+    private static string GetServerBaseUrl(ServerLocation serverLocation)
+    {
+        return serverLocation switch
+        {
+            ServerLocation.America => SettingsController.CurrentSettings.AlbionOnlineApiBaseUrlWest,
+            ServerLocation.Asia => SettingsController.CurrentSettings.AlbionOnlineApiBaseUrlEast,
+            ServerLocation.Europe => SettingsController.CurrentSettings.AlbionOnlineApiBaseUrlEurope,
+            _ => SettingsController.CurrentSettings.AlbionOnlineApiBaseUrlWest
+        };
+    }
+
+    private static ServerLocation GetCurrentServerLocation()
+    {
+        if (!ServiceLocator.IsServiceInDictionary<AlbionServerDetectionService>())
+        {
+            return ServerLocation.Unknown;
+        }
+
+        return ServiceLocator.Resolve<AlbionServerDetectionService>().CurrentServerLocation;
+    }
+
+    private static string GetApiMarketLocation(MarketLocation marketLocation)
+    {
+        return marketLocation switch
+        {
+            MarketLocation.MartlockMarket or MarketLocation.MartlockPortal => "Martlock",
+            MarketLocation.LymhurstMarket or MarketLocation.LymhurstPortal => "Lymhurst",
+            MarketLocation.BridgewatchMarket or MarketLocation.BridgewatchPortal => "Bridgewatch",
+            MarketLocation.FortSterlingMarket or MarketLocation.FortSterlingPortal => "Fort Sterling",
+            MarketLocation.ThetfordMarket or MarketLocation.ThetfordPortal => "Thetford",
+            MarketLocation.CaerleonMarket => "Caerleon",
+            MarketLocation.BrecilienMarket => "Brecilien",
+            MarketLocation.BlackMarket => "BlackMarket",
+            MarketLocation.SwampCross => "SwampCross",
+            MarketLocation.ForestCross => "ForestCross",
+            MarketLocation.SteppeCross => "SteppeCross",
+            MarketLocation.HighlandCross => "HighlandCross",
+            MarketLocation.MountainCross => "MountainCross",
+            MarketLocation.SmugglersDen => "SmugglersNetwork",
+            _ => string.Empty
+        };
+    }
+}

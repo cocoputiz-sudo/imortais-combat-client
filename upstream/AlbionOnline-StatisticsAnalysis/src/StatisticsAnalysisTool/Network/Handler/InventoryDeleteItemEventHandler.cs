@@ -1,0 +1,25 @@
+﻿using StatisticsAnalysisTool.Network.Events;
+using StatisticsAnalysisTool.Network.Manager;
+using System.Threading.Tasks;
+
+namespace StatisticsAnalysisTool.Network.Handler;
+
+public class InventoryDeleteItemEventHandler : EventPacketHandler<InventoryDeleteItemEvent>
+{
+    private readonly TrackingController _trackingController;
+
+    public InventoryDeleteItemEventHandler(TrackingController trackingController) : base((int) EventCodes.InventoryDeleteItem)
+    {
+        _trackingController = trackingController;
+    }
+
+    protected override async Task OnActionAsync(InventoryDeleteItemEvent value)
+    {
+        if (value.ObjectId.HasValue)
+        {
+            _trackingController.RemoveEquipmentItem(value.ObjectId.Value);
+        }
+
+        await Task.CompletedTask;
+    }
+}

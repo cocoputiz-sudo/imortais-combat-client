@@ -1,0 +1,456 @@
+[
+	{
+	"Timestamp": "2026-08-27T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 10.56,
+	"Contributor": "MrRail",
+	"IsDonationRealMoney": true
+    },
+	{
+	"Timestamp": "2026-08-11T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 2.00,
+	"Contributor": "Atencion56",
+	"IsDonationRealMoney": true
+    },
+	{
+	"Timestamp": "2026-05-28T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 9.78,
+	"Contributor": "zed",
+	"IsDonationRealMoney": true
+    },
+	{
+	"Timestamp": "2026-05-04T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 14.42,
+	"Contributor": "Nootka",
+	"IsDonationRealMoney": true
+    },
+	{
+	"Timestamp": "2025-08-29T00:00:00",
+	"Amount": 50000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "TheplotsY",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+    },
+	{
+	"Timestamp": "2025-08-25T00:00:00",
+	"Amount": 8000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Grrawl",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+    },
+	{
+	"Timestamp": "2025-08-24T00:00:00",
+	"Amount": 8000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Gérow",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+    },
+	{
+	"Timestamp": "2025-08-24T00:00:00",
+	"Amount": 5000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Pawney",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+    },
+	{
+	"Timestamp": "2025-08-24T00:00:00",
+	"Amount": 10000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Legita",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+    },
+	{
+	"Timestamp": "2025-08-25T00:00:00",
+	"Amount": 10000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "faxerix",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+     },
+     {
+	"Timestamp": "2025-07-19T00:00:00",
+	"Amount": 15000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Ecchi",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+     },
+     {
+	"Timestamp": "2025-02-08T00:00:00",
+	"Amount": 52800000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Fraxuz",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+     },
+     {
+	"Timestamp": "2024-12-18T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 6.66,
+	"Contributor": "Thall",
+	"IsDonationRealMoney": true
+     },
+     {
+	"Timestamp": "2024-12-08T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 1.00,
+	"Contributor": "BuuGaluu",
+	"IsDonationRealMoney": true
+     },
+     {
+	"Timestamp": "2024-07-02T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 5.46,
+	"Contributor": "SolomonInsane",
+	"IsDonationRealMoney": true
+     },
+     {
+	"Timestamp": "2024-06-28T00:00:00",
+	"Amount": 165000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Atencion56",
+	"IsDonationRealMoney": false
+     },
+     {
+	"Timestamp": "2024-06-18T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 2.37,
+	"Contributor": "SolomonInsane",
+	"IsDonationRealMoney": true
+     },
+     {
+	"Timestamp": "2024-05-26T00:00:00",
+	"Amount": 4210000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Grrawl",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+     },
+     {
+	"Timestamp": "2024-05-26T00:00:00",
+	"Amount": 1500000,
+	"RealMoneyAmount": 0,
+	"Contributor": "littlegiant",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+     },
+     {
+	"Timestamp": "2024-05-26T00:00:00",
+	"Amount": 1000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Fraxuz",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+     },
+     {
+	"Timestamp": "2024-05-26T00:00:00",
+	"Amount": 1220000,
+	"RealMoneyAmount": 0,
+	"Contributor": "ReporterNV",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+     },
+     {
+	"Timestamp": "2024-05-26T00:00:00",
+	"Amount": 1000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "EthanRyu",
+	"IsDonationRealMoney": false,
+	"Server": "EU"
+     },
+     {
+	"Timestamp": "2024-04-16T00:00:00",
+	"Amount": 13400000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Derevrian",
+	"IsDonationRealMoney": false
+     },
+     {
+	"Timestamp": "2023-10-16T00:00:00",
+	"Amount": 1750000,
+	"RealMoneyAmount": 0,
+	"Contributor": "atakujonc",
+	"IsDonationRealMoney": false
+     },
+     {
+	"Timestamp": "2023-10-06T00:00:00",
+	"Amount": 1000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "atakujonc",
+	"IsDonationRealMoney": false
+     },
+     {
+	"Timestamp": "2023-09-26T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 2.30,
+	"Contributor": "atakujonc",
+	"IsDonationRealMoney": true
+     },
+     {
+	"Timestamp": "2023-09-08T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 364.75,
+	"Contributor": "Anonymously Donated",
+	"IsDonationRealMoney": true
+    },
+    {
+	"Timestamp": "2023-08-08T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 2.40,
+	"Contributor": "AstroPope",
+	"IsDonationRealMoney": true
+    },
+    {
+	"Timestamp": "2023-08-02T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 10,
+	"Contributor": "zed",
+	"IsDonationRealMoney": true
+    },
+    {
+	"Timestamp": "2023-08-01T00:00:00",
+	"Amount": 3000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Apollo92",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2023-07-03T00:00:00",
+	"Amount": 1000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Flamires",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2023-06-25T00:00:00",
+	"Amount": 990000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Mieku",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2023-05-05T00:00:00",
+	"Amount": 25000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "zed",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2023-02-19T00:00:00",
+	"Amount": 16500000,
+	"RealMoneyAmount": 0,
+	"Contributor": "arabinos",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2023-02-17T00:00:00",
+	"Amount": 15500000,
+	"RealMoneyAmount": 0,
+	"Contributor": "arabinos",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2022-11-24T00:00:00",
+	"Amount": 18000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "arabinos",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2022-11-19T00:00:00",
+	"Amount": 2550000,
+	"RealMoneyAmount": 0,
+	"Contributor": "HepatitisB",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2022-11-18T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 5.49,
+	"Contributor": "Giankvothe",
+	"IsDonationRealMoney": true
+    },
+    {
+	"Timestamp": "2022-09-30T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 10,
+	"Contributor": "Swiftxx",
+	"IsDonationRealMoney": true
+    },
+    {
+	"Timestamp": "2022-09-25T00:00:00",
+	"Amount": 2615000,
+	"RealMoneyAmount": 0,
+	"Contributor": "KepasaWWl",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2022-09-15T00:00:00",
+	"Amount": 4000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "TheCeoOfRacism and Stinkbuggg",
+	"IsDonationRealMoney": false
+    },
+    {
+	"Timestamp": "2022-09-01T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 13.00,
+	"Contributor": "Hefewise",
+	"IsDonationRealMoney": true
+    },
+    {
+	"Timestamp": "2022-08-01T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 13.00,
+	"Contributor": "Hefewise",
+	"IsDonationRealMoney": true
+    },
+    {
+	"Timestamp": "2022-09-05T00:00:00",
+	"Amount": 13000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Rushbro",
+	"IsDonationRealMoney": false
+   },
+   {
+	"Timestamp": "2022-09-04T00:00:00",
+	"Amount": 1070000,
+	"RealMoneyAmount": 0,
+	"Contributor": "HepatitisB",
+	"IsDonationRealMoney": false
+  },
+  {
+	"Timestamp": "2022-07-27T00:00:00",
+	"Amount": 305000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Dicky",
+	"IsDonationRealMoney": false
+  },
+  {
+	"Timestamp": "2022-07-19T00:00:00",
+	"Amount": 2120000,
+	"RealMoneyAmount": 0,
+	"Contributor": "HowToHype",
+	"IsDonationRealMoney": false
+  },
+  {
+	"Timestamp": "2022-07-17T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 10.00,
+	"Contributor": "DurinTorde",
+	"IsDonationRealMoney": true
+  },
+  {
+	"Timestamp": "2022-07-12T00:00:00",
+	"Amount": 10600000,
+	"RealMoneyAmount": 0,
+	"Contributor": "BloodySupport",
+	"IsDonationRealMoney": false
+  },
+  {
+	"Timestamp": "2022-07-10T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 2.30,
+	"Contributor": "IAmMaya",
+	"IsDonationRealMoney": true
+  },
+  {
+	"Timestamp": "2022-07-01T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 11.34,
+	"Contributor": "Hefewise",
+	"IsDonationRealMoney": true
+  },
+  {
+	"Timestamp": "2022-07-09T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 50.00,
+	"Contributor": "Pixelest",
+	"IsDonationRealMoney": true
+ },
+ {
+	"Timestamp": "2022-06-12T00:00:00",
+	"Amount": 2000000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Agentanti",
+	"IsDonationRealMoney": false
+ },
+ {
+	"Timestamp": "2022-05-13T00:00:00",
+	"Amount": 1520000,
+	"RealMoneyAmount": 0,
+	"Contributor": "HepatitisB",
+	"IsDonationRealMoney": false
+ },
+ {
+	"Timestamp": "2022-05-06T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 5.29,
+	"Contributor": "BioHazard0us",
+	"IsDonationRealMoney": true
+ },
+ {
+	"Timestamp": "2022-05-04T00:00:00",
+	"Amount": 7700000,
+	"RealMoneyAmount": 0,
+	"Contributor": "OfficialTab",
+	"IsDonationRealMoney": false
+ },
+ {
+	"Timestamp": "2022-05-03T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 0.82,
+	"Contributor": "LLiiiiiill",
+	"IsDonationRealMoney": true
+ },
+ {
+	"Timestamp": "2022-05-03T00:00:00",
+	"Amount": 500000,
+	"RealMoneyAmount": 0,
+	"Contributor": "Wolfurus",
+	"IsDonationRealMoney": false
+ },
+ {
+	"Timestamp": "2022-05-02T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 23.00,
+	"Contributor": "Hefewise",
+	"IsDonationRealMoney": true
+ },
+ {
+	"Timestamp": "2022-04-29T00:00:00",
+	"Amount": 1750000,
+	"RealMoneyAmount": 0,
+	"Contributor": "liwaliy",
+	"IsDonationRealMoney": false
+ },
+ {
+	"Timestamp": "2022-04-28T00:00:00",
+	"Amount": 1600000,
+	"RealMoneyAmount": 0,
+	"Contributor": "BloodySupport",
+	"IsDonationRealMoney": false
+ },
+ {
+	"Timestamp": "2021-07-11T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 5.00,
+	"Contributor": "Oeqo",
+	"IsDonationRealMoney": true
+ },
+ {
+	"Timestamp": "2021-12-26T00:00:00",
+	"Amount": 0,
+	"RealMoneyAmount": 10.00,
+	"Contributor": "Scoe424",
+	"IsDonationRealMoney": true
+ }
+]

@@ -1,0 +1,70 @@
+﻿using System;
+using System.Collections.Generic;
+using System.Reflection;
+using StatisticsAnalysisTool.Common;
+using StatisticsAnalysisTool.Diagnostics;
+
+namespace StatisticsAnalysisTool.Network.Events;
+
+public class DiedEvent
+{
+    public DiedEvent(Dictionary<byte, object> parameters)
+    {
+        try
+        {
+            if (parameters.TryGetValue(1, out var diedObjectId))
+            {
+                DiedObjectId = diedObjectId.ObjectToLong() ?? 0;
+            }
+
+            if (parameters.ContainsKey(2))
+            {
+                Died = string.IsNullOrEmpty(parameters[2].ToString()) ? string.Empty : parameters[2].ToString();
+            }
+
+            if (parameters.ContainsKey(3))
+            {
+                DiedPlayerGuild = string.IsNullOrEmpty(parameters[3].ToString()) ? string.Empty : parameters[3].ToString();
+            }
+
+            if (parameters.TryGetValue(17, out var isLethal))
+            {
+                IsLethal = isLethal.ObjectToBool();
+            }
+
+            if (parameters.TryGetValue(9, out var killerObjectId))
+            {
+                KillerObjectId = killerObjectId.ObjectToLong() ?? 0;
+            }
+
+            if (parameters.ContainsKey(10))
+            {
+                KilledBy = string.IsNullOrEmpty(parameters[10].ToString()) ? string.Empty : parameters[10].ToString();
+            }
+
+            if (parameters.ContainsKey(11))
+            {
+                KilledByGuild = string.IsNullOrEmpty(parameters[11].ToString()) ? string.Empty : parameters[11].ToString();
+            }
+
+        }
+        catch (Exception e)
+        {
+            DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
+        }
+    }
+
+    public long DiedObjectId { get; }
+
+    public string Died { get; } = string.Empty;
+
+    public string DiedPlayerGuild { get; } = string.Empty;
+
+    public bool IsLethal { get; }
+
+    public long KillerObjectId { get; }
+
+    public string KilledBy { get; } = string.Empty;
+
+    public string KilledByGuild { get; } = string.Empty;
+}

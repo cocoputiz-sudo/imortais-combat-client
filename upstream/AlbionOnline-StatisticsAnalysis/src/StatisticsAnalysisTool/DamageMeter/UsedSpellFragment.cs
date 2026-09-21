@@ -1,0 +1,188 @@
+using StatisticsAnalysisTool.Common;
+using StatisticsAnalysisTool.Enumerations;
+using StatisticsAnalysisTool.GameFileData;
+using StatisticsAnalysisTool.Models;
+using StatisticsAnalysisTool.Models.ItemDetailsModel;
+using StatisticsAnalysisTool.ViewModels;
+using System.Windows;
+using System.Windows.Media.Imaging;
+using StatisticsAnalysisTool.Localization;
+
+namespace StatisticsAnalysisTool.DamageMeter;
+
+public class UsedSpellFragment : BaseViewModel
+{
+    private string _uniqueName;
+    private long _damageHealValue;
+    private string _damageHealShortString;
+    private string _target;
+    private string _category;
+    private Item _item;
+    private int _ticks;
+    private ItemSpellInformation _spellInformation;
+    private string _spellInformationUniqueName;
+    private int _itemIndex;
+    private double _damageInPercent;
+    private double _damagePercentage;
+    private HealthChangeType _healthChangeType = HealthChangeType.Damage;
+    private string _localizationName;
+    private string _localizationDescription;
+
+    public int SpellIndex { get; set; }
+
+    public string UniqueName
+    {
+        get => _uniqueName;
+        set
+        {
+            _uniqueName = value;
+            var presentationUniqueName = ResolvePresentationUniqueName();
+            LocalizationName = presentationUniqueName == "AUTO_ATTACK" ? LocalizationController.Translation("AUTO_ATTACK") : SpellData.GetLocalizationName(presentationUniqueName);
+            LocalizationDescription = SpellData.GetLocalizationDescription(presentationUniqueName);
+            OnPropertyChanged();
+        }
+    }
+
+    public int ItemIndex
+    {
+        get => _itemIndex;
+        set
+        {
+            _itemIndex = value;
+            Item = ItemController.GetItemByIndex(ItemIndex);
+            OnPropertyChanged();
+        }
+    }
+
+    public long DamageHealValue
+    {
+        get => _damageHealValue;
+        set
+        {
+            _damageHealValue = value;
+            DamageHealShortString = _damageHealValue.ToShortNumberString();
+            OnPropertyChanged();
+        }
+    }
+
+    public string Target
+    {
+        get => _target;
+        set
+        {
+            _target = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string Category
+    {
+        get => _category;
+        set
+        {
+            _category = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string DamageHealShortString
+    {
+        get => _damageHealShortString;
+        private set
+        {
+            _damageHealShortString = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public int Ticks
+    {
+        get => _ticks;
+        set
+        {
+            _ticks = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double DamageInPercent
+    {
+        get => _damageInPercent;
+        set
+        {
+            _damageInPercent = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public double DamagePercentage
+    {
+        get => _damagePercentage;
+        set
+        {
+            _damagePercentage = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public HealthChangeType HealthChangeType
+    {
+        get => _healthChangeType;
+        set
+        {
+            _healthChangeType = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string LocalizationName
+    {
+        get => _localizationName;
+        set
+        {
+            _localizationName = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public string LocalizationDescription
+    {
+        get => _localizationDescription;
+        set
+        {
+            _localizationDescription = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public ItemSpellInformation SpellInformation => GetSpellInformation();
+    
+    public Item Item
+    {
+        get => _item;
+        set
+        {
+            _item = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public BitmapImage Icon => Application.Current.Dispatcher.Invoke(() => ImageController.GetSpellImage(SpellData.GetIconUniqueName(ResolvePresentationUniqueName())));
+
+    private ItemSpellInformation GetSpellInformation()
+    {
+        var presentationUniqueName = ResolvePresentationUniqueName();
+        if (_spellInformation == null || _spellInformationUniqueName != presentationUniqueName)
+        {
+            _spellInformation = new ItemSpellInformation(presentationUniqueName);
+            _spellInformationUniqueName = presentationUniqueName;
+        }
+
+        return _spellInformation;
+    }
+
+    private string ResolvePresentationUniqueName()
+    {
+        return SpellPresentationResolver.ResolveUniqueName(SpellIndex, UniqueName);
+    }
+}
