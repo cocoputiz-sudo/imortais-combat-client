@@ -3,9 +3,11 @@ using StatisticsAnalysisTool.Common;
 using StatisticsAnalysisTool.Common.UserSettings;
 using StatisticsAnalysisTool.Network.Manager;
 using StatisticsAnalysisTool.ViewModels;
+using StatisticsAnalysisTool.Imortais;
 using System;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Threading;
 
 namespace StatisticsAnalysisTool.Views;
@@ -18,6 +20,7 @@ public partial class MainWindow
     private readonly MainWindowViewModel _mainWindowViewModel;
     private readonly WindowChromeController _windowChromeController;
     private readonly DispatcherTimer _applicationUptimeTimer;
+    private readonly DispatcherTimer _imortaisStatusTimer;
     private readonly SystemTrayService _systemTrayService;
     private readonly AlbionGameProcessMonitor _albionGameProcessMonitor;
 
@@ -29,6 +32,11 @@ public partial class MainWindow
             Interval = TimeSpan.FromSeconds(1)
         };
         _applicationUptimeTimer.Tick += ApplicationUptimeTimer_OnTick;
+        _imortaisStatusTimer = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TimeSpan.FromSeconds(2)
+        };
+        _imortaisStatusTimer.Tick += ImortaisStatusTimer_OnTick;
         _windowChromeController = new WindowChromeController(
             this,
             MaximizedButton,
@@ -44,7 +52,10 @@ public partial class MainWindow
         DataContext = _mainWindowViewModel;
         Loaded += MainWindow_OnLoaded;
         UpdateApplicationUptime();
+        ImortaisEventBridge.Start();
+        UpdateImortaisStatus();
         _applicationUptimeTimer.Start();
+        _imortaisStatusTimer.Start();
     }
 
     public void InitWindow()
@@ -79,6 +90,7 @@ public partial class MainWindow
         var windowStateForPersistence = _systemTrayService.WindowStateForPersistence;
         Loaded -= MainWindow_OnLoaded;
         _applicationUptimeTimer.Stop();
+        _imortaisStatusTimer.Stop();
         _albionGameProcessMonitor.GameStarted -= AlbionGameProcessMonitor_OnGameStarted;
         _albionGameProcessMonitor.GameStopped -= AlbionGameProcessMonitor_OnGameStopped;
         _albionGameProcessMonitor.Dispose();
@@ -158,6 +170,75 @@ public partial class MainWindow
     private void UpdateApplicationUptime()
     {
         ApplicationUptimeLabel.Content = App.ApplicationUptime.ToTimerString();
+    }
+
+    private void ImortaisStatusTimer_OnTick(object sender, EventArgs e)
+    {
+        UpdateImortaisStatus();
+    }
+
+    private void UpdateImortaisStatus()
+    {
+        if (_mainWindowViewModel == null) return;
+
+        var status = ImortaisEventBridge.GetStatus();
+
+        if (!status.Enabled)
+        {
+            SetImortaisStatus(ImortaisWarRoomStatusText, "● WAR ROOM: desativado", Brushes.Gray);
+            SetImortaisStatus(ImortaisTelemetryStatusText, "● TELEMETRIA: desativada", Brushes.Gray);
+        }
+        else if (!status.Configured)
+        {
+            SetImortaisStatus(ImortaisWarRoomStatusText, "● WAR ROOM: não configurado", Brushes.IndianRed);
+            SetImortaisStatus(ImortaisTelemetryStatusText, "● TELEMETRIA: sem chave", Brushes.IndianRed);
+        }
+        else if (status.WarRoomConnected)
+        {
+            SetImortaisStatus(ImortaisWarRoomStatusText, "● WAR ROOM: conectado", Brushes.LimeGreen);
+            var recent = status.LastSuccessfulContactUtc.HasValue
+                         && DateTime.UtcNow - status.LastSuccessfulContactUtc.Value < TimeSpan.FromSeconds(15);
+            SetImortaisStatus(
+                ImortaisTelemetryStatusText,
+                recent ? "● TELEMETRIA: enviando / sincronizada" : "● TELEMETRIA: conectada",
+                recent ? Brushes.LimeGreen : Brushes.Gold);
+        }
+        else
+        {
+            SetImortaisStatus(ImortaisWarRoomStatusText, "● WAR ROOM: reconectando...", Brushes.Gold);
+            var detail = string.IsNullOrWhiteSpace(status.LastError) ? "aguardando servidor" : status.LastError;
+            if (detail.Length > 34) detail = detail[..34] + "...";
+            SetImortaisStatus(ImortaisTelemetryStatusText, "● TELEMETRIA: " + detail, Brushes.Gold);
+        }
+
+        var gameDetected = _mainWindowViewModel.MainStatusBindings?.IsGameDataDetected == true;
+        SetImortaisStatus(
+            ImortaisAlbionStatusText,
+            gameDetected ? "● ALBION: capturando" : "● ALBION: aguardando dados",
+            gameDetected ? Brushes.LimeGreen : Brushes.Gold);
+
+        var ctaText = !string.IsNullOrWhiteSpace(status.CtaTime)
+            ? $"● CTA: {status.CtaTime} · vinculado"
+            : !string.IsNullOrWhiteSpace(status.CtaEventId)
+                ? $"● CTA: #{status.CtaEventId} · vinculado"
+                : "● CTA: nenhum CTA ativo";
+        SetImortaisStatus(
+            ImortaisCtaStatusText,
+            ctaText,
+            !string.IsNullOrWhiteSpace(status.CtaEventId) ? Brushes.LimeGreen : Brushes.LightSlateGray);
+
+        var partyCount = Math.Max(0, _mainWindowViewModel.PartyMemberNumber);
+        SetImortaisStatus(
+            ImortaisPartyStatusText,
+            $"● PARTY: {partyCount} jogador{(partyCount == 1 ? string.Empty : "es")}",
+            partyCount > 0 ? Brushes.LightGreen : Brushes.LightSlateGray);
+    }
+
+    private static void SetImortaisStatus(System.Windows.Controls.TextBlock target, string text, Brush color)
+    {
+        if (target == null) return;
+        target.Text = text;
+        target.Foreground = color;
     }
 
     private void MinimizeButton_Click(object sender, RoutedEventArgs e)
