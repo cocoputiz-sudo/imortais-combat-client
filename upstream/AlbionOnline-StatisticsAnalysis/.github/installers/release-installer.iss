@@ -28,6 +28,7 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+AppMutex=IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940
 CloseApplications=yes
 CloseApplicationsFilter={#MyAppExeName}
 RestartApplications=no
