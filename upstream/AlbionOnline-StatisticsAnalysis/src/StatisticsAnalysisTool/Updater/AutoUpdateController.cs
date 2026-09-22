@@ -553,7 +553,7 @@ public static class AutoUpdateController
         viewModel.IsBusy = true;
         viewModel.IsProgressIndeterminate = false;
         viewModel.DownloadProgressPercentage = 0;
-        viewModel.StatusText = "Baixando atualização... 0%";
+        viewModel.StatusText = "Baixando atualizaÃ§Ã£o... 0%";
         viewModel.ActionButtonText = "Atualizando...";
 
         var previousInteractionMode = sparkleUpdater.UserInteractionMode;
@@ -582,13 +582,13 @@ public static class AutoUpdateController
 
             viewModel.DownloadProgressPercentage = 100;
             viewModel.IsProgressIndeterminate = false;
-            viewModel.StatusText = "Download concluído. Preparando instalação...";
+            viewModel.StatusText = "Download concluÃ­do. Preparando instalaÃ§Ã£o...";
             viewModel.ActionButtonText = "Preparando...";
             await Task.Delay(700);
 
             for (var seconds = 3; seconds >= 1; seconds--)
             {
-                viewModel.StatusText = $"Instalador pronto. O Combat Client será fechado em {seconds}s para concluir a atualização.";
+                viewModel.StatusText = $"Instalador pronto. O Combat Client serÃ¡ fechado em {seconds}s para concluir a atualizaÃ§Ã£o.";
                 await Task.Delay(1000);
             }
 
@@ -650,7 +650,7 @@ public static class AutoUpdateController
 
             viewModel.IsProgressIndeterminate = false;
             viewModel.DownloadProgressPercentage = progressPercentage;
-            viewModel.StatusText = $"Baixando atualização... {progressPercentage}%";
+            viewModel.StatusText = $"Baixando atualizaÃ§Ã£o... {progressPercentage}%";
         }
 
         var dispatcher = Application.Current?.Dispatcher;

@@ -1,8 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     
     <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
     <OutputType>WinExe</OutputType>
+    <AssemblyName>IMORTAIS-Combat-Client</AssemblyName>
     <Deterministic>false</Deterministic>
     <IsWebBootstrapper>false</IsWebBootstrapper>
     <PublishUrl>publish\</PublishUrl>
@@ -16,7 +17,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>0.0.2.%2a</ApplicationVersion>
+    <ApplicationVersion>0.4.4.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -49,7 +50,7 @@
     <NetSparkleGeneratedSecurityFile>$(MSBuildProjectDirectory)\obj\$(Platform)\$(Configuration)\Generated\AutoUpdateSecurityBuildSettings.g.cs</NetSparkleGeneratedSecurityFile>
   </PropertyGroup>
   <PropertyGroup>
-    <ApplicationIcon>sat-icon.ico</ApplicationIcon>
+    <ApplicationIcon>imortais-icon.ico</ApplicationIcon>
     <RepositoryUrl>https://github.com/cocoputiz-sudo/imortais-combat-client</RepositoryUrl>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
@@ -118,6 +119,9 @@
     </None>
     <Content Include="Localization\localization.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="imortais-icon.ico">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Content>
     <Content Include="sat-icon.ico">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
@@ -388,6 +392,9 @@
     </Resource>
     <Resource Include="Assets\repair_cross.png">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Resource>
+    <Resource Include="Assets\imortais-icon.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </Resource>
     <Resource Include="Assets\sat-icon.png">
       <CopyToOutputDirectory>Never</CopyToOutputDirectory>
