@@ -92,6 +92,15 @@ public class NetworkManager
         builder.AddEventHandler(new MightAndFavorReceivedEventHandler(trackingController));
         builder.AddEventHandler(new BankVaultInfoEventHandler(trackingController));
         builder.AddEventHandler(new GuildVaultInfoEventHandler(trackingController));
+
+        // IMORTAIS experimental guild presence collector.
+        // These events are sent as opaque diagnostic probes first so we can
+        // validate the live Photon field layout before deriving presence.
+        builder.AddHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildUpdate));
+        builder.AddHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildPlayerUpdated));
+        builder.AddHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildMemberWorldUpdate));
+        builder.AddHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildMemberTerritoryUpdate));
+
         builder.AddEventHandler(new NewLootEventHandler(trackingController));
         builder.AddEventHandler(new AttachItemContainerEventHandler(trackingController));
         builder.AddEventHandler(new HarvestFinishedEventHandler(trackingController));
