@@ -40,7 +40,7 @@ public static class ImortaisEventBridge
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-    private const string ClientVersion = "0.5.1";
+    private const string ClientVersion = "0.5.2";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
