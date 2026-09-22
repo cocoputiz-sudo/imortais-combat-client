@@ -364,6 +364,7 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName=IMORTAIS Combat Client
+AppMutex=IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940
 ; NetSparkle already starts the installer from a helper script that waits for
 ; the Combat Client process to terminate. Letting Inno invoke Restart Manager here
 ; can stall indefinitely at "Closing applications..." during a silent update.
