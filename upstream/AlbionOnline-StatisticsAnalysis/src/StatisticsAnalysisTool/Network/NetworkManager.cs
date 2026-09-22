@@ -96,10 +96,10 @@ public class NetworkManager
         // IMORTAIS experimental guild presence collector.
         // We first capture the raw bounded payloads so the protocol fields can
         // be validated safely before deriving online/offline state.
-        builder.AddEventHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildUpdate));
-        builder.AddEventHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildPlayerUpdated));
-        builder.AddEventHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildMemberWorldUpdate));
-        builder.AddEventHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildMemberTerritoryUpdate));
+        builder.AddHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildUpdate));
+        builder.AddHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildPlayerUpdated));
+        builder.AddHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildMemberWorldUpdate));
+        builder.AddHandler(new ImortaisGuildPresenceProbeEventHandler(EventCodes.GuildMemberTerritoryUpdate));
 
         builder.AddEventHandler(new NewLootEventHandler(trackingController));
         builder.AddEventHandler(new AttachItemContainerEventHandler(trackingController));
