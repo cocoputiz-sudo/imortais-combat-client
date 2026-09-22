@@ -117,8 +117,7 @@ public static class AutoUpdateController
             return;
         }
 
-        if (!await IsAppCastSignatureTrustedAsync(pendingUpdateContext.Configuration, pendingUpdateContext.SparkleUpdater.SignatureVerifier)
-            || !IsUpdateItemSignatureTrusted(pendingUpdateInfo.UpdateItem, pendingUpdateContext.SparkleUpdater.SignatureVerifier))
+        if (!IsUpdateItemSignatureTrusted(pendingUpdateInfo.UpdateItem, pendingUpdateContext.SparkleUpdater.SignatureVerifier))
         {
             ClearAvailableUpdate();
             return;
@@ -196,11 +195,6 @@ public static class AutoUpdateController
 
             foreach (var sparkleUpdaterContext in sparkleUpdaterContexts)
             {
-                if (!await IsAppCastSignatureTrustedAsync(sparkleUpdaterContext.Configuration, sparkleUpdaterContext.SparkleUpdater.SignatureVerifier))
-                {
-                    continue;
-                }
-
                 try
                 {
                     var updateInfo = await sparkleUpdaterContext.SparkleUpdater.CheckForUpdatesQuietly();
@@ -931,6 +925,11 @@ public static class AutoUpdateController
         var handler = CreateHttpClientHandler(proxyUrl);
         var httpClient = new HttpClient(handler, disposeHandler: true);
         httpClient.DefaultRequestHeaders.UserAgent.ParseAdd($"{GetProductTitle().Replace(" ", string.Empty, StringComparison.Ordinal)}/{GetCurrentFileVersion()}");
+        httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
+        {
+            NoCache = true,
+            NoStore = true
+        };
         return httpClient;
     }
 
@@ -1503,7 +1502,13 @@ public static class AutoUpdateController
     {
         protected override HttpClient CreateHttpClient()
         {
-            return CreateHttpClient(CreateHttpClientHandler(proxyUrl));
+            var httpClient = CreateHttpClient(CreateHttpClientHandler(proxyUrl));
+            httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
+            {
+                NoCache = true,
+                NoStore = true
+            };
+            return httpClient;
         }
     }
 
