@@ -34,8 +34,8 @@ namespace StatisticsAnalysisTool.Updater;
 
 public static class AutoUpdateController
 {
-    private const string GitHubReleaseByTagApiBaseUrl = "https://api.github.com/repos/triky313/AlbionOnline-StatisticsAnalysis/releases/tags/";
-    private const string GitHubReleasesApiUrl = "https://api.github.com/repos/triky313/AlbionOnline-StatisticsAnalysis/releases?per_page=100";
+    private const string GitHubReleaseByTagApiBaseUrl = "https://api.github.com/repos/cocoputiz-sudo/imortais-combat-client/releases/tags/";
+    private const string GitHubReleasesApiUrl = "https://api.github.com/repos/cocoputiz-sudo/imortais-combat-client/releases?per_page=100";
     private static readonly TimeSpan BackgroundUpdateCheckInterval = TimeSpan.FromMinutes(30);
 
     private static readonly Lock SyncRoot = new();
