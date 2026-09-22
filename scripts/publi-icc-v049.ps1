@@ -231,6 +231,9 @@ if ($appConfigText -match 'Triky313/AlbionOnline-StatisticsAnalysis/main/src/Sta
 if ($bridgeText -notmatch 'PendingEvents') {
     throw "BridgeStatus não expõe contagem da outbox."
 }
+if ($updaterText -notmatch 'ShouldKillParentProcessWhenStartingInstaller\s*=\s*true') {
+    throw "Updater não garante explicitamente o fechamento do processo antes do instalador."
+}
 if ($windowText.IndexOf('<TabItem Header="IMORTAIS"') -gt $windowText.IndexOf('DashboardTabVisibility')) {
     throw "A Home IMORTAIS não é a primeira tela do client."
 }
@@ -361,7 +364,10 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName=IMORTAIS Combat Client
-CloseApplications=yes
+; NetSparkle already starts the installer from a helper script that waits for
+; the Combat Client process to terminate. Letting Inno invoke Restart Manager here
+; can stall indefinitely at "Closing applications..." during a silent update.
+CloseApplications=no
 RestartApplications=no
 
 [Files]
@@ -424,6 +430,7 @@ $notes = @"
 - Mantém download com progresso e handoff para o instalador.
 - Mantém relançamento automático do Combat Client após a instalação.
 - O instalador não abre uma segunda instância durante update silencioso (`skipifsilent`); o relançamento fica a cargo do NetSparkle.
+- O Inno Setup não usa Restart Manager durante o handoff automático; o NetSparkle encerra o processo antes de iniciar a instalação, evitando travamento em "Closing applications...".
 
 ### Teste desta versão
 A v0.4.9 é a primeira atualização destinada a validar de ponta a ponta o updater corrigido da v0.4.8.
