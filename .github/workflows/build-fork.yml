@@ -22,6 +22,8 @@ jobs:
           $config = Get-Content "$root\Imortais\ImortaisTelemetryConfig.cs" -Raw
           $loot = Get-Content "$root\Network\Manager\LootController.cs" -Raw
           $updater = Get-Content "$root\Updater\AutoUpdateController.cs" -Raw
+          $mainCode = Get-Content "$root\Views\MainWindow.xaml.cs" -Raw
+          $settings = Get-Content "$root\UserControls\SettingsControl.xaml" -Raw
 
           if ($main -notmatch '<TabItem Header="IMORTAIS"') { throw "IMORTAIS home tab missing." }
           if ($main.IndexOf('<TabItem Header="IMORTAIS"') -gt $main.IndexOf('DashboardTabVisibility')) { throw "IMORTAIS is not the first visible tab." }
@@ -36,6 +38,11 @@ jobs:
           if ($updater -notmatch 'ShowStartupUpdatePromptIfAvailableAsync') { throw "Startup update prompt is no longer decoupled from detection." }
           if ($updater -match 'UpdateCheckSource\.Manual or UpdateCheckSource\.Startup') { throw "Startup modal was coupled back into update detection." }
           if ($updater -notmatch 'RelaunchAfterUpdate\s*=\s*true') { throw "Updater must relaunch Combat Client after installation." }
+          if ($updater -notmatch 'LastUpdateCheckStatus') { throw "Updater diagnostic state missing." }
+          if ($bridge -notmatch 'PendingEvents') { throw "Outbox diagnostics missing from bridge status." }
+          if ($main -notmatch 'ImortaisDiagnosticsOutboxText') { throw "IMORTAIS diagnostics panel missing." }
+          if ($mainCode -notmatch 'CopyImortaisDiagnostics_Click') { throw "Copy diagnostics action missing." }
+          if ($settings -notmatch 'UpdateCheckStatusText') { throw "Settings update check status UI missing." }
 
       - name: Build fork Release
         shell: pwsh
