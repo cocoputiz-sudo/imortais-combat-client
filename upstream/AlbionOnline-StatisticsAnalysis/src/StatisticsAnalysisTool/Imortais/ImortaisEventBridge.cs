@@ -58,7 +58,9 @@ public static class ImortaisEventBridge
         string? CtaEventId,
         string? CtaTime,
         DateTime? LastSuccessfulContactUtc,
-        string LastError);
+        string LastError,
+        int PendingEvents,
+        long PendingBytes);
 
     public static void Start() => EnsureStarted();
 
@@ -85,7 +87,9 @@ public static class ImortaisEventBridge
                 _config.CtaEventId,
                 _activeCtaTime,
                 _lastSuccessfulContactUtc,
-                string.IsNullOrWhiteSpace(_persistenceWarning) ? _lastError : _persistenceWarning);
+                string.IsNullOrWhiteSpace(_persistenceWarning) ? _lastError : _persistenceWarning,
+                _outboxEventCount,
+                _outboxByteCount);
         }
     }
 
@@ -332,7 +336,7 @@ public static class ImortaisEventBridge
                     {
                         deviceId = _config.DeviceId,
                         playerName = _config.PlayerName,
-                        version = "0.4.8"
+                        version = "0.4.9"
                     },
                     ctaEventId = _config.CtaEventId,
                     events = batch
