@@ -29,7 +29,7 @@ jobs:
           $appConfig = Get-Content "$root\App.config" -Raw
           $settingsDefinition = Get-Content "$root\Properties\Settings.settings" -Raw
           $settingsDesigner = Get-Content "$root\Properties\Settings.Designer.cs" -Raw
-          $releaseScript = Get-Content ".\scripts\publi-icc-v049.ps1" -Raw
+          $releaseScript = Get-Content ".\scripts\publi-icc-v050.ps1" -Raw
           $installerIss = Get-Content ".\upstream\AlbionOnline-StatisticsAnalysis\.github\installers\release-installer.iss" -Raw
           $appCode = Get-Content "$root\App.xaml.cs" -Raw
 
@@ -62,6 +62,15 @@ jobs:
           if ($updater -notmatch 'ShouldKillParentProcessWhenStartingInstaller\s*=\s*true') { throw "Updater does not explicitly wait for client shutdown before installer handoff." }
           if ($installerIss -notmatch '#define MyAppExeName "IMORTAIS-Combat-Client\.exe"') { throw "Legacy installer still targets the upstream executable." }
           if ($appCode -notmatch 'IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940') { throw "Application mutex for installer detection is missing." }
+          if ($bridge -notmatch 'GuildPresenceProbe') { throw "Guild Presence Collector missing from bridge." }
+          if ($bridge -notmatch 'guild_presence_probe') { throw "guild_presence_probe telemetry type missing." }
+          if ($main -notmatch 'IMORTAIS COMBAT CLIENT') { throw "IMORTAIS UI branding missing." }
+          $presenceHandler = Get-Content "$root\Network\Handler\ImortaisGuildPresenceProbeEventHandler.cs" -Raw
+          $networkManager = Get-Content "$root\Network\NetworkManager.cs" -Raw
+          if ($presenceHandler -notmatch 'ImortaisGuildPresenceProbeEventHandler') { throw "Guild presence handler missing." }
+          foreach ($eventName in @('GuildUpdate','GuildPlayerUpdated','GuildMemberWorldUpdate','GuildMemberTerritoryUpdate')) {
+              if ($networkManager -notmatch [regex]::Escape("EventCodes.$eventName")) { throw "Guild presence event $eventName is not registered." }
+          }
 
       - name: Build fork Release
         shell: pwsh
