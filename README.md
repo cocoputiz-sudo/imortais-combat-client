@@ -186,7 +186,10 @@ Estrutura atual:
   "PlayerName": "NomeDoPersonagem",
   "CtaEventId": null,
   "BatchIntervalMs": 1000,
-  "MaxBatchSize": 100
+  "MaxBatchSize": 100,
+  "OutboxPath": "%LOCALAPPDATA%\\IMORTAIS Combat Client\\outbox.ndjson",
+  "MaxOutboxEvents": 50000,
+  "MaxOutboxBytes": 52428800
 }
 ```
 
@@ -226,19 +229,48 @@ O War Room possui fluxo de gerenciamento de dispositivos e pareamento. Tokens de
 
 ---
 
-## Fila e envio
+## Fila, outbox e envio
 
-A bridge integrada utiliza uma fila limitada para absorver eventos enquanto o worker de telemetria processa os batches.
+A captura continua usando um `Channel` em memória como **hot buffer**. As threads que observam Party, Loot e combate nunca fazem I/O em disco nem rede.
 
-Características atuais:
+O worker persiste os eventos em:
 
-- capacidade da fila: 5.000 eventos;
-- política quando cheia: descartar os eventos mais antigos;
-- batch padrão: a cada 1 segundo;
-- máximo padrão: 100 eventos por lote;
-- timeout HTTP: 8 segundos;
-- falha de ingestão: eventos do lote retornam à fila e ocorre nova tentativa;
-- contexto do CTA é atualizado continuamente.
+```text
+%LOCALAPPDATA%\IMORTAIS Combat Client\outbox.ndjson
+```
+
+A outbox usa NDJSON, um evento por linha, preservando o `EventId` original.
+
+Fluxo:
+
+```text
+captura
+  ↓
+Channel em memória
+  ↓
+append na outbox em disco
+  ↓
+lê lote da cabeça (FIFO)
+  ↓
+POST /api/telemetry/ingest
+  ↓
+ACK HTTP de sucesso
+  ↓
+remove exatamente os EventIds confirmados
+```
+
+Regras de durabilidade:
+
+- reiniciar ou derrubar o client não descarta eventos já persistidos;
+- falha HTTP não remove eventos da outbox;
+- não há reenfileiramento do batch no Channel após falha de rede;
+- um crash depois do POST e antes do ACK local pode causar reenvio, mas mantém o mesmo `EventId` para deduplicação no servidor;
+- remoção após ACK reescreve sobreviventes em `outbox.ndjson.tmp` e faz troca atômica por `File.Replace`/Move;
+- arquivo `.tmp` deixado por interrupção é recuperado no boot;
+- o disco é limitado por `MaxOutboxEvents` e `MaxOutboxBytes`;
+- defaults: 50.000 eventos / 50 MB;
+- ao exceder o teto, somente os eventos mais antigos são descartados e o estado registra aviso;
+- campos novos do `telemetry.json` são opcionais e configs antigas continuam válidas.
 
 ---
 
@@ -473,7 +505,8 @@ LICENSE-NOTE.md
 - integração com War Room;
 - updater visual;
 - releases próprias no GitHub;
-- verificação Ed25519 do instalador.
+- verificação Ed25519 do instalador;
+- outbox persistente e atômica para telemetria offline/restart.
 
 ### Em validação
 

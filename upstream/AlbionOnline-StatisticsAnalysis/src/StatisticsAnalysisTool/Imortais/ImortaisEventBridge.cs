@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
@@ -15,24 +17,38 @@ namespace StatisticsAnalysisTool.Imortais;
 public static class ImortaisEventBridge
 {
     private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(8) };
-    private static readonly Channel<ImortaisTelemetryEvent> Queue = Channel.CreateBounded<ImortaisTelemetryEvent>(
-        new BoundedChannelOptions(5000)
+    private static readonly Channel<QueuedTelemetryEvent> Queue = Channel.CreateUnbounded<QueuedTelemetryEvent>(
+        new UnboundedChannelOptions
         {
-            FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
-            SingleWriter = false
+            SingleWriter = false,
+            AllowSynchronousContinuations = false
         });
 
     private static readonly ConcurrentDictionary<string, CombatAccumulator> Combat = new(StringComparer.OrdinalIgnoreCase);
     private static readonly CancellationTokenSource Cts = new();
     private static readonly object StartLock = new();
+    private static readonly object StatusLock = new();
+    private static readonly SemaphoreSlim OutboxLock = new(1, 1);
+    private static readonly JsonSerializerOptions OutboxJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+    private static readonly UTF8Encoding Utf8NoBom = new(false);
+
     private static Task? _worker;
     private static ImortaisTelemetryConfig _config = ImortaisTelemetryConfig.Load();
-    private static readonly object StatusLock = new();
     private static bool _warRoomConnected;
     private static DateTime? _lastSuccessfulContactUtc;
     private static string _lastError = string.Empty;
+    private static string _persistenceWarning = string.Empty;
     private static string? _activeCtaTime;
+    private static string? _outboxStatePath;
+    private static int _outboxEventCount;
+    private static long _outboxByteCount;
+    private static bool _outboxStateInitialized;
+    private static bool _outboxLimitWarningActive;
+    private static long _queueSequence;
 
     public sealed record BridgeStatus(
         bool Enabled,
@@ -49,6 +65,7 @@ public static class ImortaisEventBridge
     public static void ReloadConfig()
     {
         _config = ImortaisTelemetryConfig.Load();
+        ResetOutboxState();
         EnsureStarted();
     }
 
@@ -68,7 +85,7 @@ public static class ImortaisEventBridge
                 _config.CtaEventId,
                 _activeCtaTime,
                 _lastSuccessfulContactUtc,
-                _lastError);
+                string.IsNullOrWhiteSpace(_persistenceWarning) ? _lastError : _persistenceWarning);
         }
     }
 
@@ -155,7 +172,13 @@ public static class ImortaisEventBridge
     {
         EnsureStarted();
         if (!_config.Enabled) return;
-        Queue.Writer.TryWrite(evt);
+        QueueEvent(evt);
+    }
+
+    private static void QueueEvent(ImortaisTelemetryEvent evt)
+    {
+        var sequence = Interlocked.Increment(ref _queueSequence);
+        Queue.Writer.TryWrite(new QueuedTelemetryEvent(sequence, evt));
     }
 
     private static void EnsureStarted()
@@ -180,6 +203,25 @@ public static class ImortaisEventBridge
             else if (!string.IsNullOrWhiteSpace(error))
             {
                 _lastError = error;
+            }
+        }
+    }
+
+    private static void SetPersistenceWarning(string warning)
+    {
+        lock (StatusLock)
+        {
+            _persistenceWarning = warning ?? string.Empty;
+        }
+    }
+
+    private static void ClearTransientPersistenceWarning()
+    {
+        lock (StatusLock)
+        {
+            if (!_outboxLimitWarningActive)
+            {
+                _persistenceWarning = string.Empty;
             }
         }
     }
@@ -264,13 +306,21 @@ public static class ImortaisEventBridge
                 await Task.Delay(Math.Max(250, _config.BatchIntervalMs), token);
                 await RefreshContextAsync(token);
                 FlushCombatAccumulators();
-                if (!_config.Enabled || string.IsNullOrWhiteSpace(_config.AgentKey) || string.IsNullOrWhiteSpace(_config.ServerUrl))
+
+                if (!await PersistQueuedEventsAsync(token))
+                {
+                    await Task.Delay(1500, token);
                     continue;
+                }
 
-                var batch = new List<ImortaisTelemetryEvent>();
-                while (batch.Count < Math.Max(1, _config.MaxBatchSize) && Queue.Reader.TryRead(out var evt))
-                    batch.Add(evt);
+                if (!_config.Enabled
+                    || string.IsNullOrWhiteSpace(_config.AgentKey)
+                    || string.IsNullOrWhiteSpace(_config.ServerUrl))
+                {
+                    continue;
+                }
 
+                var batch = await ReadOutboxHeadAsync(Math.Max(1, _config.MaxBatchSize), token);
                 if (batch.Count == 0) continue;
 
                 var url = _config.ServerUrl.TrimEnd('/') + "/api/telemetry/ingest";
@@ -292,7 +342,6 @@ public static class ImortaisEventBridge
                 if (!response.IsSuccessStatusCode)
                 {
                     SetConnectionState(false, $"Ingest HTTP {(int)response.StatusCode}");
-                    foreach (var evt in batch) Queue.Writer.TryWrite(evt);
                     await Task.Delay(2000, token);
                     continue;
                 }
@@ -315,17 +364,440 @@ public static class ImortaisEventBridge
                     // O envio foi aceito; falha ao ler o corpo não invalida a conexão.
                 }
 
+                await AcknowledgeOutboxAsync(batch.Select(x => x.EventId), token);
                 SetConnectionState(true);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
                 return;
             }
-            catch
+            catch (Exception e)
             {
+                SetPersistenceWarning($"Outbox/worker: {e.Message}");
                 await Task.Delay(1500, token);
             }
         }
+    }
+
+    private static async Task<bool> PersistQueuedEventsAsync(CancellationToken token)
+    {
+        var pending = new List<QueuedTelemetryEvent>();
+        while (Queue.Reader.TryRead(out var queued))
+        {
+            pending.Add(queued);
+        }
+
+        if (pending.Count == 0)
+        {
+            return true;
+        }
+
+        pending.Sort((left, right) => left.Sequence.CompareTo(right.Sequence));
+
+        try
+        {
+            await AppendOutboxAsync(pending.Select(x => x.Event).ToArray(), token);
+            ClearTransientPersistenceWarning();
+            return true;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception e)
+        {
+            // A captura nunca toca em disco. Se a persistência falhar, devolvemos
+            // os mesmos eventos (com a mesma sequência/EventId) ao Channel e tentamos
+            // novamente no próximo ciclo. Novos eventos podem entrar no meio tempo,
+            // mas a sequência restaura a ordem antes do próximo append.
+            foreach (var queued in pending)
+            {
+                Queue.Writer.TryWrite(queued);
+            }
+
+            SetPersistenceWarning($"Outbox I/O: {e.Message}");
+            return false;
+        }
+    }
+
+    private static async Task AppendOutboxAsync(IReadOnlyCollection<ImortaisTelemetryEvent> events, CancellationToken token)
+    {
+        if (events.Count == 0) return;
+
+        await OutboxLock.WaitAsync(token);
+        try
+        {
+            var path = ResolveOutboxPath();
+            EnsureOutboxDirectory(path);
+            RecoverInterruptedRewriteLocked(path);
+            await EnsureOutboxStateLockedAsync(path, token);
+
+            await using (var stream = new FileStream(
+                             path,
+                             FileMode.Append,
+                             FileAccess.Write,
+                             FileShare.Read,
+                             4096,
+                             FileOptions.Asynchronous))
+            await using (var writer = new StreamWriter(stream, Utf8NoBom) { NewLine = "\n" })
+            {
+                foreach (var evt in events)
+                {
+                    var line = JsonSerializer.Serialize(evt);
+                    await writer.WriteLineAsync(line.AsMemory(), token);
+                }
+
+                await writer.FlushAsync(token);
+                stream.Flush(flushToDisk: true);
+            }
+
+            _outboxEventCount += events.Count;
+            _outboxByteCount = new FileInfo(path).Length;
+            await TrimOutboxIfNeededLockedAsync(path, token);
+        }
+        finally
+        {
+            OutboxLock.Release();
+        }
+    }
+
+    private static async Task<List<ImortaisTelemetryEvent>> ReadOutboxHeadAsync(int maxBatchSize, CancellationToken token)
+    {
+        await OutboxLock.WaitAsync(token);
+        try
+        {
+            var path = ResolveOutboxPath();
+            EnsureOutboxDirectory(path);
+            RecoverInterruptedRewriteLocked(path);
+            await EnsureOutboxStateLockedAsync(path, token);
+            await TrimOutboxIfNeededLockedAsync(path, token);
+
+            if (!File.Exists(path) || new FileInfo(path).Length == 0)
+            {
+                return new List<ImortaisTelemetryEvent>();
+            }
+
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var batch = new List<ImortaisTelemetryEvent>(maxBatchSize);
+                var malformed = false;
+
+                await using (var stream = new FileStream(
+                                 path,
+                                 FileMode.Open,
+                                 FileAccess.Read,
+                                 FileShare.ReadWrite,
+                                 4096,
+                                 FileOptions.Asynchronous))
+                using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+                {
+                    while (batch.Count < maxBatchSize)
+                    {
+                        var line = await reader.ReadLineAsync(token);
+                        if (line == null) break;
+                        if (string.IsNullOrWhiteSpace(line)) continue;
+
+                        try
+                        {
+                            var evt = JsonSerializer.Deserialize<ImortaisTelemetryEvent>(line, OutboxJsonOptions);
+                            if (evt == null || string.IsNullOrWhiteSpace(evt.EventId))
+                            {
+                                malformed = true;
+                                continue;
+                            }
+
+                            batch.Add(evt);
+                        }
+                        catch (JsonException)
+                        {
+                            malformed = true;
+                        }
+                    }
+                }
+
+                if (!malformed)
+                {
+                    return batch;
+                }
+
+                await RepairMalformedOutboxLockedAsync(path, token);
+            }
+
+            return new List<ImortaisTelemetryEvent>();
+        }
+        finally
+        {
+            OutboxLock.Release();
+        }
+    }
+
+    private static async Task AcknowledgeOutboxAsync(IEnumerable<string> eventIds, CancellationToken token)
+    {
+        var ids = eventIds
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToHashSet(StringComparer.Ordinal);
+
+        if (ids.Count == 0) return;
+
+        await OutboxLock.WaitAsync(token);
+        try
+        {
+            var path = ResolveOutboxPath();
+            EnsureOutboxDirectory(path);
+            RecoverInterruptedRewriteLocked(path);
+
+            if (!File.Exists(path)) return;
+
+            var lines = await File.ReadAllLinesAsync(path, Encoding.UTF8, token);
+            var survivors = new List<string>(lines.Length);
+            var removed = 0;
+
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+
+                try
+                {
+                    var evt = JsonSerializer.Deserialize<ImortaisTelemetryEvent>(line, OutboxJsonOptions);
+                    if (evt != null && ids.Contains(evt.EventId))
+                    {
+                        removed++;
+                        continue;
+                    }
+                }
+                catch (JsonException)
+                {
+                    // Linha corrompida não pode bloquear a fila para sempre.
+                    SetPersistenceWarning("Outbox: linha corrompida removida durante ACK.");
+                    continue;
+                }
+
+                survivors.Add(line);
+            }
+
+            if (removed == 0) return;
+
+            await AtomicRewriteLinesLockedAsync(path, survivors, token);
+            _outboxEventCount = survivors.Count;
+            _outboxByteCount = File.Exists(path) ? new FileInfo(path).Length : 0;
+            _outboxStateInitialized = true;
+            _outboxStatePath = path;
+        }
+        finally
+        {
+            OutboxLock.Release();
+        }
+    }
+
+    private static async Task TrimOutboxIfNeededLockedAsync(string path, CancellationToken token)
+    {
+        var maxEvents = _config.MaxOutboxEvents > 0
+            ? _config.MaxOutboxEvents
+            : ImortaisTelemetryConfig.DefaultMaxOutboxEvents;
+        var maxBytes = _config.MaxOutboxBytes > 0
+            ? _config.MaxOutboxBytes
+            : ImortaisTelemetryConfig.DefaultMaxOutboxBytes;
+
+        if (_outboxEventCount <= maxEvents && _outboxByteCount <= maxBytes)
+        {
+            return;
+        }
+
+        var lines = (await File.ReadAllLinesAsync(path, Encoding.UTF8, token))
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+
+        long totalBytes = lines.Sum(GetNdjsonLineByteCount);
+        var removeCount = Math.Max(0, lines.Count - maxEvents);
+
+        while (removeCount < lines.Count && totalBytes > maxBytes)
+        {
+            totalBytes -= GetNdjsonLineByteCount(lines[removeCount]);
+            removeCount++;
+        }
+
+        if (removeCount <= 0)
+        {
+            return;
+        }
+
+        var survivors = lines.Skip(removeCount).ToList();
+        await AtomicRewriteLinesLockedAsync(path, survivors, token);
+
+        _outboxEventCount = survivors.Count;
+        _outboxByteCount = File.Exists(path) ? new FileInfo(path).Length : 0;
+        _outboxStateInitialized = true;
+        _outboxStatePath = path;
+
+        if (!_outboxLimitWarningActive)
+        {
+            _outboxLimitWarningActive = true;
+            SetPersistenceWarning($"Outbox atingiu o limite; {removeCount} evento(s) mais antigo(s) foram descartados.");
+        }
+    }
+
+    private static async Task RepairMalformedOutboxLockedAsync(string path, CancellationToken token)
+    {
+        var lines = await File.ReadAllLinesAsync(path, Encoding.UTF8, token);
+        var survivors = new List<string>(lines.Length);
+        var removed = 0;
+
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line)) continue;
+
+            try
+            {
+                var evt = JsonSerializer.Deserialize<ImortaisTelemetryEvent>(line, OutboxJsonOptions);
+                if (evt == null || string.IsNullOrWhiteSpace(evt.EventId))
+                {
+                    removed++;
+                    continue;
+                }
+
+                survivors.Add(line);
+            }
+            catch (JsonException)
+            {
+                removed++;
+            }
+        }
+
+        if (removed <= 0) return;
+
+        await AtomicRewriteLinesLockedAsync(path, survivors, token);
+        _outboxEventCount = survivors.Count;
+        _outboxByteCount = File.Exists(path) ? new FileInfo(path).Length : 0;
+        _outboxStateInitialized = true;
+        _outboxStatePath = path;
+        SetPersistenceWarning($"Outbox recuperada; {removed} linha(s) inválida(s) removida(s).");
+    }
+
+    private static async Task AtomicRewriteLinesLockedAsync(string path, IReadOnlyCollection<string> lines, CancellationToken token)
+    {
+        var tempPath = path + ".tmp";
+
+        await using (var stream = new FileStream(
+                         tempPath,
+                         FileMode.Create,
+                         FileAccess.Write,
+                         FileShare.None,
+                         4096,
+                         FileOptions.Asynchronous))
+        await using (var writer = new StreamWriter(stream, Utf8NoBom) { NewLine = "\n" })
+        {
+            foreach (var line in lines)
+            {
+                await writer.WriteLineAsync(line.AsMemory(), token);
+            }
+
+            await writer.FlushAsync(token);
+            stream.Flush(flushToDisk: true);
+        }
+
+        if (File.Exists(path))
+        {
+            try
+            {
+                File.Replace(tempPath, path, null, ignoreMetadataErrors: true);
+            }
+            catch (PlatformNotSupportedException)
+            {
+                File.Move(tempPath, path, overwrite: true);
+            }
+            catch (IOException)
+            {
+                File.Move(tempPath, path, overwrite: true);
+            }
+        }
+        else
+        {
+            File.Move(tempPath, path);
+        }
+    }
+
+    private static async Task EnsureOutboxStateLockedAsync(string path, CancellationToken token)
+    {
+        if (_outboxStateInitialized
+            && string.Equals(_outboxStatePath, path, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            _outboxEventCount = 0;
+            _outboxByteCount = 0;
+            _outboxStatePath = path;
+            _outboxStateInitialized = true;
+            return;
+        }
+
+        var count = 0;
+        await using (var stream = new FileStream(
+                         path,
+                         FileMode.Open,
+                         FileAccess.Read,
+                         FileShare.ReadWrite,
+                         4096,
+                         FileOptions.Asynchronous))
+        using (var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true))
+        {
+            while (await reader.ReadLineAsync(token) is { } line)
+            {
+                if (!string.IsNullOrWhiteSpace(line)) count++;
+            }
+        }
+
+        _outboxEventCount = count;
+        _outboxByteCount = new FileInfo(path).Length;
+        _outboxStatePath = path;
+        _outboxStateInitialized = true;
+    }
+
+    private static void RecoverInterruptedRewriteLocked(string path)
+    {
+        var tempPath = path + ".tmp";
+        if (!File.Exists(tempPath)) return;
+
+        if (File.Exists(path))
+        {
+            File.Delete(tempPath);
+            return;
+        }
+
+        File.Move(tempPath, path);
+    }
+
+    private static string ResolveOutboxPath()
+    {
+        return string.IsNullOrWhiteSpace(_config.OutboxPath)
+            ? ImortaisTelemetryConfig.DefaultOutboxPath
+            : _config.OutboxPath;
+    }
+
+    private static void EnsureOutboxDirectory(string path)
+    {
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrWhiteSpace(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+    }
+
+    private static long GetNdjsonLineByteCount(string line)
+    {
+        return Utf8NoBom.GetByteCount(line) + 1;
+    }
+
+    private static void ResetOutboxState()
+    {
+        _outboxStateInitialized = false;
+        _outboxStatePath = null;
+        _outboxEventCount = 0;
+        _outboxByteCount = 0;
+        _outboxLimitWarningActive = false;
+        SetPersistenceWarning(string.Empty);
     }
 
     private static void FlushCombatAccumulators()
@@ -338,7 +810,7 @@ public static class ImortaisEventBridge
             var healing = Interlocked.Read(ref acc.Healing);
             if (damage <= 0 && healing <= 0) continue;
 
-            Queue.Writer.TryWrite(new ImortaisTelemetryEvent
+            QueueEvent(new ImortaisTelemetryEvent
             {
                 Type = "combat_delta",
                 PlayerName = pair.Key,
@@ -352,6 +824,8 @@ public static class ImortaisEventBridge
             });
         }
     }
+
+    private sealed record QueuedTelemetryEvent(long Sequence, ImortaisTelemetryEvent Event);
 
     private sealed class CombatAccumulator
     {

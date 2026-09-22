@@ -6,6 +6,9 @@ namespace StatisticsAnalysisTool.Imortais;
 
 public sealed class ImortaisTelemetryConfig
 {
+    public const int DefaultMaxOutboxEvents = 50000;
+    public const long DefaultMaxOutboxBytes = 50L * 1024 * 1024;
+
     public bool Enabled { get; set; } = false;
     public string ServerUrl { get; set; } = "https://cta-imortais.up.railway.app";
     public string AgentKey { get; set; } = string.Empty;
@@ -14,12 +17,16 @@ public sealed class ImortaisTelemetryConfig
     public string? CtaEventId { get; set; }
     public int BatchIntervalMs { get; set; } = 1000;
     public int MaxBatchSize { get; set; } = 100;
+    public string? OutboxPath { get; set; } = DefaultOutboxPath;
+    public int MaxOutboxEvents { get; set; } = DefaultMaxOutboxEvents;
+    public long MaxOutboxBytes { get; set; } = DefaultMaxOutboxBytes;
 
     public static string DirectoryPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "IMORTAIS Combat Client");
 
     public static string FilePath => Path.Combine(DirectoryPath, "telemetry.json");
+    public static string DefaultOutboxPath => Path.Combine(DirectoryPath, "outbox.ndjson");
 
     public static ImortaisTelemetryConfig Load()
     {
