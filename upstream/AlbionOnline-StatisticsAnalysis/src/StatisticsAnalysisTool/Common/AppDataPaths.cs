@@ -28,7 +28,7 @@ public static class AppDataPaths
     private const string SoundDirectoryName = "Sounds";
     private const string LocalizationDirectoryName = "Localization";
     private const string LocalizationFileName = "localization.json";
-    private const string ExecutableFileName = "StatisticsAnalysisTool.exe";
+    private const string ExecutableFileName = "IMORTAIS-Combat-Client.exe";
     private static string _runtimeBaseDirectoryOverride;
     private static string _installationDirectoryOverride;
     private static string _legacyDefaultDirectoryOverride;
