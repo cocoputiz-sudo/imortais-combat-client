@@ -1287,7 +1287,7 @@ public static class AutoUpdateController
         var executablePath = ResolveExecutablePath();
         var sparkleUpdater = new SparkleUpdater(configuration.AppCastUrl, CreateSignatureVerifier(), executablePath)
         {
-            RelaunchAfterUpdate = false,
+            RelaunchAfterUpdate = true,
             CustomInstallerArguments = CreateInstallerArguments(),
             CheckServerFileName = false,
             UseNotificationToast = false,

@@ -35,6 +35,7 @@ jobs:
           if ($updater -match 'HttpClientUtils\.IsUrlAccessible') { throw "Updater HEAD preflight regression returned." }
           if ($updater -notmatch 'ShowStartupUpdatePromptIfAvailableAsync') { throw "Startup update prompt is no longer decoupled from detection." }
           if ($updater -match 'UpdateCheckSource\.Manual or UpdateCheckSource\.Startup') { throw "Startup modal was coupled back into update detection." }
+          if ($updater -notmatch 'RelaunchAfterUpdate\s*=\s*true') { throw "Updater must relaunch Combat Client after installation." }
 
       - name: Build fork Release
         shell: pwsh
