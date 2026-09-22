@@ -31,6 +31,7 @@ public partial class SettingsControl
         InitializeComponent();
         _settingsWindowViewModel = new SettingsWindowViewModel();
         DataContext = _settingsWindowViewModel;
+        RefreshUpdateCheckStatus();
     }
 
     private async void BtnSave_Click(object sender, RoutedEventArgs e)
@@ -93,11 +94,43 @@ public partial class SettingsControl
     private void ReloadSettings_OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
     {
         _settingsWindowViewModel.ReloadSettings();
+        RefreshUpdateCheckStatus();
     }
 
     private async void CheckForUpdate_Click(object sender, RoutedEventArgs e)
     {
-        await AutoUpdateController.CheckForUpdatesAsync();
+        if (AutoUpdateController.IsUpdateCheckRunning)
+        {
+            UpdateCheckStatusText.Text = "Updater: verificação já em andamento...";
+            return;
+        }
+
+        CheckForUpdateButton.IsEnabled = false;
+        UpdateCheckProgressBar.Visibility = Visibility.Visible;
+        UpdateCheckStatusText.Text = "Updater: consultando atualizações...";
+
+        try
+        {
+            await AutoUpdateController.CheckForUpdatesAsync();
+        }
+        finally
+        {
+            CheckForUpdateButton.IsEnabled = true;
+            UpdateCheckProgressBar.Visibility = Visibility.Collapsed;
+            RefreshUpdateCheckStatus();
+        }
+    }
+
+    private void RefreshUpdateCheckStatus()
+    {
+        if (UpdateCheckStatusText == null) return;
+
+        var lastCheck = AutoUpdateController.LastUpdateCheckUtc;
+        var timestamp = lastCheck.HasValue
+            ? lastCheck.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+            : "ainda não realizada";
+
+        UpdateCheckStatusText.Text = $"Updater: {AutoUpdateController.LastUpdateCheckStatus} · última checagem: {timestamp}";
     }
 
     private void ResetPlayerSelectionWithSameNameInDb_Click(object sender, RoutedEventArgs e)
