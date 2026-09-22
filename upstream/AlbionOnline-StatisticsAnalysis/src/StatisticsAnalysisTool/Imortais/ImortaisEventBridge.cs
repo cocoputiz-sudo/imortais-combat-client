@@ -73,6 +73,56 @@ public static class ImortaisEventBridge
         EnsureStarted();
     }
 
+    public static async Task<(bool Success, string Message)> PairAsync(string code, string? playerName = null)
+    {
+        code = (code ?? string.Empty).Trim();
+        if (code.Length != 6 || !code.All(char.IsDigit))
+            return (false, "O código deve ter 6 números.");
+
+        var config = ImortaisTelemetryConfig.Load();
+        if (string.IsNullOrWhiteSpace(config.ServerUrl))
+            return (false, "Servidor do War Room não configurado.");
+
+        try
+        {
+            var url = config.ServerUrl.TrimEnd('/') + "/api/telemetry/pair";
+            using var response = await Http.PostAsJsonAsync(url, new
+            {
+                code,
+                deviceId = config.DeviceId,
+                playerName = string.IsNullOrWhiteSpace(playerName) ? config.PlayerName : playerName.Trim()
+            });
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                    ? (false, "Código inválido, expirado ou já utilizado.")
+                    : (false, $"War Room HTTP {(int)response.StatusCode}.");
+            }
+
+            var json = await response.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(json);
+            if (!doc.RootElement.TryGetProperty("token", out var tokenProp)
+                || string.IsNullOrWhiteSpace(tokenProp.GetString()))
+                return (false, "O War Room não retornou a chave da telemetria.");
+
+            config.AgentKey = tokenProp.GetString()!;
+            config.Enabled = true;
+            if (doc.RootElement.TryGetProperty("playerName", out var playerProp)
+                && playerProp.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(playerProp.GetString()))
+                config.PlayerName = playerProp.GetString()!.Trim();
+
+            ImortaisTelemetryConfig.Save(config);
+            ReloadConfig();
+            return (true, "Telemetria ativada com sucesso.");
+        }
+        catch (Exception e)
+        {
+            return (false, "Falha ao ativar: " + e.Message);
+        }
+    }
+
     public static BridgeStatus GetStatus()
     {
         lock (StatusLock)
@@ -459,7 +509,7 @@ public static class ImortaisEventBridge
                     {
                         deviceId = _config.DeviceId,
                         playerName = _config.PlayerName,
-                        version = "0.5.0"
+                        version = "0.5.1"
                     },
                     ctaEventId = _config.CtaEventId,
                     events = batch
