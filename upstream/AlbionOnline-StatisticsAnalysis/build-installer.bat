@@ -68,9 +68,9 @@ if not defined ISCC_PATH (
     goto :finish
 )
 
-set "OUTPUT_FILE=%ROOT_DIRECTORY%StatisticsAnalysis-AlbionOnline-v%APP_VERSION%-windows-x64.exe"
+set "OUTPUT_FILE=%ROOT_DIRECTORY%IMORTAIS-Combat-Client-Setup-v%APP_VERSION%.exe"
 
-echo Publishing Statistics Analysis Tool %APP_VERSION%...
+echo Publishing IMORTAIS Combat Client %APP_VERSION%...
 if exist "%PUBLISH_DIRECTORY%" rmdir /s /q "%PUBLISH_DIRECTORY%"
 if exist "%PUBLISH_DIRECTORY%" (
     echo ERROR: The previous publish directory could not be removed.
