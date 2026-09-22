@@ -301,6 +301,69 @@
 
                             <Border Grid.Row="3"
                                     Margin="0,18,0,0"
+                                    Padding="18"
+                                    Background="{StaticResource SolidColorBrush.Background.3}"
+                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="34" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="145" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                                               Text="DIAGNÓSTICO"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="VERSÃO" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ImortaisDiagnosticsVersionText" Text="v0.4.9" FontWeight="SemiBold" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="UPDATER" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ImortaisDiagnosticsUpdaterText" Text="AINDA NÃO VERIFICADO" Foreground="Gold" />
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="ÚLTIMA CHECAGEM" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ImortaisDiagnosticsLastCheckText" Text="ainda não realizada" Foreground="{StaticResource SolidColorBrush.Text.3}" />
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="ÚLTIMO CONTATO" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="4" Grid.Column="1" x:Name="ImortaisDiagnosticsLastContactText" Text="aguardando" Foreground="{StaticResource SolidColorBrush.Text.3}" />
+
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="OUTBOX" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="5" Grid.Column="1" x:Name="ImortaisDiagnosticsOutboxText" Text="0 eventos" Foreground="{StaticResource SolidColorBrush.Text.3}" />
+
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Margin="0,4,0,0" Text="ÚLTIMO ERRO" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="6" Grid.Column="1" Margin="0,4,0,0" x:Name="ImortaisDiagnosticsErrorText"
+                                               Text="nenhum" TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" />
+
+                                    <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,14,0,0">
+                                        <Button x:Name="ImortaisCheckForUpdateButton"
+                                                Content="VERIFICAR ATUALIZAÇÃO"
+                                                Height="34"
+                                                MinWidth="180"
+                                                Margin="0,0,10,0"
+                                                Click="ImortaisCheckForUpdate_Click" />
+                                        <Button Content="COPIAR DIAGNÓSTICO"
+                                                Height="34"
+                                                MinWidth="170"
+                                                Click="CopyImortaisDiagnostics_Click" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Row="4"
+                                    Margin="0,18,0,0"
                                     Padding="14"
                                     Background="{StaticResource SolidColorBrush.Background.3}"
                                     BorderBrush="{StaticResource SolidColorBrush.Text.7}"
