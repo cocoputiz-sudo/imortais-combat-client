@@ -78,12 +78,14 @@ public static class AutoUpdateController
         {
             if (_isStartupCheckCompleted)
             {
+                Log.Information("IMORTAIS background auto-update loop is already initialized.");
                 return Task.CompletedTask;
             }
 
             _isStartupCheckCompleted = true;
             _backgroundUpdateCancellationTokenSource = new CancellationTokenSource();
             _backgroundUpdateTask = RunBackgroundUpdateLoopAsync(_backgroundUpdateCancellationTokenSource.Token);
+            Log.Information("IMORTAIS background auto-update task created.");
         }
 
         return Task.CompletedTask;
@@ -152,6 +154,7 @@ public static class AutoUpdateController
         {
             Log.Information("Starting IMORTAIS background auto-update loop.");
             await CheckForUpdatesInternalAsync(UpdateCheckSource.Startup);
+            await ShowStartupUpdatePromptIfAvailableAsync();
 
             using var timer = new PeriodicTimer(BackgroundUpdateCheckInterval);
             while (await timer.WaitForNextTickAsync(cancellationToken))
@@ -167,6 +170,33 @@ public static class AutoUpdateController
             DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
             Log.Error(e, "Background update loop stopped unexpectedly.");
         }
+    }
+
+    private static async Task ShowStartupUpdatePromptIfAvailableAsync()
+    {
+        if (!IsUpdateAvailable)
+        {
+            Log.Information("Startup update check completed with no pending update.");
+            return;
+        }
+
+        Log.Information("Startup update check found an update. Scheduling the IMORTAIS update window on the UI dispatcher.");
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            Log.Warning("Startup update prompt could not be shown because the WPF dispatcher is unavailable.");
+            return;
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            await ShowAvailableUpdateWindowAsync();
+            return;
+        }
+
+        var operation = dispatcher.InvokeAsync(async () => await ShowAvailableUpdateWindowAsync());
+        await (await operation.Task);
     }
 
     private static async Task CheckForUpdatesInternalAsync(UpdateCheckSource checkSource)
@@ -248,7 +278,7 @@ public static class AutoUpdateController
             var releaseInfos = await LoadGitHubReleaseInfosAsync(selectedUpdate.UpdateItem, currentVersion, selectedUpdate.Context.Configuration);
             SetAvailableUpdate(new PendingUpdateInfo(selectedUpdate.UpdateItem, releaseInfos, currentVersion, selectedUpdate.Context.Configuration));
 
-            if (checkSource is UpdateCheckSource.Manual or UpdateCheckSource.Startup)
+            if (checkSource == UpdateCheckSource.Manual)
             {
                 await ShowUpdateWindowAsync(selectedUpdate.Context.SparkleUpdater, selectedUpdate.UpdateItem, releaseInfos, currentVersion);
             }
