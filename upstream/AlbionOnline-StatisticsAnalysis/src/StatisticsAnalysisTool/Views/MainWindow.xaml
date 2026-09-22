@@ -249,6 +249,7 @@
                                         <RowDefinition Height="28" />
                                         <RowDefinition Height="28" />
                                         <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
                                     </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="95" />
@@ -290,12 +291,11 @@
                                     <TextBlock Grid.Row="6" Grid.Column="0" Text="CTA" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
                                     <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ImortaisHomeCtaStatusText" Text="NENHUM CTA ATIVO" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.4}" />
 
-                                    <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal">
-                                        <TextBlock Text="PARTY" Width="95" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                        <TextBlock x:Name="ImortaisHomePartyStatusText" Text="0 detectados" Width="150" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.4}" />
-                                        <TextBlock Text="TELEMETRIA" Width="95" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                        <TextBlock x:Name="ImortaisHomeTelemetryStatusText" Text="● AGUARDANDO..." VerticalAlignment="Center" Foreground="Gold" />
-                                    </StackPanel>
+                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="PARTY" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="7" Grid.Column="1" x:Name="ImortaisHomePartyStatusText" Text="0 detectados" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.4}" />
+
+                                    <TextBlock Grid.Row="8" Grid.Column="0" Text="TELEMETRIA" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="8" Grid.Column="1" x:Name="ImortaisHomeTelemetryStatusText" Text="● AGUARDANDO..." VerticalAlignment="Center" Foreground="Gold" />
                                 </Grid>
                             </Border>
 
