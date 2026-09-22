@@ -4,7 +4,7 @@ Cliente desktop da guilda **I M O R T A I S** para Albion Online, baseado no pro
 
 O objetivo do projeto é aproveitar a captura passiva e os parsers já existentes do Statistics Analysis para transformar dados observados no jogo em telemetria útil para organização de CTA, conferência de party, loot e desempenho de combate.
 
-> **Próxima versão preparada:** v0.4.7  
+> **Versão publicada atual:** v0.4.7  
 > **Plataforma:** Windows 10/11 x64  
 > **Runtime/build:** .NET 10 / WPF
 
