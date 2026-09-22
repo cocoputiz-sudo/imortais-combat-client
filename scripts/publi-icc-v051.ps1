@@ -170,13 +170,13 @@ $bridgeText = [System.IO.File]::ReadAllText($BridgeFile)
 $configText = [System.IO.File]::ReadAllText($ConfigFile)
 $lootControllerText = [System.IO.File]::ReadAllText($LootControllerFile)
 
-if ($projectText -notmatch '<ApplicationVersion>0\.5\.1\.0</ApplicationVersion>') {
+if ($projectText -notmatch '<ApplicationVersion>\s*0\.5\.1\.0\s*</ApplicationVersion>') {
     throw "csproj não está em v0.5.1."
 }
-if ($assemblyText -notmatch 'AssemblyFileVersion\("0\.5\.1\.0"\)') {
+if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.5\.1\.0"\s*\)') {
     throw "AssemblyFileVersion não está em v0.5.1."
 }
-if ($assemblyText -notmatch 'AssemblyInformationalVersion\("0\.5\.1"\)') {
+if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.5\.1"\s*\)') {
     throw "AssemblyInformationalVersion não está em v0.5.1."
 }
 if ($updaterText -match 'if \(!await IsAppCastSignatureTrustedAsync') {
