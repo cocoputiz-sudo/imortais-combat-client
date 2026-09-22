@@ -52,6 +52,8 @@ public static class AutoUpdateController
     private static CancellationTokenSource _backgroundUpdateCancellationTokenSource;
     private static Task _backgroundUpdateTask;
     private static PendingUpdateInfo _pendingUpdateInfo;
+    private static DateTime? _lastUpdateCheckUtc;
+    private static string _lastUpdateCheckStatus = "AINDA NÃO VERIFICADO";
 
     public static event Action<bool> UpdateAvailabilityChanged;
 
@@ -62,6 +64,39 @@ public static class AutoUpdateController
             lock (SyncRoot)
             {
                 return _pendingUpdateInfo != null;
+            }
+        }
+    }
+
+    public static DateTime? LastUpdateCheckUtc
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return _lastUpdateCheckUtc;
+            }
+        }
+    }
+
+    public static string LastUpdateCheckStatus
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return _lastUpdateCheckStatus;
+            }
+        }
+    }
+
+    public static bool IsUpdateCheckRunning
+    {
+        get
+        {
+            lock (SyncRoot)
+            {
+                return _isUpdateCheckRunning;
             }
         }
     }
@@ -206,11 +241,15 @@ public static class AutoUpdateController
             return;
         }
 
+        SetUpdateCheckStatus("VERIFICANDO...", completed: false);
+
         try
         {
             var sparkleUpdaterContexts = await EnsureSparkleUpdaterContextsAsync();
             if (sparkleUpdaterContexts.Count == 0)
             {
+                SetUpdateCheckStatus("FALHA NA VERIFICAÇÃO", completed: true);
+
                 if (checkSource == UpdateCheckSource.Manual)
                 {
                     ShowUpdateCheckFailedMessage();
@@ -260,6 +299,10 @@ public static class AutoUpdateController
             {
                 ClearAvailableUpdate();
 
+                SetUpdateCheckStatus(
+                    completedUpdateChecks > 0 ? "ATUALIZADO" : "FALHA NA VERIFICAÇÃO",
+                    completed: true);
+
                 if (checkSource == UpdateCheckSource.Manual)
                 {
                     if (completedUpdateChecks > 0)
@@ -277,6 +320,7 @@ public static class AutoUpdateController
 
             var releaseInfos = await LoadGitHubReleaseInfosAsync(selectedUpdate.UpdateItem, currentVersion, selectedUpdate.Context.Configuration);
             SetAvailableUpdate(new PendingUpdateInfo(selectedUpdate.UpdateItem, releaseInfos, currentVersion, selectedUpdate.Context.Configuration));
+            SetUpdateCheckStatus("ATUALIZAÇÃO DISPONÍVEL", completed: true);
 
             if (checkSource == UpdateCheckSource.Manual)
             {
@@ -287,6 +331,7 @@ public static class AutoUpdateController
         {
             DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
             Log.Warning(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            SetUpdateCheckStatus("FALHA NA VERIFICAÇÃO", completed: true);
 
             if (checkSource == UpdateCheckSource.Manual)
             {
@@ -297,6 +342,7 @@ public static class AutoUpdateController
         {
             DebugConsole.WriteError(MethodBase.GetCurrentMethod()?.DeclaringType, e);
             Log.Error(e, "{message}", MethodBase.GetCurrentMethod()?.DeclaringType);
+            SetUpdateCheckStatus("FALHA NA VERIFICAÇÃO", completed: true);
 
             if (checkSource == UpdateCheckSource.Manual)
             {
@@ -306,6 +352,18 @@ public static class AutoUpdateController
         finally
         {
             EndUpdateCheck();
+        }
+    }
+
+    private static void SetUpdateCheckStatus(string status, bool completed)
+    {
+        lock (SyncRoot)
+        {
+            _lastUpdateCheckStatus = status ?? string.Empty;
+            if (completed)
+            {
+                _lastUpdateCheckUtc = DateTime.UtcNow;
+            }
         }
     }
 

@@ -4,7 +4,10 @@ using StatisticsAnalysisTool.Common.UserSettings;
 using StatisticsAnalysisTool.Network.Manager;
 using StatisticsAnalysisTool.ViewModels;
 using StatisticsAnalysisTool.Imortais;
+using StatisticsAnalysisTool.Updater;
 using System;
+using System.Reflection;
+using System.Text;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
@@ -232,6 +235,133 @@ public partial class MainWindow
             ImortaisHomePartyStatusText,
             $"{partyCount} detectado{(partyCount == 1 ? string.Empty : "s")}",
             partyCount > 0 ? Brushes.LightGreen : Brushes.LightSlateGray);
+
+        UpdateImortaisDiagnostics(status);
+    }
+
+    private void UpdateImortaisDiagnostics(ImortaisEventBridge.BridgeStatus status)
+    {
+        if (ImortaisDiagnosticsVersionText == null) return;
+
+        ImortaisDiagnosticsVersionText.Text = $"v{GetCombatClientVersion()}";
+
+        var updaterStatus = AutoUpdateController.LastUpdateCheckStatus;
+        ImortaisDiagnosticsUpdaterText.Text = updaterStatus;
+        ImortaisDiagnosticsUpdaterText.Foreground = updaterStatus switch
+        {
+            "ATUALIZADO" => Brushes.LimeGreen,
+            "ATUALIZAÇÃO DISPONÍVEL" => Brushes.Gold,
+            "FALHA NA VERIFICAÇÃO" => Brushes.IndianRed,
+            "VERIFICANDO..." => Brushes.DeepSkyBlue,
+            _ => Brushes.LightSlateGray
+        };
+
+        ImortaisDiagnosticsLastCheckText.Text = AutoUpdateController.LastUpdateCheckUtc.HasValue
+            ? AutoUpdateController.LastUpdateCheckUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")
+            : "ainda não realizada";
+
+        ImortaisDiagnosticsLastContactText.Text = status.LastSuccessfulContactUtc.HasValue
+            ? $"{FormatRelativeTime(status.LastSuccessfulContactUtc.Value)} · {status.LastSuccessfulContactUtc.Value.ToLocalTime():HH:mm:ss}"
+            : "aguardando primeiro contato";
+
+        ImortaisDiagnosticsOutboxText.Text =
+            $"{status.PendingEvents} evento{(status.PendingEvents == 1 ? string.Empty : "s")} · {FormatByteCount(status.PendingBytes)}";
+
+        ImortaisDiagnosticsErrorText.Text = string.IsNullOrWhiteSpace(status.LastError)
+            ? "nenhum"
+            : status.LastError;
+    }
+
+    private async void ImortaisCheckForUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        if (AutoUpdateController.IsUpdateCheckRunning)
+        {
+            _ = MessageBox.Show(
+                "Já existe uma verificação de atualização em andamento.",
+                "IMORTAIS Combat Client",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        var button = sender as System.Windows.Controls.Button;
+        if (button != null)
+        {
+            button.IsEnabled = false;
+        }
+
+        try
+        {
+            await AutoUpdateController.CheckForUpdatesAsync();
+        }
+        finally
+        {
+            if (button != null)
+            {
+                button.IsEnabled = true;
+            }
+
+            UpdateImortaisStatus();
+        }
+    }
+
+    private void CopyImortaisDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        var status = ImortaisEventBridge.GetStatus();
+        var partyCount = Math.Max(0, _mainWindowViewModel?.PartyMemberNumber ?? 0);
+        var builder = new StringBuilder();
+
+        builder.AppendLine("IMORTAIS COMBAT CLIENT - DIAGNÓSTICO");
+        builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
+        builder.AppendLine($"Updater: {AutoUpdateController.LastUpdateCheckStatus}");
+        builder.AppendLine($"Última checagem: {(AutoUpdateController.LastUpdateCheckUtc.HasValue ? AutoUpdateController.LastUpdateCheckUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "não realizada")}");
+        builder.AppendLine($"War Room: {(status.WarRoomConnected ? "CONECTADO" : "DESCONECTADO")}");
+        builder.AppendLine($"Jogador: {(string.IsNullOrWhiteSpace(status.PlayerName) ? "não identificado" : status.PlayerName)}");
+        builder.AppendLine($"CTA: {(!string.IsNullOrWhiteSpace(status.CtaTime) ? status.CtaTime : !string.IsNullOrWhiteSpace(status.CtaEventId) ? status.CtaEventId : "nenhum")}");
+        builder.AppendLine($"Party: {partyCount}");
+        builder.AppendLine($"Último contato: {(status.LastSuccessfulContactUtc.HasValue ? status.LastSuccessfulContactUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
+        builder.AppendLine($"Outbox: {status.PendingEvents} eventos / {FormatByteCount(status.PendingBytes)}");
+        builder.AppendLine($"Último erro: {(string.IsNullOrWhiteSpace(status.LastError) ? "nenhum" : status.LastError)}");
+
+        Clipboard.SetText(builder.ToString());
+
+        _ = MessageBox.Show(
+            "Diagnóstico copiado para a área de transferência.",
+            "IMORTAIS Combat Client",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private static string GetCombatClientVersion()
+    {
+        var informationalVersion = Assembly.GetExecutingAssembly()
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+            ?.InformationalVersion;
+
+        if (!string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return informationalVersion.Split('+')[0].TrimStart('v', 'V');
+        }
+
+        return Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "0.0.0";
+    }
+
+    private static string FormatRelativeTime(DateTime utc)
+    {
+        var elapsed = DateTime.UtcNow - utc;
+        if (elapsed < TimeSpan.Zero) elapsed = TimeSpan.Zero;
+
+        if (elapsed.TotalSeconds < 60) return $"há {Math.Max(0, (int)elapsed.TotalSeconds)}s";
+        if (elapsed.TotalMinutes < 60) return $"há {(int)elapsed.TotalMinutes}min";
+        if (elapsed.TotalHours < 24) return $"há {(int)elapsed.TotalHours}h";
+        return $"há {(int)elapsed.TotalDays}d";
+    }
+
+    private static string FormatByteCount(long bytes)
+    {
+        if (bytes < 1024) return $"{bytes} B";
+        if (bytes < 1024 * 1024) return $"{bytes / 1024d:0.0} KB";
+        return $"{bytes / (1024d * 1024d):0.0} MB";
     }
 
     private static void SetImortaisStatus(System.Windows.Controls.TextBlock target, string text, Brush color)
