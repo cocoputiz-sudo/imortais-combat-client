@@ -4,7 +4,7 @@ Cliente desktop da guilda **I M O R T A I S** para Albion Online, baseado no pro
 
 O objetivo do projeto é aproveitar a captura passiva e os parsers já existentes do Statistics Analysis para transformar dados observados no jogo em telemetria útil para organização de CTA, conferência de party, loot e desempenho de combate.
 
-> **Versão publicada atual:** v0.4.6  
+> **Próxima versão preparada:** v0.4.7  
 > **Plataforma:** Windows 10/11 x64  
 > **Runtime/build:** .NET 10 / WPF
 
@@ -14,7 +14,7 @@ O objetivo do projeto é aproveitar a captura passiva e os parsers já existente
 
 O projeto deixou de ser apenas uma bridge de demonstração. Hoje o fork do Statistics Analysis já contém a integração IMORTAIS diretamente no cliente desktop.
 
-A v0.4.6 inclui:
+A linha v0.4.7 inclui:
 
 - identidade visual **IMORTAIS COMBAT CLIENT**;
 - ícone próprio no executável, janela e instalador;
@@ -298,7 +298,7 @@ Por isso, em máquinas novas, o Microsoft Defender SmartScreen pode exibir aviso
 
 Isso não significa, por si só, que o arquivo foi detectado como malware. Uma próxima etapa do projeto é adicionar assinatura Authenticode/Code Signing ao executável e ao instalador.
 
-### Migração para v0.4.6
+### Migração e teste do updater
 
 As versões v0.4.4 e v0.4.5 possuíam uma validação adicional do próprio appcast que se mostrou frágil e impedia a oferta de atualização em alguns cenários.
 
@@ -309,12 +309,14 @@ v0.4.4 / v0.4.5
         ↓
 instalação manual da v0.4.6
         ↓
-novo fluxo de updater
+v0.4.6 detecta v0.4.7 pelo updater
+        ↓
+v0.4.7 restaura a Home IMORTAIS e mantém o novo fluxo
 ```
 
-A v0.4.6 mantém a validação Ed25519 do instalador baixado e deixa de depender daquele bloqueio adicional do feed.
+A v0.4.6 mantém a validação Ed25519 do instalador baixado e deixa de depender daquele bloqueio adicional do feed. A v0.4.7 é a primeira versão usada para validar esse novo fluxo de ponta a ponta.
 
-A atualização automática deve ser validada novamente em uma versão posterior partindo da v0.4.6.
+A atualização automática é validada na passagem v0.4.6 → v0.4.7.
 
 ---
 
@@ -323,17 +325,17 @@ A atualização automática deve ser validada novamente em uma versão posterior
 Use preferencialmente o instalador publicado em **Releases**:
 
 ```text
-IMORTAIS-Combat-Client-Setup-v0.4.6.exe
+IMORTAIS-Combat-Client-Setup-v0.4.7.exe
 ```
 
 Também são publicados:
 
 ```text
-IMORTAIS-Combat-Client-Setup-v0.4.6.exe.sha256
-IMORTAIS-Combat-Client-v0.4.6-win-x64.zip
+IMORTAIS-Combat-Client-Setup-v0.4.7.exe.sha256
+IMORTAIS-Combat-Client-v0.4.7-win-x64.zip
 ```
 
-Para usuários das versões v0.4.4 ou v0.4.5, instale a v0.4.6 manualmente sobre a instalação existente.
+Para usuários em v0.4.6, a v0.4.7 deve ser recebida pelo updater interno. Usuários em v0.4.4/v0.4.5 ainda devem migrar manualmente para v0.4.6 ou mais recente.
 
 O diretório padrão de instalação é:
 
@@ -510,7 +512,7 @@ LICENSE-NOTE.md
 
 ### Em validação
 
-- fluxo automático completo de atualização partindo da v0.4.6;
+- fluxo automático completo de atualização v0.4.6 → v0.4.7;
 - relançamento automático após update em diferentes máquinas;
 - comportamento do updater fora da máquina de desenvolvimento.
 

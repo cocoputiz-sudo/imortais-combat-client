@@ -332,7 +332,7 @@ public static class ImortaisEventBridge
                     {
                         deviceId = _config.DeviceId,
                         playerName = _config.PlayerName,
-                        version = "0.4.6"
+                        version = "0.4.7"
                     },
                     ctaEventId = _config.CtaEventId,
                     events = batch
