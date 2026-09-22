@@ -18,6 +18,7 @@ using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -27,6 +28,7 @@ namespace StatisticsAnalysisTool;
 public partial class App
 {
     private static readonly Stopwatch _applicationUptimeStopwatch = Stopwatch.StartNew();
+    private static readonly Mutex _installerDetectionMutex = new(false, "IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940");
     private MainWindowViewModel _mainWindowViewModel;
     private TrackingController _trackingController;
     private ServerUserDataCoordinator _serverUserDataCoordinator;
