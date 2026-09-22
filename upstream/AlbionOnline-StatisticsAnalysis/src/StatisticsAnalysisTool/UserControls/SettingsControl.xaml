@@ -31,8 +31,19 @@
                             <TextBlock Text="{Binding Translation.Generally, FallbackValue=GENERALLY}" Style="{StaticResource Settings.CardTitle}" />
                         </Border>
 
-                        <Button Content="{Binding Translation.CheckForUpdate, FallbackValue=CHECK__FOR__UPDATE}"
-                                Height="40" Margin="10,10,10,10" HorizontalAlignment="Stretch" FontWeight="SemiBold" Click="CheckForUpdate_Click" />
+                        <Button x:Name="CheckForUpdateButton"
+                                Content="{Binding Translation.CheckForUpdate, FallbackValue=CHECK__FOR__UPDATE}"
+                                Height="40" Margin="10,10,10,4" HorizontalAlignment="Stretch" FontWeight="SemiBold" Click="CheckForUpdate_Click" />
+                        <StackPanel Margin="14,0,14,10">
+                            <TextBlock x:Name="UpdateCheckStatusText"
+                                       Text="Updater: ainda não verificado"
+                                       Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                            <ProgressBar x:Name="UpdateCheckProgressBar"
+                                         Height="3"
+                                         Margin="0,5,0,0"
+                                         IsIndeterminate="True"
+                                         Visibility="Collapsed" />
+                        </StackPanel>
 
                         <Grid Margin="14,12,14,4">
                             <Grid.ColumnDefinitions>
