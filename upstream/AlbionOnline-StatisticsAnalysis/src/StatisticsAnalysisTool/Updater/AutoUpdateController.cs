@@ -248,7 +248,7 @@ public static class AutoUpdateController
             var releaseInfos = await LoadGitHubReleaseInfosAsync(selectedUpdate.UpdateItem, currentVersion, selectedUpdate.Context.Configuration);
             SetAvailableUpdate(new PendingUpdateInfo(selectedUpdate.UpdateItem, releaseInfos, currentVersion, selectedUpdate.Context.Configuration));
 
-            if (checkSource == UpdateCheckSource.Manual)
+            if (checkSource is UpdateCheckSource.Manual or UpdateCheckSource.Startup)
             {
                 await ShowUpdateWindowAsync(selectedUpdate.Context.SparkleUpdater, selectedUpdate.UpdateItem, releaseInfos, currentVersion);
             }
