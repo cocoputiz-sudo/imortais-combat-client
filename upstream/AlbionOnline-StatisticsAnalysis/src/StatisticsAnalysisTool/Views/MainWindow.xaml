@@ -217,6 +217,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
 
@@ -306,6 +307,32 @@
                                     BorderBrush="{StaticResource SolidColorBrush.Text.7}"
                                     BorderThickness="1"
                                     CornerRadius="4">
+                                <StackPanel>
+                                    <TextBlock Text="ATIVAÇÃO DA TELEMETRIA" FontSize="14" FontWeight="Bold"
+                                               Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
+                                    <TextBlock x:Name="ImortaisPairingHelpText" Margin="0,8,0,8"
+                                               Text="Se este computador ainda não estiver ativado, gere um código de 6 dígitos no War Room e informe abaixo."
+                                               TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBox x:Name="ImortaisPairingCodeTextBox" Width="180" Height="34"
+                                                 MaxLength="6" FontSize="16" VerticalContentAlignment="Center"
+                                                 ToolTip="Código de ativação de 6 dígitos" />
+                                        <Button x:Name="ImortaisPairingButton" Content="ATIVAR TELEMETRIA"
+                                                Height="34" MinWidth="180" Margin="10,0,0,0"
+                                                Click="ImortaisPairing_Click" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="ImortaisPairingStatusText" Margin="0,8,0,0"
+                                               Text="Aguardando ativação" Foreground="{StaticResource SolidColorBrush.Text.4}" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Row="4"
+                                    Margin="0,18,0,0"
+                                    Padding="18"
+                                    Background="{StaticResource SolidColorBrush.Background.3}"
+                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="34" />
@@ -362,7 +389,7 @@
                                 </Grid>
                             </Border>
 
-                            <Border Grid.Row="4"
+                            <Border Grid.Row="5"
                                     Margin="0,18,0,0"
                                     Padding="14"
                                     Background="{StaticResource SolidColorBrush.Background.3}"

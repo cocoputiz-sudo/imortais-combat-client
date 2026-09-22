@@ -272,6 +272,37 @@ public partial class MainWindow
             : status.LastError;
     }
 
+    private async void ImortaisPairing_Click(object sender, RoutedEventArgs e)
+    {
+        var code = ImortaisPairingCodeTextBox?.Text?.Trim() ?? string.Empty;
+        if (code.Length != 6 || !int.TryParse(code, out _))
+        {
+            ImortaisPairingStatusText.Text = "Informe o código de 6 dígitos.";
+            ImortaisPairingStatusText.Foreground = Brushes.IndianRed;
+            return;
+        }
+
+        ImortaisPairingButton.IsEnabled = false;
+        ImortaisPairingStatusText.Text = "Ativando...";
+        ImortaisPairingStatusText.Foreground = Brushes.Gold;
+        try
+        {
+            var playerName = _mainWindowViewModel?.UserTrackingBindings?.Username;
+            var result = await ImortaisEventBridge.PairAsync(code, playerName);
+            ImortaisPairingStatusText.Text = result.Message;
+            ImortaisPairingStatusText.Foreground = result.Success ? Brushes.LimeGreen : Brushes.IndianRed;
+            if (result.Success)
+            {
+                ImortaisPairingCodeTextBox.Clear();
+                UpdateImortaisStatus();
+            }
+        }
+        finally
+        {
+            ImortaisPairingButton.IsEnabled = true;
+        }
+    }
+
     private async void ImortaisCheckForUpdate_Click(object sender, RoutedEventArgs e)
     {
         if (AutoUpdateController.IsUpdateCheckRunning)
