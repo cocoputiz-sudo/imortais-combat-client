@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -26,6 +27,7 @@ public static class ImortaisEventBridge
         });
 
     private static readonly ConcurrentDictionary<string, CombatAccumulator> Combat = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, string> LastGuildPresenceProbePayloads = new(StringComparer.Ordinal);
     private static readonly CancellationTokenSource Cts = new();
     private static readonly object StartLock = new();
     private static readonly object StatusLock = new();
@@ -127,6 +129,132 @@ public static class ImortaisEventBridge
                 ["cluster"] = clusterName
             }
         });
+    }
+
+    public static void GuildPresenceProbe(string eventName, int eventCode, IReadOnlyDictionary<byte, object> parameters)
+    {
+        if (string.IsNullOrWhiteSpace(eventName) || parameters == null)
+        {
+            return;
+        }
+
+        var normalizedParameters = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var pair in parameters.OrderBy(x => x.Key).Take(96))
+        {
+            // 252 is the Photon event-code field itself. Keep it out of the
+            // opaque parameter map because eventCode is already explicit.
+            if (pair.Key == 252) continue;
+            normalizedParameters[pair.Key.ToString()] = SanitizePhotonValue(pair.Value, 0);
+        }
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["eventName"] = eventName,
+            ["eventCode"] = eventCode,
+            ["parameters"] = normalizedParameters
+        };
+
+        // GuildUpdate may be repeated unchanged. Do not fill the outbox with
+        // duplicate probe payloads; a changed packet is still sent immediately.
+        var fingerprint = JsonSerializer.Serialize(payload);
+        if (LastGuildPresenceProbePayloads.TryGetValue(eventName, out var previous)
+            && string.Equals(previous, fingerprint, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        LastGuildPresenceProbePayloads[eventName] = fingerprint;
+
+        Enqueue(new ImortaisTelemetryEvent
+        {
+            Type = "guild_presence_probe",
+            PlayerName = _config.PlayerName,
+            Payload = payload
+        });
+    }
+
+    private static object? SanitizePhotonValue(object? value, int depth)
+    {
+        if (value == null) return null;
+        if (depth >= 5) return "<max-depth>";
+
+        switch (value)
+        {
+            case string text:
+                return text.Length <= 512 ? text : text[..512];
+            case bool:
+            case byte:
+            case sbyte:
+            case short:
+            case ushort:
+            case int:
+            case uint:
+            case long:
+            case ulong:
+            case float:
+            case double:
+            case decimal:
+                return value;
+            case Guid guid:
+                return guid.ToString();
+            case DateTime dateTime:
+                return dateTime.ToUniversalTime().ToString("O");
+            case byte[] bytes:
+                return new Dictionary<string, object?>
+                {
+                    ["kind"] = "bytes",
+                    ["length"] = bytes.Length,
+                    ["previewBase64"] = Convert.ToBase64String(bytes.Take(64).ToArray())
+                };
+            case IDictionary dictionary:
+            {
+                var result = new Dictionary<string, object?>(StringComparer.Ordinal);
+                var count = 0;
+                foreach (DictionaryEntry entry in dictionary)
+                {
+                    if (count++ >= 256) break;
+                    var key = entry.Key?.ToString() ?? "null";
+                    result[key] = SanitizePhotonValue(entry.Value, depth + 1);
+                }
+                return result;
+            }
+            case Array array:
+            {
+                var result = new List<object?>();
+                var count = Math.Min(array.Length, 400);
+                for (var i = 0; i < count; i++)
+                {
+                    result.Add(SanitizePhotonValue(array.GetValue(i), depth + 1));
+                }
+
+                if (array.Length > count)
+                {
+                    result.Add($"<truncated:{array.Length - count}>");
+                }
+
+                return result;
+            }
+            case IEnumerable enumerable:
+            {
+                var result = new List<object?>();
+                var count = 0;
+                foreach (var item in enumerable)
+                {
+                    if (count++ >= 400)
+                    {
+                        result.Add("<truncated>");
+                        break;
+                    }
+                    result.Add(SanitizePhotonValue(item, depth + 1));
+                }
+                return result;
+            }
+            default:
+            {
+                var text = value.ToString() ?? value.GetType().FullName ?? "unknown";
+                return text.Length <= 512 ? text : text[..512];
+            }
+        }
     }
 
     public static void Damage(string player, int amount)
