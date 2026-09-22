@@ -47,7 +47,7 @@ public static class ImortaisEventBridge
         });
     }
 
-    public static void Loot(string lootedBy, string lootedFrom, string itemUniqueName, int quantity, double estimatedValue, string? clusterName)
+    public static void Loot(string lootedBy, string? lootedByGuild, string lootedFrom, string itemUniqueName, int quantity, double estimatedValue, string? clusterName)
     {
         Enqueue(new ImortaisTelemetryEvent
         {
@@ -56,6 +56,7 @@ public static class ImortaisEventBridge
             Payload = new Dictionary<string, object?>
             {
                 ["lootedBy"] = lootedBy,
+                ["lootedByGuild"] = lootedByGuild,
                 ["lootedFrom"] = lootedFrom,
                 ["item"] = itemUniqueName,
                 ["quantity"] = quantity,
