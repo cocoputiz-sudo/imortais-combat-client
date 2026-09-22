@@ -1,6 +1,6 @@
-#define MyAppName "Statistics Analysis Tool"
-#define MyAppPublisher "Aaron Schultz"
-#define MyAppExeName "StatisticsAnalysisTool.exe"
+#define MyAppName "IMORTAIS Combat Client"
+#define MyAppPublisher "IMORTAIS"
+#define MyAppExeName "IMORTAIS-Combat-Client.exe"
 #define MyAppId "{{6D7ED979-FC39-4D6A-83A4-6493E2C61A16}}"
 
 #ifndef MyAppVersion
@@ -16,7 +16,7 @@ AppId={#MyAppId}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-AppPublisherURL=https://github.com/Triky313/AlbionOnline-StatisticsAnalysis
+AppPublisherURL=https://github.com/cocoputiz-sudo/imortais-combat-client
 DefaultDirName={autopf}\Statistics Analysis Tool
 DefaultGroupName={#MyAppName}
 UsePreviousAppDir=no
@@ -28,12 +28,13 @@ ArchitecturesInstallIn64BitMode=x64compatible
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
+AppMutex=IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940
 CloseApplications=yes
 CloseApplicationsFilter={#MyAppExeName}
 RestartApplications=no
 OutputDir=..\..
-OutputBaseFilename=StatisticsAnalysis-AlbionOnline-v{#MyAppVersion}-windows-x64
-SetupIconFile=..\..\src\StatisticsAnalysisTool\sat-icon.ico
+OutputBaseFilename=IMORTAIS-Combat-Client-Setup-v{#MyAppVersion}
+SetupIconFile=..\..\src\StatisticsAnalysisTool\imortais-icon.ico
 VersionInfoVersion={#MyAppVersionInfo}
 VersionInfoProductVersion={#MyAppVersionInfo}
 
