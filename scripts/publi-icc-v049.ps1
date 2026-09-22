@@ -161,13 +161,13 @@ $bridgeText = [System.IO.File]::ReadAllText($BridgeFile)
 $configText = [System.IO.File]::ReadAllText($ConfigFile)
 $lootControllerText = [System.IO.File]::ReadAllText($LootControllerFile)
 
-if ($projectText -notmatch '<ApplicationVersion>0\.4\.8\.0</ApplicationVersion>') {
+if ($projectText -notmatch '<ApplicationVersion>0\.4\.9\.0</ApplicationVersion>') {
     throw "csproj não está em v0.4.9."
 }
-if ($assemblyText -notmatch 'AssemblyFileVersion\("0\.4\.8\.0"\)') {
+if ($assemblyText -notmatch 'AssemblyFileVersion\("0\.4\.9\.0"\)') {
     throw "AssemblyFileVersion não está em v0.4.9."
 }
-if ($assemblyText -notmatch 'AssemblyInformationalVersion\("0\.4\.8"\)') {
+if ($assemblyText -notmatch 'AssemblyInformationalVersion\("0\.4\.9"\)') {
     throw "AssemblyInformationalVersion não está em v0.4.9."
 }
 if ($updaterText -match 'if \(!await IsAppCastSignatureTrustedAsync') {
