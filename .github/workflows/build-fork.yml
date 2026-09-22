@@ -49,10 +49,10 @@ jobs:
           if ($mainCode -notmatch 'CopyImortaisDiagnostics_Click') { throw "Copy diagnostics action missing." }
           if ($settings -notmatch 'UpdateCheckStatusText') { throw "Settings update check status UI missing." }
           $imortaisFeed = 'https://raw.githubusercontent.com/cocoputiz-sudo/imortais-combat-client/main/upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/imortais-netsparkle-update-check.xml'
-          if (($appConfig | Select-String -SimpleMatch $imortaisFeed -AllMatches).Matches.Count -lt 4) { throw "App.config is not consistently pointing stable/pre-release settings to the IMORTAIS feed." }
+          if ([regex]::Matches($appConfig, [regex]::Escape($imortaisFeed)).Count -lt 4) { throw "App.config is not consistently pointing stable/pre-release settings to the IMORTAIS feed." }
           if ($appConfig -match 'Triky313/AlbionOnline-StatisticsAnalysis/main/src/StatisticsAnalysisTool/ao-netsparkle') { throw "App.config still contains upstream Triky313 updater feeds." }
-          if (($settingsDefinition | Select-String -SimpleMatch $imortaisFeed -AllMatches).Matches.Count -lt 2) { throw "Settings.settings updater URLs are not IMORTAIS." }
-          if (($settingsDesigner | Select-String -SimpleMatch $imortaisFeed -AllMatches).Matches.Count -lt 2) { throw "Settings.Designer.cs updater defaults are not IMORTAIS." }
+          if ([regex]::Matches($settingsDefinition, [regex]::Escape($imortaisFeed)).Count -lt 2) { throw "Settings.settings updater URLs are not IMORTAIS." }
+          if ([regex]::Matches($settingsDesigner, [regex]::Escape($imortaisFeed)).Count -lt 2) { throw "Settings.Designer.cs updater defaults are not IMORTAIS." }
 
       - name: Build fork Release
         shell: pwsh
