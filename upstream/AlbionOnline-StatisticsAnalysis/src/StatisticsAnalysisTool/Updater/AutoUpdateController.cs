@@ -551,10 +551,10 @@ public static class AutoUpdateController
     private static async Task<bool> DownloadAndInstallUpdateAsync(SparkleUpdater sparkleUpdater, AppCastItem updateItem, UpdateWindowViewModel viewModel)
     {
         viewModel.IsBusy = true;
-        viewModel.IsProgressIndeterminate = true;
+        viewModel.IsProgressIndeterminate = false;
         viewModel.DownloadProgressPercentage = 0;
-        viewModel.StatusText = GetDownloadingStatusText();
-        viewModel.ActionButtonText = GetDownloadingButtonText();
+        viewModel.StatusText = "Baixando atualização... 0%";
+        viewModel.ActionButtonText = "Atualizando...";
 
         var previousInteractionMode = sparkleUpdater.UserInteractionMode;
         sparkleUpdater.UserInteractionMode = UserInteractionMode.DownloadNoInstall;
@@ -581,9 +581,19 @@ public static class AutoUpdateController
             }
 
             viewModel.DownloadProgressPercentage = 100;
-            viewModel.IsProgressIndeterminate = true;
-            viewModel.StatusText = LocalizationController.Translation("UPDATE_INSTALLING_STATUS");
-            viewModel.ActionButtonText = LocalizationController.Translation("UPDATE_INSTALLING_BUTTON");
+            viewModel.IsProgressIndeterminate = false;
+            viewModel.StatusText = "Download concluído. Preparando instalação...";
+            viewModel.ActionButtonText = "Preparando...";
+            await Task.Delay(700);
+
+            for (var seconds = 3; seconds >= 1; seconds--)
+            {
+                viewModel.StatusText = $"Instalador pronto. O Combat Client será fechado em {seconds}s para concluir a atualização.";
+                await Task.Delay(1000);
+            }
+
+            viewModel.StatusText = "Fechando o Combat Client e iniciando o instalador...";
+            viewModel.ActionButtonText = "Instalando...";
 
             InstallUpdateFailureReason? installFailureReason = null;
 
@@ -640,6 +650,7 @@ public static class AutoUpdateController
 
             viewModel.IsProgressIndeterminate = false;
             viewModel.DownloadProgressPercentage = progressPercentage;
+            viewModel.StatusText = $"Baixando atualização... {progressPercentage}%";
         }
 
         var dispatcher = Application.Current?.Dispatcher;
@@ -1350,7 +1361,7 @@ public static class AutoUpdateController
     private static string CreateInstallerArguments()
     {
         var toolDirectory = AppDataPaths.InstallationDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        return $"/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=\"{toolDirectory}\"";
+        return $"/SILENT /NOCANCEL /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=\"{toolDirectory}\"";
     }
 
     private static async Task<IReadOnlyList<AutoUpdateConfiguration>> CreateConfigurationsAsync()
