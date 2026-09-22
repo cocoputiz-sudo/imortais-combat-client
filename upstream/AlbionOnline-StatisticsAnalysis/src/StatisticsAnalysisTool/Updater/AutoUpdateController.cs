@@ -1531,8 +1531,11 @@ public static class AutoUpdateController
 
     private static HttpClientHandler CreateHttpClientHandler(string proxyUrl)
     {
-        var handler = new HttpClientHandler();
+        return ConfigureHttpClientHandler(new HttpClientHandler(), proxyUrl);
+    }
 
+    private static HttpClientHandler ConfigureHttpClientHandler(HttpClientHandler handler, string proxyUrl)
+    {
         if (string.IsNullOrWhiteSpace(proxyUrl))
         {
             handler.UseProxy = true;
@@ -1596,12 +1599,26 @@ public static class AutoUpdateController
     {
         protected override HttpClient CreateHttpClient()
         {
-            var httpClient = CreateHttpClient(CreateHttpClientHandler(proxyUrl));
+            return CreateNoCacheHttpClient(CreateHttpClientHandler(proxyUrl));
+        }
+
+        protected override HttpClient CreateHttpClient(HttpClientHandler? handler)
+        {
+            // WebRequestAppCastDataDownloader.DownloadAndGetAppCastDataAsync creates its
+            // own handler and calls this overload. Overriding only the parameterless
+            // method does not affect real appcast/signature downloads.
+            return CreateNoCacheHttpClient(ConfigureHttpClientHandler(handler ?? new HttpClientHandler(), proxyUrl));
+        }
+
+        private static HttpClient CreateNoCacheHttpClient(HttpClientHandler handler)
+        {
+            var httpClient = new HttpClient(handler);
             httpClient.DefaultRequestHeaders.CacheControl = new CacheControlHeaderValue
             {
                 NoCache = true,
                 NoStore = true
             };
+            httpClient.DefaultRequestHeaders.Pragma.ParseAdd("no-cache");
             return httpClient;
         }
     }
