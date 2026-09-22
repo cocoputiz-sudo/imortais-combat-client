@@ -205,6 +205,7 @@ public class LootController : ILootController
 
         ImortaisEventBridge.Loot(
             loot.LootedByName,
+            lootedByUser?.Value?.Guild,
             loot.LootedFromName,
             item.UniqueName,
             loot.Quantity,
