@@ -150,6 +150,7 @@ public static class AutoUpdateController
     {
         try
         {
+            Log.Information("Starting IMORTAIS background auto-update loop.");
             await CheckForUpdatesInternalAsync(UpdateCheckSource.Startup);
 
             using var timer = new PeriodicTimer(BackgroundUpdateCheckInterval);
@@ -198,6 +199,11 @@ public static class AutoUpdateController
                 try
                 {
                     var updateInfo = await sparkleUpdaterContext.SparkleUpdater.CheckForUpdatesQuietly();
+                    Log.Information(
+                        "Auto update check finished. Source: {Source}; Status: {Status}; Appcast: {AppCastUrl}",
+                        checkSource,
+                        updateInfo.Status,
+                        sparkleUpdaterContext.Configuration.AppCastUrl);
                     if (updateInfo.Status == UpdateStatus.UpdateAvailable)
                     {
                         var selectedUpdateItem = SelectUpdate(updateInfo.Updates, currentVersionText);
@@ -1363,7 +1369,7 @@ public static class AutoUpdateController
         return $"/SILENT /NOCANCEL /SUPPRESSMSGBOXES /NORESTART /SP- /DIR=\"{toolDirectory}\"";
     }
 
-    private static async Task<IReadOnlyList<AutoUpdateConfiguration>> CreateConfigurationsAsync()
+    private static Task<IReadOnlyList<AutoUpdateConfiguration>> CreateConfigurationsAsync()
     {
         var shouldIncludePreReleaseAppCast = SettingsController.CurrentSettings.IsSuggestPreReleaseUpdatesActive || IsCurrentBuildPreRelease();
         var appCastUrls = new List<string> { Settings.Default.AutoUpdateConfigUrl };
@@ -1378,21 +1384,21 @@ public static class AutoUpdateController
             Log.Information("Current application version is a pre-release; including the pre-release auto update appcast.");
         }
 
-        var configurations = new List<AutoUpdateConfiguration>();
-        foreach (var appCastUrl in appCastUrls.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            var accessibilityResult = await HttpClientUtils.IsUrlAccessible(appCastUrl);
-            if (!accessibilityResult.IsAccessible)
-            {
-                continue;
-            }
+        // Do not preflight appcast URLs with HEAD. Some CDNs/proxies reject or stall
+        // HEAD even though GET works, which used to make the updater silently skip
+        // every configuration before NetSparkle could perform a real update check.
+        var proxyUrl = SettingsController.CurrentSettings.ProxyUrlWithPort ?? string.Empty;
+        var configurations = appCastUrls
+            .Where(url => !string.IsNullOrWhiteSpace(url))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(url => new AutoUpdateConfiguration(url, proxyUrl))
+            .ToList();
 
-            configurations.Add(new AutoUpdateConfiguration(
-                appCastUrl,
-                accessibilityResult.IsProxyActive ? SettingsController.CurrentSettings.ProxyUrlWithPort : string.Empty));
-        }
+        Log.Information(
+            "Auto update configured with {ConfigurationCount} appcast URL(s). Startup check will use GET through NetSparkle.",
+            configurations.Count);
 
-        return configurations;
+        return Task.FromResult<IReadOnlyList<AutoUpdateConfiguration>>(configurations);
     }
 
     private static void DisposeUpdater()
