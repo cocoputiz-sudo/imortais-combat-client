@@ -116,6 +116,7 @@ $AssemblyFile = Join-Path $ProjectDir "Properties\AssemblyInfo.cs"
 $UpdaterFile = Join-Path $ProjectDir "Updater\AutoUpdateController.cs"
 $MainWindowFile = Join-Path $ProjectDir "Views\MainWindow.xaml"
 $MainWindowCodeFile = Join-Path $ProjectDir "Views\MainWindow.xaml.cs"
+$AppConfigFile = Join-Path $ProjectDir "App.config"
 $SettingsControlFile = Join-Path $ProjectDir "UserControls\SettingsControl.xaml"
 $SettingsControlCodeFile = Join-Path $ProjectDir "UserControls\SettingsControl.xaml.cs"
 $AppDataPathsFile = Join-Path $ProjectDir "Common\AppDataPaths.cs"
@@ -134,6 +135,7 @@ foreach ($p in @(
     $UpdaterFile,
     $MainWindowFile,
     $MainWindowCodeFile,
+    $AppConfigFile,
     $SettingsControlFile,
     $SettingsControlCodeFile,
     $AppDataPathsFile,
@@ -151,6 +153,7 @@ $assemblyText = [System.IO.File]::ReadAllText($AssemblyFile)
 $updaterText = [System.IO.File]::ReadAllText($UpdaterFile)
 $windowText = [System.IO.File]::ReadAllText($MainWindowFile)
 $windowCodeText = [System.IO.File]::ReadAllText($MainWindowCodeFile)
+$appConfigText = [System.IO.File]::ReadAllText($AppConfigFile)
 $settingsText = [System.IO.File]::ReadAllText($SettingsControlFile)
 $settingsCodeText = [System.IO.File]::ReadAllText($SettingsControlCodeFile)
 $appPathsText = [System.IO.File]::ReadAllText($AppDataPathsFile)
@@ -217,6 +220,13 @@ if ($settingsCodeText -notmatch 'RefreshUpdateCheckStatus') {
 }
 if ($updaterText -notmatch 'LastUpdateCheckStatus') {
     throw "AutoUpdateController não expõe diagnóstico da última checagem."
+}
+$expectedUpdateFeed = 'https://raw.githubusercontent.com/cocoputiz-sudo/imortais-combat-client/main/upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/imortais-netsparkle-update-check.xml'
+if ([regex]::Matches($appConfigText, [regex]::Escape($expectedUpdateFeed)).Count -lt 4) {
+    throw "App.config não aponta todas as configurações de update para o feed IMORTAIS."
+}
+if ($appConfigText -match 'Triky313/AlbionOnline-StatisticsAnalysis/main/src/StatisticsAnalysisTool/ao-netsparkle') {
+    throw "App.config ainda aponta para o feed upstream do Triky313."
 }
 if ($bridgeText -notmatch 'PendingEvents') {
     throw "BridgeStatus não expõe contagem da outbox."
