@@ -360,26 +360,38 @@ upstream/
   AlbionOnline-StatisticsAnalysis/
     src/
       StatisticsAnalysisTool/
-        Imortais/
-          ImortaisEventBridge.cs
-          ImortaisTelemetryConfig.cs
-          ImortaisTelemetryEvent.cs
+        Imortais/              # integração IMORTAIS CANÔNICA
+        Network/Manager/       # controllers canônicos
+        Party/                 # PartyController canônico
         Updater/
         Views/
         Styles/
 
+legacy/
+  v0.3-hooks/                 # snapshots congelados, não compiláveis
+
 src/
-  Imortais.Bridge/
+  Imortais.Bridge/            # bridge histórica/de referência
 
 docs/
 scripts/
-installer/
-release/
+
+dist/                         # gerado, gitignored
+installer/                    # gerado, gitignored
+release/                      # gerado, gitignored
 ```
 
-O código dentro de `upstream/AlbionOnline-StatisticsAnalysis` é o fork modificado do projeto original.
+### Fonte única de verdade
 
-A pasta `src/Imortais.Bridge` representa a bridge criada durante a fase inicial do projeto e continua útil como referência da evolução da integração.
+O código executável da integração IMORTAIS vive **somente** em
+`upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/`.
+
+Não mantenha ou reaplique cópias paralelas de `ImortaisEventBridge` ou dos controllers.
+Os arquivos de `legacy/` são históricos, usam extensão não compilável e nunca devem ser copiados por cima do fork.
+
+O `install-hooks.ps1` é deliberadamente um no-op: os hooks já estão incorporados ao fork.
+
+A pasta `src/Imortais.Bridge` representa a bridge criada durante a fase inicial e continua útil apenas como referência.
 
 ---
 

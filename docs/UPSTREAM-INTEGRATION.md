@@ -1,59 +1,67 @@
 # Integração com AlbionOnline-StatisticsAnalysis
 
-Este repositório contém a camada IMORTAIS pronta: GUI, fila offline, modelo de eventos e envio HTTP para o Railway. O parser/captura do Albion deve vir do projeto upstream GPLv3.
+## Fonte única de verdade
 
-## Objetivo
+A integração IMORTAIS já está aplicada diretamente no fork deste repositório.
 
-Conectar os pontos em que o Statistics Analysis **já sabe** que ocorreu um evento aos métodos de `ImortaisTelemetry`:
+O único código canônico e executável da integração fica em:
 
-```csharp
-await telemetry.PartySnapshot(memberNames);
-await telemetry.Damage(sourceName, damage, spellName, targetName);
-await telemetry.Healing(sourceName, heal, spellName, targetName);
-await telemetry.Death(playerName, killerName);
-await telemetry.Loot(looterName, itemUniqueName, quantity, sourceKind, sourceName, estimatedValue);
+```text
+upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/
 ```
 
-## Estratégia segura de merge
+Em particular:
 
-1. Clone/fork o upstream e mantenha a licença GPLv3 e créditos.
-2. Localize os handlers que já alimentam **Party**, **Damage Meter** e **Loot Logger**. Não replique o decoder Photon.
-3. No mesmo ponto em que o modelo local é atualizado, publique uma cópia normalizada para `ImortaisTelemetry`.
-4. Não bloqueie a thread de captura com HTTP. `ImortaisTelemetry` grava primeiro na outbox local; o envio é assíncrono.
-5. Não envie payload bruto de pacote. Envie somente eventos normalizados necessários ao War Room.
+```text
+Imortais/ImortaisEventBridge.cs
+Imortais/ImortaisTelemetryConfig.cs
+Imortais/ImortaisTelemetryEvent.cs
+Network/Manager/LootController.cs
+Network/Manager/CombatController.cs
+Network/Manager/StatisticController.cs
+Party/PartyController.cs
+```
 
-## Campos que queremos do upstream
+Não copie hooks antigos para dentro do fork. Não execute scripts históricos para "reaplicar" a integração.
 
-### Party
-- nome do membro
-- snapshot completo quando houver mudança
-- join/leave quando disponível
+O `install-hooks.ps1` da raiz é deliberadamente um **no-op** e existe apenas para impedir uso acidental do instalador antigo.
 
-### Loot
-- looter
-- item unique name/id
-- quantidade
-- enchant/quality se disponível
-- origem: player corpse / mob / chest / system / unknown
-- nome/id da origem se disponível
-- timestamp
+Snapshots da fase v0.3 foram movidos para `legacy/` com extensão não compilável e são apenas referência histórica.
 
-### Combate
-- source player
-- target
-- amount
-- spell/ability se disponível
-- damage/healing
-- death e killer quando disponíveis
+## Objetivo da integração
+
+O fork aproveita os pontos em que o Statistics Analysis já sabe que ocorreu um evento e publica uma cópia normalizada para o War Room, sem reescrever o parser Photon.
+
+Fluxos canônicos atuais incluem:
+
+- Party snapshot;
+- Loot com guilda do looter;
+- Damage;
+- Healing;
+- kill/death/knockout;
+- contexto automático de CTA via `GET /api/telemetry/context`;
+- status War Room/Albion/CTA/Party/Telemetria no client.
+
+## Regra para futuras mudanças
+
+1. Edite diretamente o fork canônico em `upstream/.../StatisticsAnalysisTool/`.
+2. Não crie uma segunda cópia ativa de `ImortaisEventBridge` ou dos controllers.
+3. Não bloqueie a thread de captura com HTTP ou I/O em disco.
+4. Não altere parser/decoder Photon para implementar telemetria.
+5. Preserve os payloads normalizados esperados pelo War Room.
+6. Rode build Release do fork antes de concluir qualquer mudança.
 
 ## O que NÃO fazer
 
 - não modificar o cliente do Albion;
 - não injetar pacotes;
 - não automatizar gameplay;
-- não transformar isso em overlay que revele informação fora do que o cliente observa;
-- não enviar segredos do Railway em commits.
+- não movimentar personagem;
+- não executar skills;
+- não enviar payload bruto de pacote;
+- não commitar segredos do Railway;
+- não ressuscitar os snapshots de `legacy/` como segundo caminho de produção.
 
-## Por que os hooks não estão hard-coded aqui
+## Licença
 
-O upstream muda com frequência e os nomes/classes dos handlers podem mudar. A integração deve ser feita contra o commit que você realmente forkou. Isso evita um patch aparentemente “pronto” que compila contra outra revisão e quebra silenciosamente o parser.
+O fork deriva de `Triky313/AlbionOnline-StatisticsAnalysis` e deve preservar GPLv3, créditos e disponibilidade do código-fonte correspondente.
