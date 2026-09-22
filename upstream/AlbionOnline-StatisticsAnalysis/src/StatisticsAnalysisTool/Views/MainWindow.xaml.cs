@@ -284,7 +284,8 @@ public partial class MainWindow
             return;
         }
 
-        if (sender is System.Windows.Controls.Button button)
+        var button = sender as System.Windows.Controls.Button;
+        if (button != null)
         {
             button.IsEnabled = false;
         }
@@ -295,7 +296,7 @@ public partial class MainWindow
         }
         finally
         {
-            if (sender is System.Windows.Controls.Button button)
+            if (button != null)
             {
                 button.IsEnabled = true;
             }
