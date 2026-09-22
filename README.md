@@ -530,6 +530,14 @@ LICENSE-NOTE.md
 
 A v0.4.9 também serve como teste controlado do fluxo automático v0.4.8 → v0.4.9.
 
+### v0.5.0 experimental · Guild Presence Collector
+
+- captura exclusivamente os eventos Photon `GuildUpdate`, `GuildPlayerUpdated`, `GuildMemberWorldUpdate` e `GuildMemberTerritoryUpdate`;
+- envia probes limitados e deduplicados ao War Room como `guild_presence_probe`;
+- não classifica ninguém como online/offline antes da validação do payload real;
+- valores complexos são normalizados com limites de profundidade/tamanho para evitar explosão da outbox;
+- esta etapa permite descobrir os campos corretos para construir presença no Albion e `lastSeen` próprios no War Room.
+
 ### Próximos passos
 
 - assinatura Authenticode para melhorar a confiança do Windows/SmartScreen;
