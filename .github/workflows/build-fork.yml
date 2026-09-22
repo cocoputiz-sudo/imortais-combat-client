@@ -13,6 +13,23 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      - name: Guard IMORTAIS canonical integration and home screen
+        shell: pwsh
+        run: |
+          $root = ".\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool"
+          $main = Get-Content "$root\Views\MainWindow.xaml" -Raw
+          $bridge = Get-Content "$root\Imortais\ImortaisEventBridge.cs" -Raw
+          $loot = Get-Content "$root\Network\Manager\LootController.cs" -Raw
+
+          if ($main -notmatch '<TabItem Header="IMORTAIS"') { throw "IMORTAIS home tab missing." }
+          if ($main.IndexOf('<TabItem Header="IMORTAIS"') -gt $main.IndexOf('DashboardTabVisibility')) { throw "IMORTAIS is not the first visible tab." }
+          if ($bridge -notmatch 'lootedByGuild') { throw "Canonical loot guild telemetry missing." }
+          if ($bridge -notmatch '/api/telemetry/context') { throw "CTA context integration missing." }
+          if ($bridge -notmatch 'outbox\.ndjson') { throw "Persistent outbox integration missing." }
+          if ($loot -notmatch 'lootedByUser\?\.Value\?\.Guild') { throw "LootController is not forwarding looter guild." }
+          if (Test-Path ".\src\StatisticsAnalysisTool\Imortais\*.cs") { throw "Legacy live Imortais copy returned." }
+          if (Test-Path ".\patched\Network\Manager\*.cs") { throw "Legacy patched controllers returned." }
+
       - name: Build fork Release
         shell: pwsh
         run: dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release --no-incremental

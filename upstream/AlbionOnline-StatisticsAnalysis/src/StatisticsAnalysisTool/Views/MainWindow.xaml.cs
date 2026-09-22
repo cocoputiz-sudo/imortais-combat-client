@@ -185,52 +185,52 @@ public partial class MainWindow
 
         if (!status.Enabled)
         {
-            SetImortaisStatus(ImortaisWarRoomStatusText, "● WAR ROOM: desativado", Brushes.Gray);
-            SetImortaisStatus(ImortaisTelemetryStatusText, "● TELEMETRIA: desativada", Brushes.Gray);
+            SetImortaisStatus(ImortaisHomeWarRoomStatusText, "● DESATIVADO", Brushes.Gray);
+            SetImortaisStatus(ImortaisHomeTelemetryStatusText, "● DESATIVADA", Brushes.Gray);
         }
         else if (!status.Configured)
         {
-            SetImortaisStatus(ImortaisWarRoomStatusText, "● WAR ROOM: não configurado", Brushes.IndianRed);
-            SetImortaisStatus(ImortaisTelemetryStatusText, "● TELEMETRIA: sem chave", Brushes.IndianRed);
+            SetImortaisStatus(ImortaisHomeWarRoomStatusText, "● NÃO CONFIGURADO", Brushes.IndianRed);
+            SetImortaisStatus(ImortaisHomeTelemetryStatusText, "● SEM CHAVE", Brushes.IndianRed);
         }
         else if (status.WarRoomConnected)
         {
-            SetImortaisStatus(ImortaisWarRoomStatusText, "● WAR ROOM: conectado", Brushes.LimeGreen);
+            SetImortaisStatus(ImortaisHomeWarRoomStatusText, "● CONECTADO", Brushes.LimeGreen);
             var recent = status.LastSuccessfulContactUtc.HasValue
                          && DateTime.UtcNow - status.LastSuccessfulContactUtc.Value < TimeSpan.FromSeconds(15);
             SetImortaisStatus(
-                ImortaisTelemetryStatusText,
-                recent ? "● TELEMETRIA: enviando / sincronizada" : "● TELEMETRIA: conectada",
+                ImortaisHomeTelemetryStatusText,
+                recent ? "● ENVIANDO / SINCRONIZADA" : "● CONECTADA",
                 recent ? Brushes.LimeGreen : Brushes.Gold);
         }
         else
         {
-            SetImortaisStatus(ImortaisWarRoomStatusText, "● WAR ROOM: reconectando...", Brushes.Gold);
-            var detail = string.IsNullOrWhiteSpace(status.LastError) ? "aguardando servidor" : status.LastError;
-            if (detail.Length > 34) detail = detail[..34] + "...";
-            SetImortaisStatus(ImortaisTelemetryStatusText, "● TELEMETRIA: " + detail, Brushes.Gold);
+            SetImortaisStatus(ImortaisHomeWarRoomStatusText, "● RECONECTANDO...", Brushes.Gold);
+            var detail = string.IsNullOrWhiteSpace(status.LastError) ? "AGUARDANDO SERVIDOR" : status.LastError;
+            if (detail.Length > 42) detail = detail[..42] + "...";
+            SetImortaisStatus(ImortaisHomeTelemetryStatusText, "● " + detail.ToUpperInvariant(), Brushes.Gold);
         }
 
         var gameDetected = _mainWindowViewModel.MainStatusBindings?.IsGameDataDetected == true;
         SetImortaisStatus(
-            ImortaisAlbionStatusText,
-            gameDetected ? "● ALBION: capturando" : "● ALBION: aguardando dados",
+            ImortaisHomeAlbionStatusText,
+            gameDetected ? "● CAPTURANDO" : "● AGUARDANDO DADOS...",
             gameDetected ? Brushes.LimeGreen : Brushes.Gold);
 
         var ctaText = !string.IsNullOrWhiteSpace(status.CtaTime)
-            ? $"● CTA: {status.CtaTime} · vinculado"
+            ? $"{status.CtaTime} · VINCULADO"
             : !string.IsNullOrWhiteSpace(status.CtaEventId)
-                ? $"● CTA: #{status.CtaEventId} · vinculado"
-                : "● CTA: nenhum CTA ativo";
+                ? $"#{status.CtaEventId} · VINCULADO"
+                : "NENHUM CTA ATIVO";
         SetImortaisStatus(
-            ImortaisCtaStatusText,
+            ImortaisHomeCtaStatusText,
             ctaText,
             !string.IsNullOrWhiteSpace(status.CtaEventId) ? Brushes.LimeGreen : Brushes.LightSlateGray);
 
         var partyCount = Math.Max(0, _mainWindowViewModel.PartyMemberNumber);
         SetImortaisStatus(
-            ImortaisPartyStatusText,
-            $"● PARTY: {partyCount} jogador{(partyCount == 1 ? string.Empty : "es")}",
+            ImortaisHomePartyStatusText,
+            $"{partyCount} detectado{(partyCount == 1 ? string.Empty : "s")}",
             partyCount > 0 ? Brushes.LightGreen : Brushes.LightSlateGray);
     }
 

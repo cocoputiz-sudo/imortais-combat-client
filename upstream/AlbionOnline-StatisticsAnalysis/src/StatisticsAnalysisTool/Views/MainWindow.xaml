@@ -29,7 +29,7 @@
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
-                <ColumnDefinition Width="245" />
+                <ColumnDefinition Width="190" />
                 <ColumnDefinition Width="90" />
             </Grid.ColumnDefinitions>
 
@@ -43,12 +43,23 @@
 
             <Grid Grid.Row="0" Grid.RowSpan="3" Grid.Column="1" Style="{StaticResource MainHeader.StatusContainer}">
                 <StackPanel Orientation="Vertical">
-                    <TextBlock Text="IMORTAIS STATUS" Style="{StaticResource MainHeaderStatus.Title}" />
-                    <TextBlock x:Name="ImortaisWarRoomStatusText" Text="● WAR ROOM: verificando..." FontSize="11" FontWeight="SemiBold" Foreground="#E2B95E" />
-                    <TextBlock x:Name="ImortaisAlbionStatusText" Text="● ALBION: aguardando dados..." FontSize="11" FontWeight="SemiBold" Foreground="#E2B95E" />
-                    <TextBlock x:Name="ImortaisCtaStatusText" Text="● CTA: aguardando contexto..." FontSize="11" FontWeight="SemiBold" Foreground="#A8B3C2" />
-                    <TextBlock x:Name="ImortaisPartyStatusText" Text="● PARTY: 0 jogadores" FontSize="11" FontWeight="SemiBold" Foreground="#A8B3C2" />
-                    <TextBlock x:Name="ImortaisTelemetryStatusText" Text="● TELEMETRIA: aguardando..." FontSize="11" FontWeight="SemiBold" Foreground="#E2B95E" />
+                    <TextBlock Text="{Binding Translation.Status, FallbackValue=STATUS}" Style="{StaticResource MainHeaderStatus.Title}" />
+                    <StackPanel Style="{StaticResource MainHeaderStatus.Row}" Tag="{Binding MainStatusBindings.IsGameDataDetected}">
+                        <Ellipse Style="{StaticResource MainHeaderStatus.Dot}" />
+                        <TextBlock Text="{Binding MainStatusBindings.GameDataStatusText, FallbackValue=WAITING__FOR__GAME__DATA}" Style="{StaticResource MainHeaderStatus.Text}" />
+                    </StackPanel>
+                    <StackPanel Style="{StaticResource MainHeaderStatus.Row}" Tag="{Binding MainStatusBindings.IsServerDetected}">
+                        <Ellipse Style="{StaticResource MainHeaderStatus.Dot}" />
+                        <TextBlock Text="{Binding MainStatusBindings.ServerStatusText, FallbackValue=SERVER__UNDETECTED}" Style="{StaticResource MainHeaderStatus.Text}" />
+                    </StackPanel>
+                    <StackPanel Style="{StaticResource MainHeaderStatus.Row}" Tag="{Binding MainStatusBindings.IsCharacterDetected}">
+                        <Ellipse Style="{StaticResource MainHeaderStatus.Dot}" />
+                        <TextBlock Text="{Binding MainStatusBindings.CharacterStatusText, FallbackValue=CHARACTER__UNDETECTED}" Style="{StaticResource MainHeaderStatus.Text}" />
+                    </StackPanel>
+                    <StackPanel Style="{StaticResource MainHeaderStatus.Row}" Tag="{Binding MainStatusBindings.IsLocationDetected}">
+                        <Ellipse Style="{StaticResource MainHeaderStatus.Dot}" />
+                        <TextBlock Text="{Binding MainStatusBindings.LocationStatusText, FallbackValue=LOCATION__UNDETECTED}" Style="{StaticResource MainHeaderStatus.Text}" />
+                    </StackPanel>
                 </StackPanel>
             </Grid>
 
@@ -196,7 +207,113 @@
             </Border>
         </Grid>
 
-        <TabControl Style="{DynamicResource TabControlStyle}">
+        <TabControl Style="{DynamicResource TabControlStyle}" SelectedIndex="0">
+            <TabItem Header="IMORTAIS" Tag="pack://application:,,,/Assets/imortais-icon.png">
+                <Grid Style="{StaticResource TabItemGridStyle}">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <Grid Margin="30,24,30,30">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0"
+                                       Text="IMORTAIS COMBAT CLIENT"
+                                       FontSize="28"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                            <TextBlock Grid.Row="1"
+                                       Margin="0,4,0,0"
+                                       Text="Telemetria do Albion → CTA War Room"
+                                       FontSize="13"
+                                       Foreground="{StaticResource SolidColorBrush.Text.4}" />
+
+                            <Border Grid.Row="2"
+                                    Margin="0,18,0,0"
+                                    MinHeight="305"
+                                    Padding="18"
+                                    Background="{StaticResource SolidColorBrush.Background.3}"
+                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
+                                <Grid>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="34" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                        <RowDefinition Height="28" />
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="95" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
+                                               Text="STATUS"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
+
+                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="WAR ROOM" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ImortaisHomeWarRoomStatusText" Text="● VERIFICANDO..." VerticalAlignment="Center" Foreground="Gold" />
+
+                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="ALBION" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ImortaisHomeAlbionStatusText" Text="● AGUARDANDO DADOS..." VerticalAlignment="Center" Foreground="Gold" />
+
+                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="PERSONAGEM" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="3" Grid.Column="1"
+                                               Text="{Binding UserTrackingBindings.Username, FallbackValue=AGUARDANDO}"
+                                               VerticalAlignment="Center"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource SolidColorBrush.Text.1}" />
+
+                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="GUILD" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="4" Grid.Column="1"
+                                               Text="{Binding UserTrackingBindings.GuildName, FallbackValue=AGUARDANDO}"
+                                               VerticalAlignment="Center"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource SolidColorBrush.Text.1}" />
+
+                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="MAPA" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <ContentControl Grid.Row="5" Grid.Column="1"
+                                                    VerticalAlignment="Center"
+                                                    Content="{Binding UserTrackingBindings.CurrentMapInfoBinding}"
+                                                    ContentTemplate="{StaticResource CurrentMapInfoTemplate}" />
+
+                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="CTA" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ImortaisHomeCtaStatusText" Text="NENHUM CTA ATIVO" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.4}" />
+
+                                    <StackPanel Grid.Row="7" Grid.ColumnSpan="2" Orientation="Horizontal">
+                                        <TextBlock Text="PARTY" Width="95" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                        <TextBlock x:Name="ImortaisHomePartyStatusText" Text="0 detectados" Width="150" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.4}" />
+                                        <TextBlock Text="TELEMETRIA" Width="95" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                        <TextBlock x:Name="ImortaisHomeTelemetryStatusText" Text="● AGUARDANDO..." VerticalAlignment="Center" Foreground="Gold" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <Border Grid.Row="3"
+                                    Margin="0,18,0,0"
+                                    Padding="14"
+                                    Background="{StaticResource SolidColorBrush.Background.3}"
+                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
+                                    BorderThickness="1"
+                                    CornerRadius="4">
+                                <TextBlock Text="Party, loot, dano, cura e mortes são observados passivamente. Nenhum CTA precisa estar aberto para usar o cliente; quando não houver CTA ativo, os eventos ficam sem vínculo de CTA."
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                            </Border>
+                        </Grid>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
             <TabItem Visibility="{Binding DashboardTabVisibility, Mode=OneWay}" Header="{Binding Translation.Dashboard, FallbackValue=DASHBOARD}" Tag="pack://application:,,,/Assets/Navigation/dashboard.png">
                 <Grid Style="{StaticResource TabItemGridStyle}">
                     <userControls:DashboardControl DataContext="{Binding RelativeSource={RelativeSource AncestorType=Window}, Path=DataContext}" />
