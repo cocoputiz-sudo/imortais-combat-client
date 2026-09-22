@@ -21,6 +21,7 @@ jobs:
           $bridge = Get-Content "$root\Imortais\ImortaisEventBridge.cs" -Raw
           $config = Get-Content "$root\Imortais\ImortaisTelemetryConfig.cs" -Raw
           $loot = Get-Content "$root\Network\Manager\LootController.cs" -Raw
+          $updater = Get-Content "$root\Updater\AutoUpdateController.cs" -Raw
 
           if ($main -notmatch '<TabItem Header="IMORTAIS"') { throw "IMORTAIS home tab missing." }
           if ($main.IndexOf('<TabItem Header="IMORTAIS"') -gt $main.IndexOf('DashboardTabVisibility')) { throw "IMORTAIS is not the first visible tab." }
@@ -31,6 +32,9 @@ jobs:
           if ($loot -notmatch 'lootedByUser\?\.Value\?\.Guild') { throw "LootController is not forwarding looter guild." }
           if (Test-Path ".\src\StatisticsAnalysisTool\Imortais\*.cs") { throw "Legacy live Imortais copy returned." }
           if (Test-Path ".\patched\Network\Manager\*.cs") { throw "Legacy patched controllers returned." }
+          if ($updater -match 'HttpClientUtils\.IsUrlAccessible') { throw "Updater HEAD preflight regression returned." }
+          if ($updater -notmatch 'ShowStartupUpdatePromptIfAvailableAsync') { throw "Startup update prompt is no longer decoupled from detection." }
+          if ($updater -match 'UpdateCheckSource\.Manual or UpdateCheckSource\.Startup') { throw "Startup modal was coupled back into update detection." }
 
       - name: Build fork Release
         shell: pwsh

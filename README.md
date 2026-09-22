@@ -4,7 +4,7 @@ Cliente desktop da guilda **I M O R T A I S** para Albion Online, baseado no pro
 
 O objetivo do projeto é aproveitar a captura passiva e os parsers já existentes do Statistics Analysis para transformar dados observados no jogo em telemetria útil para organização de CTA, conferência de party, loot e desempenho de combate.
 
-> **Versão publicada atual:** v0.4.7  
+> **Próxima versão preparada:** v0.4.8  
 > **Plataforma:** Windows 10/11 x64  
 > **Runtime/build:** .NET 10 / WPF
 
@@ -14,7 +14,7 @@ O objetivo do projeto é aproveitar a captura passiva e os parsers já existente
 
 O projeto deixou de ser apenas uma bridge de demonstração. Hoje o fork do Statistics Analysis já contém a integração IMORTAIS diretamente no cliente desktop.
 
-A linha v0.4.7 inclui:
+A linha v0.4.8 inclui:
 
 - identidade visual **IMORTAIS COMBAT CLIENT**;
 - ícone próprio no executável, janela e instalador;
@@ -316,7 +316,7 @@ v0.4.7 restaura a Home IMORTAIS e mantém o novo fluxo
 
 A v0.4.6 mantém a validação Ed25519 do instalador baixado e deixa de depender daquele bloqueio adicional do feed. A v0.4.7 é a primeira versão usada para validar esse novo fluxo de ponta a ponta.
 
-A atualização automática é validada na passagem v0.4.6 → v0.4.7.
+A v0.4.8 restaura a separação entre detecção de atualização e interface: o detector roda primeiro, registra a atualização disponível e só depois agenda a janela IMORTAIS no dispatcher da UI. Também remove o pré-teste HEAD do appcast que podia impedir silenciosamente a checagem real do NetSparkle.
 
 ---
 
