@@ -171,13 +171,13 @@ $bridgeText = [System.IO.File]::ReadAllText($BridgeFile)
 $configText = [System.IO.File]::ReadAllText($ConfigFile)
 $lootControllerText = [System.IO.File]::ReadAllText($LootControllerFile)
 
-if ($projectText -notmatch '<ApplicationVersion>\s*0\.5\.1\.0\s*</ApplicationVersion>') {
+if ($projectText -notmatch '<ApplicationVersion>\s*0\.5\.2\.0\s*</ApplicationVersion>') {
     throw "csproj não está em v0.5.2."
 }
-if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.5\.1\.0"\s*\)') {
+if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.5\.2\.0"\s*\)') {
     throw "AssemblyFileVersion não está em v0.5.2."
 }
-if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.5\.1"\s*\)') {
+if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.5\.2"\s*\)') {
     throw "AssemblyInformationalVersion não está em v0.5.2."
 }
 if ($updaterText -match 'if \(!await IsAppCastSignatureTrustedAsync') {
@@ -522,7 +522,11 @@ Write-Utf8Lf -FilePath $AppCastSigFile -Text $appCastSig
 $ReadmeFile = Join-Path $WorkRoot "README.md"
 if (Test-Path -LiteralPath $ReadmeFile) {
     $readmeText = [System.IO.File]::ReadAllText($ReadmeFile)
-    $readmeText = $readmeText.Replace("> **Versão publicada atual:** v0.4.9", "> **Versão publicada atual:** v0.5.2")
+    $readmeText = [regex]::Replace(
+        $readmeText,
+        '(?m)^> \*\*Versão publicada atual:\*\* v[^\r\n ]+',
+        '> **Versão publicada atual:** v0.5.2'
+    )
     Write-Utf8Lf -FilePath $ReadmeFile -Text $readmeText
 }
 
