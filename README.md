@@ -14,7 +14,7 @@ O objetivo do projeto é aproveitar a captura passiva e os parsers já existente
 
 O projeto deixou de ser apenas uma bridge de demonstração. Hoje o fork do Statistics Analysis já contém a integração IMORTAIS diretamente no cliente desktop.
 
-A linha v0.4.8 inclui:
+A linha v0.4.9 inclui:
 
 - identidade visual **IMORTAIS COMBAT CLIENT**;
 - ícone próprio no executável, janela e instalador;
@@ -512,9 +512,23 @@ LICENSE-NOTE.md
 
 ### Em validação
 
-- fluxo automático completo de atualização v0.4.6 → v0.4.7;
+- fluxo automático completo de atualização v0.4.8 → v0.4.9;
 - relançamento automático após update em diferentes máquinas;
 - comportamento do updater fora da máquina de desenvolvimento.
+
+### v0.4.9 em preparação
+
+- Central de Diagnóstico na Home IMORTAIS;
+- versão instalada e estado do updater;
+- última checagem de atualização;
+- última comunicação bem-sucedida com o War Room;
+- quantidade e tamanho da outbox pendente;
+- último erro de telemetria;
+- botão para verificar atualização na Home;
+- botão para copiar diagnóstico seguro para suporte no Discord;
+- botão de atualização em Configurações com status visual e progresso da checagem.
+
+A v0.4.9 também serve como teste controlado do fluxo automático v0.4.8 → v0.4.9.
 
 ### Próximos passos
 
