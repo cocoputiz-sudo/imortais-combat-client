@@ -1346,6 +1346,7 @@ public static class AutoUpdateController
         var sparkleUpdater = new SparkleUpdater(configuration.AppCastUrl, CreateSignatureVerifier(), executablePath)
         {
             RelaunchAfterUpdate = true,
+            ShouldKillParentProcessWhenStartingInstaller = true,
             CustomInstallerArguments = CreateInstallerArguments(),
             CheckServerFileName = false,
             UseNotificationToast = false,
