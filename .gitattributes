@@ -1,0 +1,3 @@
+# NetSparkle signs the exact appcast bytes. Keep them stable across Windows/Linux checkouts.
+upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/imortais-netsparkle-update-check.xml text eol=lf
+upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/imortais-netsparkle-update-check.xml.signature text eol=lf
