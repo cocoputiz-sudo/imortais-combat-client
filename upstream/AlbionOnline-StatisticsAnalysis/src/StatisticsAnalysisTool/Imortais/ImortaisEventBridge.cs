@@ -28,15 +28,20 @@ public static class ImortaisEventBridge
 
     private static readonly ConcurrentDictionary<string, CombatAccumulator> Combat = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, string> LastGuildPresenceProbePayloads = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, string> LastPartySnapshotPayloads = new(StringComparer.Ordinal);
     private static readonly CancellationTokenSource Cts = new();
     private static readonly object StartLock = new();
     private static readonly object StatusLock = new();
+    private static readonly object PartySnapshotLock = new();
     private static readonly SemaphoreSlim OutboxLock = new(1, 1);
     private static readonly JsonSerializerOptions OutboxJsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
+    private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
+    private const string ClientVersion = "0.5.1";
+    private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
     private static ImortaisTelemetryConfig _config = ImortaisTelemetryConfig.Load();
@@ -51,6 +56,10 @@ public static class ImortaisEventBridge
     private static bool _outboxStateInitialized;
     private static bool _outboxLimitWarningActive;
     private static long _queueSequence;
+    private static DateTime? _lastPartySnapshotAtUtc;
+    private static int _lastPartyMemberCount;
+    private static DateTime _lastHeartbeatEnqueuedUtc = DateTime.MinValue;
+    private static int _gameDetectedState = -1;
 
     public sealed record BridgeStatus(
         bool Enabled,
@@ -154,12 +163,38 @@ public static class ImortaisEventBridge
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        Enqueue(new ImortaisTelemetryEvent
+        var fingerprint = string.Join("|", normalized);
+
+        lock (PartySnapshotLock)
         {
-            Type = "party_snapshot",
-            PlayerName = _config.PlayerName,
-            Payload = new Dictionary<string, object?> { ["members"] = normalized }
-        });
+            if (LastPartySnapshotPayloads.TryGetValue(PartySnapshotFingerprintKey, out var previous)
+                && string.Equals(previous, fingerprint, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (!Enqueue(new ImortaisTelemetryEvent
+                {
+                    Type = "party_snapshot",
+                    PlayerName = _config.PlayerName,
+                    Payload = new Dictionary<string, object?> { ["members"] = normalized }
+                }))
+            {
+                return;
+            }
+
+            LastPartySnapshotPayloads[PartySnapshotFingerprintKey] = fingerprint;
+            lock (StatusLock)
+            {
+                _lastPartySnapshotAtUtc = DateTime.UtcNow;
+                _lastPartyMemberCount = normalized.Length;
+            }
+        }
+    }
+
+    public static void SetGameDetected(bool detected)
+    {
+        Volatile.Write(ref _gameDetectedState, detected ? 1 : 0);
     }
 
     public static void Loot(string lootedBy, string? lootedByGuild, string lootedFrom, string itemUniqueName, int quantity, double estimatedValue, string? clusterName)
@@ -345,11 +380,12 @@ public static class ImortaisEventBridge
         });
     }
 
-    private static void Enqueue(ImortaisTelemetryEvent evt)
+    private static bool Enqueue(ImortaisTelemetryEvent evt)
     {
         EnsureStarted();
-        if (!_config.Enabled) return;
+        if (!_config.Enabled) return false;
         QueueEvent(evt);
+        return true;
     }
 
     private static void QueueEvent(ImortaisTelemetryEvent evt)
@@ -474,6 +510,59 @@ public static class ImortaisEventBridge
         }
     }
 
+    private static void TryEnqueueHeartbeat()
+    {
+        var configured = _config.Enabled
+                         && !string.IsNullOrWhiteSpace(_config.AgentKey)
+                         && !string.IsNullOrWhiteSpace(_config.ServerUrl);
+        if (!configured) return;
+
+        var now = DateTime.UtcNow;
+        if (now - _lastHeartbeatEnqueuedUtc < HeartbeatInterval) return;
+
+        var status = GetStatus();
+        DateTime? lastPartySnapshotAt;
+        int lastPartyMemberCount;
+        lock (StatusLock)
+        {
+            lastPartySnapshotAt = _lastPartySnapshotAtUtc;
+            lastPartyMemberCount = _lastPartyMemberCount;
+        }
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["deviceId"] = _config.DeviceId,
+            ["playerName"] = _config.PlayerName,
+            ["version"] = ClientVersion,
+            ["currentCtaId"] = _config.CtaEventId,
+            ["connected"] = status.WarRoomConnected,
+            ["observerStatus"] = status.WarRoomConnected ? "connected" : "reconnecting",
+            ["outbox"] = new Dictionary<string, object?>
+            {
+                ["events"] = status.PendingEvents,
+                ["bytes"] = status.PendingBytes
+            },
+            ["lastPartySnapshotAt"] = lastPartySnapshotAt,
+            ["lastPartyMemberCount"] = lastPartyMemberCount
+        };
+
+        var gameDetectedState = Volatile.Read(ref _gameDetectedState);
+        if (gameDetectedState >= 0)
+        {
+            payload["gameDetected"] = gameDetectedState == 1;
+        }
+
+        if (Enqueue(new ImortaisTelemetryEvent
+            {
+                Type = "client_heartbeat",
+                PlayerName = _config.PlayerName,
+                Payload = payload
+            }))
+        {
+            _lastHeartbeatEnqueuedUtc = now;
+        }
+    }
+
     private static async Task WorkerAsync(CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -483,6 +572,7 @@ public static class ImortaisEventBridge
                 await Task.Delay(Math.Max(250, _config.BatchIntervalMs), token);
                 await RefreshContextAsync(token);
                 FlushCombatAccumulators();
+                TryEnqueueHeartbeat();
 
                 if (!await PersistQueuedEventsAsync(token))
                 {
@@ -509,7 +599,7 @@ public static class ImortaisEventBridge
                     {
                         deviceId = _config.DeviceId,
                         playerName = _config.PlayerName,
-                        version = "0.5.1"
+                        version = ClientVersion
                     },
                     ctaEventId = _config.CtaEventId,
                     events = batch
