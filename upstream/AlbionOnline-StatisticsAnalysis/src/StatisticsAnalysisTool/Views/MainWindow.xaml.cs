@@ -215,6 +215,7 @@ public partial class MainWindow
         }
 
         var gameDetected = _mainWindowViewModel.MainStatusBindings?.IsGameDataDetected == true;
+        ImortaisEventBridge.SetGameDetected(gameDetected);
         SetImortaisStatus(
             ImortaisHomeAlbionStatusText,
             gameDetected ? "● CAPTURANDO" : "● AGUARDANDO DADOS...",
