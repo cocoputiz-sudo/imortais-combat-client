@@ -365,7 +365,7 @@ Name: "{autodesktop}\IMORTAIS Combat Client"; Filename: "{app}\{#AppExe}"; Tasks
 Name: "desktopicon"; Description: "Criar atalho na área de trabalho"; GroupDescription: "Atalhos:"; Flags: unchecked
 
 [Run]
-Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Flags: nowait
+Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Flags: nowait skipifsilent
 "@
 
 Write-Utf8Lf -FilePath $IssFile -Text $iss
@@ -413,6 +413,7 @@ $notes = @"
 - Mantém assinatura Ed25519 obrigatória do instalador.
 - Mantém download com progresso e handoff para o instalador.
 - Mantém relançamento automático do Combat Client após a instalação.
+- O instalador não abre uma segunda instância durante update silencioso (`skipifsilent`); o relançamento fica a cargo do NetSparkle.
 
 ### Teste desta versão
 A v0.4.9 é a primeira atualização destinada a validar de ponta a ponta o updater corrigido da v0.4.8.
