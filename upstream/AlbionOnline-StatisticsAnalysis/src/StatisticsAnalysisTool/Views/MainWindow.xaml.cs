@@ -268,6 +268,34 @@ public partial class MainWindow
         ImortaisDiagnosticsOutboxText.Text =
             $"{status.PendingEvents} evento{(status.PendingEvents == 1 ? string.Empty : "s")} · {FormatByteCount(status.PendingBytes)}";
 
+        ImortaisDiagnosticsHeartbeatText.Text = status.LastHeartbeatEnqueuedUtc.HasValue
+            ? $"{FormatRelativeTime(status.LastHeartbeatEnqueuedUtc.Value)} · {status.LastHeartbeatEnqueuedUtc.Value.ToLocalTime():HH:mm:ss}"
+            : "aguardando primeiro heartbeat";
+        ImortaisDiagnosticsHeartbeatText.Foreground = status.LastHeartbeatEnqueuedUtc.HasValue
+            && DateTime.UtcNow - status.LastHeartbeatEnqueuedUtc.Value <= TimeSpan.FromSeconds(30)
+                ? Brushes.LimeGreen
+                : Brushes.Gold;
+
+        ImortaisDiagnosticsPartyText.Text = status.LastPartySnapshotAtUtc.HasValue
+            ? $"{status.LastPartyMemberCount} membro{(status.LastPartyMemberCount == 1 ? string.Empty : "s")} · {FormatRelativeTime(status.LastPartySnapshotAtUtc.Value)} · {status.PartySnapshotDeduplicatedCount} repetido{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")} ignorado{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")}"
+            : $"nenhum snapshot · {status.PartySnapshotDeduplicatedCount} repetido{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")} ignorado{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")}";
+
+        ImortaisDiagnosticsGuildText.Text = status.LastGuildPresenceProbeAtUtc.HasValue
+            ? $"{status.GuildPresenceDistinctPlayers} jogador{(status.GuildPresenceDistinctPlayers == 1 ? string.Empty : "es")} distintos · {status.GuildPresenceProbeCount} eventos · último {FormatRelativeTime(status.LastGuildPresenceProbeAtUtc.Value)}"
+            : "aguardando Guild Presence";
+
+        ImortaisDiagnosticsGameText.Text = status.GameDetected switch
+        {
+            true => "SIM · dados do Albion detectados",
+            false => "NÃO · aguardando dados do Albion",
+            _ => "aguardando detecção"
+        };
+        ImortaisDiagnosticsGameText.Foreground = status.GameDetected == true ? Brushes.LimeGreen : Brushes.Gold;
+
+        ImortaisDiagnosticsActivityText.Text = status.RecentActivity.Count > 0
+            ? string.Join(Environment.NewLine, status.RecentActivity.Reverse())
+            : "Nenhuma atividade registrada nesta sessão.";
+
         ImortaisDiagnosticsErrorText.Text = string.IsNullOrWhiteSpace(status.LastError)
             ? "nenhum"
             : status.LastError;
@@ -350,10 +378,20 @@ public partial class MainWindow
         builder.AppendLine($"War Room: {(status.WarRoomConnected ? "CONECTADO" : "DESCONECTADO")}");
         builder.AppendLine($"Jogador: {(string.IsNullOrWhiteSpace(status.PlayerName) ? "não identificado" : status.PlayerName)}");
         builder.AppendLine($"CTA: {(!string.IsNullOrWhiteSpace(status.CtaTime) ? status.CtaTime : !string.IsNullOrWhiteSpace(status.CtaEventId) ? status.CtaEventId : "nenhum")}");
-        builder.AppendLine($"Party: {partyCount}");
+        builder.AppendLine($"Party atual detectada: {partyCount}");
+        builder.AppendLine($"Último party snapshot: {(status.LastPartySnapshotAtUtc.HasValue ? status.LastPartySnapshotAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")} / {status.LastPartyMemberCount} membros");
+        builder.AppendLine($"Party snapshots repetidos ignorados: {status.PartySnapshotDeduplicatedCount}");
+        builder.AppendLine($"Último heartbeat enfileirado: {(status.LastHeartbeatEnqueuedUtc.HasValue ? status.LastHeartbeatEnqueuedUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
+        builder.AppendLine($"Albion detectado: {(status.GameDetected == true ? "SIM" : status.GameDetected == false ? "NÃO" : "INDEFINIDO")}");
+        builder.AppendLine($"Guild Presence: {status.GuildPresenceProbeCount} eventos / {status.GuildPresenceDistinctPlayers} jogadores distintos / último {(status.LastGuildPresenceProbeAtUtc.HasValue ? status.LastGuildPresenceProbeAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Último contato: {(status.LastSuccessfulContactUtc.HasValue ? status.LastSuccessfulContactUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Outbox: {status.PendingEvents} eventos / {FormatByteCount(status.PendingBytes)}");
         builder.AppendLine($"Último erro: {(string.IsNullOrWhiteSpace(status.LastError) ? "nenhum" : status.LastError)}");
+        builder.AppendLine("Atividade recente:");
+        foreach (var line in status.RecentActivity.Reverse())
+        {
+            builder.AppendLine("  " + line);
+        }
 
         Clipboard.SetText(builder.ToString());
 
