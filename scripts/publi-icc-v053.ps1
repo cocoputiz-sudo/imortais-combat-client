@@ -171,13 +171,13 @@ $bridgeText = [System.IO.File]::ReadAllText($BridgeFile)
 $configText = [System.IO.File]::ReadAllText($ConfigFile)
 $lootControllerText = [System.IO.File]::ReadAllText($LootControllerFile)
 
-if ($projectText -notmatch '<ApplicationVersion>\s*0\.5\.2\.0\s*</ApplicationVersion>') {
+if ($projectText -notmatch '<ApplicationVersion>\s*0\.5\.3\.0\s*</ApplicationVersion>') {
     throw "csproj não está em v0.5.3."
 }
-if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.5\.2\.0"\s*\)') {
+if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.5\.3\.0"\s*\)') {
     throw "AssemblyFileVersion não está em v0.5.3."
 }
-if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.5\.2"\s*\)') {
+if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.5\.3"\s*\)') {
     throw "AssemblyInformationalVersion não está em v0.5.3."
 }
 if ($updaterText -match 'if \(!await IsAppCastSignatureTrustedAsync') {
@@ -277,7 +277,7 @@ if ($configText -notmatch 'outbox\.ndjson') {
 if ($lootControllerText -notmatch 'lootedByUser\?\.Value\?\.Guild') {
     throw "LootController não está encaminhando a guilda do looter."
 }
-if ($bridgeText -notmatch 'ClientVersion\s*=\s*"0\.5\.2"') {
+if ($bridgeText -notmatch 'ClientVersion\s*=\s*"0\.5\.3"') {
     throw "ClientVersion da telemetria não está em v0.5.3."
 }
 if ($bridgeText -notmatch 'Type\s*=\s*"client_heartbeat"') {
