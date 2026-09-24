@@ -29,6 +29,8 @@ public static class ImortaisEventBridge
     private static readonly ConcurrentDictionary<string, CombatAccumulator> Combat = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, string> LastGuildPresenceProbePayloads = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, string> LastPartySnapshotPayloads = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, byte> GuildPresencePlayersSeen = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentQueue<string> RecentActivity = new();
     private static readonly CancellationTokenSource Cts = new();
     private static readonly object StartLock = new();
     private static readonly object StatusLock = new();
@@ -40,7 +42,7 @@ public static class ImortaisEventBridge
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-    private const string ClientVersion = "0.5.2";
+    private const string ClientVersion = "0.5.3";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
@@ -60,6 +62,9 @@ public static class ImortaisEventBridge
     private static int _lastPartyMemberCount;
     private static DateTime _lastHeartbeatEnqueuedUtc = DateTime.MinValue;
     private static int _gameDetectedState = -1;
+    private static long _partySnapshotDeduplicatedCount;
+    private static long _guildPresenceProbeCount;
+    private static DateTime? _lastGuildPresenceProbeAtUtc;
 
     public sealed record BridgeStatus(
         bool Enabled,
@@ -71,7 +76,16 @@ public static class ImortaisEventBridge
         DateTime? LastSuccessfulContactUtc,
         string LastError,
         int PendingEvents,
-        long PendingBytes);
+        long PendingBytes,
+        DateTime? LastHeartbeatEnqueuedUtc,
+        DateTime? LastPartySnapshotAtUtc,
+        int LastPartyMemberCount,
+        long PartySnapshotDeduplicatedCount,
+        bool? GameDetected,
+        long GuildPresenceProbeCount,
+        int GuildPresenceDistinctPlayers,
+        DateTime? LastGuildPresenceProbeAtUtc,
+        IReadOnlyList<string> RecentActivity);
 
     public static void Start() => EnsureStarted();
 
@@ -140,6 +154,7 @@ public static class ImortaisEventBridge
                              && !string.IsNullOrWhiteSpace(_config.AgentKey)
                              && !string.IsNullOrWhiteSpace(_config.ServerUrl);
 
+            var gameDetectedState = Volatile.Read(ref _gameDetectedState);
             return new BridgeStatus(
                 _config.Enabled,
                 configured,
@@ -150,7 +165,16 @@ public static class ImortaisEventBridge
                 _lastSuccessfulContactUtc,
                 string.IsNullOrWhiteSpace(_persistenceWarning) ? _lastError : _persistenceWarning,
                 _outboxEventCount,
-                _outboxByteCount);
+                _outboxByteCount,
+                _lastHeartbeatEnqueuedUtc == DateTime.MinValue ? null : _lastHeartbeatEnqueuedUtc,
+                _lastPartySnapshotAtUtc,
+                _lastPartyMemberCount,
+                Interlocked.Read(ref _partySnapshotDeduplicatedCount),
+                gameDetectedState < 0 ? null : gameDetectedState == 1,
+                Interlocked.Read(ref _guildPresenceProbeCount),
+                GuildPresencePlayersSeen.Count,
+                _lastGuildPresenceProbeAtUtc,
+                RecentActivity.ToArray());
         }
     }
 
@@ -170,6 +194,7 @@ public static class ImortaisEventBridge
             if (LastPartySnapshotPayloads.TryGetValue(PartySnapshotFingerprintKey, out var previous)
                 && string.Equals(previous, fingerprint, StringComparison.Ordinal))
             {
+                Interlocked.Increment(ref _partySnapshotDeduplicatedCount);
                 return;
             }
 
@@ -189,6 +214,7 @@ public static class ImortaisEventBridge
                 _lastPartySnapshotAtUtc = DateTime.UtcNow;
                 _lastPartyMemberCount = normalized.Length;
             }
+            AddActivity($"PARTY snapshot enviado · {normalized.Length} membro{(normalized.Length == 1 ? string.Empty : "s")}");
         }
     }
 
@@ -246,12 +272,33 @@ public static class ImortaisEventBridge
 
         LastGuildPresenceProbePayloads[eventName] = fingerprint;
 
-        Enqueue(new ImortaisTelemetryEvent
+        if (Enqueue(new ImortaisTelemetryEvent
+            {
+                Type = "guild_presence_probe",
+                PlayerName = _config.PlayerName,
+                Payload = payload
+            }))
         {
-            Type = "guild_presence_probe",
-            PlayerName = _config.PlayerName,
-            Payload = payload
-        });
+            Interlocked.Increment(ref _guildPresenceProbeCount);
+            lock (StatusLock)
+            {
+                _lastGuildPresenceProbeAtUtc = DateTime.UtcNow;
+            }
+
+            if (string.Equals(eventName, "GuildPlayerUpdated", StringComparison.Ordinal)
+                && normalizedParameters.TryGetValue("1", out var playerValue))
+            {
+                var observedPlayer = Convert.ToString(playerValue)?.Trim();
+                if (!string.IsNullOrWhiteSpace(observedPlayer))
+                {
+                    GuildPresencePlayersSeen.TryAdd(observedPlayer, 0);
+                    var online = normalizedParameters.TryGetValue("2", out var onlineValue)
+                                 && onlineValue is bool flag
+                                 && flag;
+                    AddActivity($"GUILD {observedPlayer} · {(online ? "ONLINE" : "OFFLINE")}");
+                }
+            }
+        }
     }
 
     private static object? SanitizePhotonValue(object? value, int depth)
@@ -380,6 +427,15 @@ public static class ImortaisEventBridge
         });
     }
 
+    private static void AddActivity(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return;
+        RecentActivity.Enqueue($"{DateTime.Now:HH:mm:ss} · {message.Trim()}");
+        while (RecentActivity.Count > 10 && RecentActivity.TryDequeue(out _))
+        {
+        }
+    }
+
     private static bool Enqueue(ImortaisTelemetryEvent evt)
     {
         EnsureStarted();
@@ -454,6 +510,9 @@ public static class ImortaisEventBridge
         if (changed)
         {
             try { ImortaisTelemetryConfig.Save(_config); } catch { /* status must never stop capture */ }
+            AddActivity(normalizedId == null
+                ? "CTA desvinculado"
+                : $"CTA vinculado · {(string.IsNullOrWhiteSpace(normalizedTime) ? "#" + normalizedId : normalizedTime)}");
         }
     }
 
