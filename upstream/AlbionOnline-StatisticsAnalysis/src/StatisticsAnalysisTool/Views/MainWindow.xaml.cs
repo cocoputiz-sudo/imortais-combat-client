@@ -6,6 +6,7 @@ using StatisticsAnalysisTool.ViewModels;
 using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Updater;
 using System;
+using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Windows;
