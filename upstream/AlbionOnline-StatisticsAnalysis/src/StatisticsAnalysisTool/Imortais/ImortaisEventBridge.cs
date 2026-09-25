@@ -42,7 +42,7 @@ public static class ImortaisEventBridge
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-    private const string ClientVersion = "0.5.3";
+    private const string ClientVersion = "0.5.4";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
@@ -384,25 +384,29 @@ public static class ImortaisEventBridge
         }
     }
 
-    public static void Damage(string player, int amount)
+    public static void Damage(string player, int amount, string? clusterName = null)
     {
         if (amount <= 0 || string.IsNullOrWhiteSpace(player)) return;
-        Combat.AddOrUpdate(player,
-            _ => new CombatAccumulator { Damage = amount },
+        var cluster = string.IsNullOrWhiteSpace(clusterName) ? string.Empty : clusterName.Trim();
+        var key = $"{cluster}\u001f{player.Trim()}";
+        Combat.AddOrUpdate(key,
+            _ => new CombatAccumulator { Player = player.Trim(), Cluster = cluster, Damage = amount },
             (_, current) => { Interlocked.Add(ref current.Damage, amount); return current; });
         EnsureStarted();
     }
 
-    public static void Healing(string player, int amount)
+    public static void Healing(string player, int amount, string? clusterName = null)
     {
         if (amount <= 0 || string.IsNullOrWhiteSpace(player)) return;
-        Combat.AddOrUpdate(player,
-            _ => new CombatAccumulator { Healing = amount },
+        var cluster = string.IsNullOrWhiteSpace(clusterName) ? string.Empty : clusterName.Trim();
+        var key = $"{cluster}\u001f{player.Trim()}";
+        Combat.AddOrUpdate(key,
+            _ => new CombatAccumulator { Player = player.Trim(), Cluster = cluster, Healing = amount },
             (_, current) => { Interlocked.Add(ref current.Healing, amount); return current; });
         EnsureStarted();
     }
 
-    public static void CombatResult(string result, string diedPlayer, string killerPlayer, bool isLethal)
+    public static void CombatResult(string result, string diedPlayer, string killerPlayer, bool isLethal, string? clusterName = null)
     {
         var type = result switch
         {
@@ -422,7 +426,8 @@ public static class ImortaisEventBridge
                 ["result"] = result,
                 ["victim"] = diedPlayer,
                 ["killer"] = killerPlayer,
-                ["isLethal"] = isLethal
+                ["isLethal"] = isLethal,
+                ["cluster"] = string.IsNullOrWhiteSpace(clusterName) ? null : clusterName.Trim()
             }
         });
     }
@@ -1139,12 +1144,13 @@ public static class ImortaisEventBridge
             QueueEvent(new ImortaisTelemetryEvent
             {
                 Type = "combat_delta",
-                PlayerName = pair.Key,
+                PlayerName = acc.Player,
                 Payload = new Dictionary<string, object?>
                 {
-                    ["player"] = pair.Key,
+                    ["player"] = acc.Player,
                     ["damage"] = damage,
                     ["healing"] = healing,
+                    ["cluster"] = string.IsNullOrWhiteSpace(acc.Cluster) ? null : acc.Cluster,
                     ["windowMs"] = Math.Max(250, _config.BatchIntervalMs)
                 }
             });
@@ -1155,6 +1161,8 @@ public static class ImortaisEventBridge
 
     private sealed class CombatAccumulator
     {
+        public string Player = string.Empty;
+        public string Cluster = string.Empty;
         public long Damage;
         public long Healing;
     }
