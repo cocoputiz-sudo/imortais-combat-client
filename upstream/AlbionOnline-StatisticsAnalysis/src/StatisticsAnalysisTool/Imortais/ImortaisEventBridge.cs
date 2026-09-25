@@ -42,7 +42,7 @@ public static class ImortaisEventBridge
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-    private const string ClientVersion = "0.5.4";
+    private const string ClientVersion = "0.5.5";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
@@ -428,6 +428,37 @@ public static class ImortaisEventBridge
                 ["killer"] = killerPlayer,
                 ["isLethal"] = isLethal,
                 ["cluster"] = string.IsNullOrWhiteSpace(clusterName) ? null : clusterName.Trim()
+            }
+        });
+    }
+
+    public static void ObservePlayerDeath(
+        long victimObjectId,
+        string victim,
+        string? victimGuild,
+        long killerObjectId,
+        string killer,
+        string? killerGuild,
+        bool isLethal,
+        string? clusterName = null)
+    {
+        if (!isLethal || string.IsNullOrWhiteSpace(victim) || string.IsNullOrWhiteSpace(killer)) return;
+
+        Enqueue(new ImortaisTelemetryEvent
+        {
+            Type = "player_death_observed",
+            PlayerName = victim.Trim(),
+            Payload = new Dictionary<string, object?>
+            {
+                ["victimObjectId"] = victimObjectId > 0 ? victimObjectId : null,
+                ["victim"] = victim.Trim(),
+                ["victimGuild"] = string.IsNullOrWhiteSpace(victimGuild) ? null : victimGuild.Trim(),
+                ["killerObjectId"] = killerObjectId > 0 ? killerObjectId : null,
+                ["killer"] = killer.Trim(),
+                ["killerGuild"] = string.IsNullOrWhiteSpace(killerGuild) ? null : killerGuild.Trim(),
+                ["isLethal"] = true,
+                ["cluster"] = string.IsNullOrWhiteSpace(clusterName) ? null : clusterName.Trim(),
+                ["source"] = "DiedEvent"
             }
         });
     }
