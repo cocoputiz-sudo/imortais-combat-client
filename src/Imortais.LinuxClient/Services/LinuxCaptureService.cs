@@ -111,11 +111,11 @@ public sealed class LinuxCaptureService : IDisposable
         try
         {
             var frame = packet.Data;
-            if (frame is null || frame.Length < 14) return;
+            if (frame.Length < 14) return;
 
-            var etherType = BinaryPrimitives.ReadUInt16BigEndian(frame.AsSpan(12, 2));
-            if (etherType == 0x0800) HandleIpv4(frame.AsSpan(14));
-            else if (etherType == 0x86DD) HandleIpv6(frame.AsSpan(14));
+            var etherType = BinaryPrimitives.ReadUInt16BigEndian(frame.Slice(12, 2));
+            if (etherType == 0x0800) HandleIpv4(frame.Slice(14));
+            else if (etherType == 0x86DD) HandleIpv6(frame.Slice(14));
         }
         catch { }
     }
