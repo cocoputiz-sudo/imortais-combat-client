@@ -120,7 +120,10 @@ public class CombatController
             var damageType = DamageTypeResolver.Resolve(effectType, causingSpellIndex, isMobTarget);
             _damageStatsTracker.RecordDamage(causerGameObject.Value.Key, causerGameObjectValue.Name, affectedId, damageChangeValue, newHealthValue, isMobTarget, presentationSpellIndex, damageType);
             contentDamageStatsTracker.RecordDamage(causerGameObject.Value.Key, causerGameObjectValue.Name, affectedId, damageChangeValue, newHealthValue, isMobTarget, presentationSpellIndex, damageType);
-            ImortaisEventBridge.Damage(causerGameObjectValue.Name, damageChangeValue);
+            ImortaisEventBridge.Damage(
+                causerGameObjectValue.Name,
+                damageChangeValue,
+                ClusterController.GetCurrentClusterDisplayName());
         }
 
         if (healthChangeType == HealthChangeType.Heal)
@@ -146,7 +149,10 @@ public class CombatController
                 CombatEventTracker.AddHealthContribution(CombatEventValueType.Heal, causerId, affectedId, positiveHealChangeValue, causingSpellIndex, contentType);
                 contentDamageStatsTracker.RecordHeal(causerGameObject.Value.Key, causerGameObjectValue.Name, positiveHealChangeValue);
                 _damageStatsTracker.RecordHeal(causerGameObject.Value.Key, causerGameObjectValue.Name, positiveHealChangeValue);
-                ImortaisEventBridge.Healing(causerGameObjectValue.Name, positiveHealChangeValue);
+                ImortaisEventBridge.Healing(
+                    causerGameObjectValue.Name,
+                    positiveHealChangeValue,
+                    ClusterController.GetCurrentClusterDisplayName());
             }
             else
             {
