@@ -1,0 +1,53 @@
+name: Build Linux Combat Client
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/linux-client-v010
+    paths:
+      - "src/Imortais.LinuxClient/**"
+      - "scripts/build-linux-deb.sh"
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool.PhotonPackageParser/**"
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool.Protocol18/**"
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool.Abstractions/**"
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool.Diagnostics/**"
+      - ".github/workflows/build-linux-client.yml"
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcap-dev libcap2-bin dpkg-dev
+
+      - name: Restore
+        run: dotnet restore src/Imortais.LinuxClient/Imortais.LinuxClient.csproj
+
+      - name: Build
+        run: dotnet build src/Imortais.LinuxClient/Imortais.LinuxClient.csproj -c Release --no-restore
+
+      - name: Build .deb
+        run: bash scripts/build-linux-deb.sh 0.1.0
+
+      - name: Upload Linux package
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMORTAIS-Combat-Client-v0.1.0-linux-x64
+          path: |
+            dist/linux/*.deb
+            dist/linux/*.sha256
+          if-no-files-found: error
