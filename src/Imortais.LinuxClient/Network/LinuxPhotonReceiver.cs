@@ -110,8 +110,8 @@ public sealed class LinuxPhotonReceiver : PhotonParser
 
     private void HandleHealthUpdates(Dictionary<byte, object> p)
     {
-        var changes = ToList(p.GetValueOrDefault(2));
-        var causers = ToList(p.GetValueOrDefault(6));
+        var changes = ToList(GetValue(p, 2));
+        var causers = ToList(GetValue(p, 6));
         var count = Math.Max(changes.Count, causers.Count);
 
         for (var i = 0; i < count; i++)
@@ -139,11 +139,11 @@ public sealed class LinuxPhotonReceiver : PhotonParser
 
     private void HandlePartyJoined(Dictionary<byte, object> p)
     {
-        var names = ToStrings(p.GetValueOrDefault(9));
-        if (names.Count == 0) names = ToStrings(p.GetValueOrDefault(5));
+        var names = ToStrings(GetValue(p, 9));
+        if (names.Count == 0) names = ToStrings(GetValue(p, 5));
 
-        var guids = ToGuids(p.GetValueOrDefault(8));
-        if (guids.Count == 0) guids = ToGuids(p.GetValueOrDefault(4));
+        var guids = ToGuids(GetValue(p, 8));
+        if (guids.Count == 0) guids = ToGuids(GetValue(p, 4));
 
         _partyByGuid.Clear();
         for (var i = 0; i < Math.Min(names.Count, guids.Count); i++)
@@ -159,7 +159,7 @@ public sealed class LinuxPhotonReceiver : PhotonParser
     private void HandlePartyPlayerJoined(Dictionary<byte, object> p)
     {
         var name = GetString(p, 2);
-        var guid = ToGuid(p.GetValueOrDefault(1));
+        var guid = ToGuid(GetValue(p, 1));
         if (string.IsNullOrWhiteSpace(name)) return;
 
         if (guid != Guid.Empty) _partyByGuid[guid] = name;
@@ -171,7 +171,7 @@ public sealed class LinuxPhotonReceiver : PhotonParser
 
     private void HandlePartyPlayerLeft(Dictionary<byte, object> p)
     {
-        var guid = ToGuid(p.GetValueOrDefault(1));
+        var guid = ToGuid(GetValue(p, 1));
         if (guid == Guid.Empty || !_partyByGuid.Remove(guid, out var name)) return;
 
         _state.RemovePartyMember(name);
@@ -243,6 +243,9 @@ public sealed class LinuxPhotonReceiver : PhotonParser
 
     private static object? NullIfEmpty(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private static object? GetValue(Dictionary<byte, object> p, byte key) =>
+        p.TryGetValue(key, out var value) ? value : null;
 
     private static string GetString(Dictionary<byte, object> p, byte key) =>
         p.TryGetValue(key, out var v) ? Convert.ToString(v)?.Trim() ?? string.Empty : string.Empty;
