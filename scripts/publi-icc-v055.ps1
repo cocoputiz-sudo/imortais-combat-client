@@ -575,11 +575,11 @@ Write-Host "==================================================" -ForegroundColor
 Write-Host "ICC v$Version PUBLICADO COM SUCESSO" -ForegroundColor Green
 Write-Host "==================================================" -ForegroundColor DarkGray
 Write-Host ""
-Write-Host "TESTE CONTROLADO DO UPDATER v0.5.2 -> v0.5.5" -ForegroundColor Yellow
+Write-Host "TESTE CONTROLADO DO UPDATER v0.5.4 -> v0.5.5" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "1. NÃO instale a v0.5.5 manualmente na máquina de teste." -ForegroundColor Cyan
-Write-Host "2. Confirme que o Combat Client instalado está em v0.5.2." -ForegroundColor Cyan
-Write-Host "3. Abra a v0.5.2 e use Verificar atualização." -ForegroundColor Cyan
+Write-Host "2. Confirme que o Combat Client instalado está em v0.5.4." -ForegroundColor Cyan
+Write-Host "3. Abra a v0.5.4 e use Verificar atualização." -ForegroundColor Cyan
 Write-Host "4. Confirme que a janela oferece a v0.5.5." -ForegroundColor Cyan
 Write-Host "5. Atualize e confirme download, fechamento, instalação e relançamento." -ForegroundColor Cyan
 Write-Host "6. Após reabrir, confirme v0.5.5 e valide kills/deaths da guilda com pelo menos dois observers quando possível." -ForegroundColor Cyan
