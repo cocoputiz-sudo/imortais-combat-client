@@ -1,6 +1,7 @@
 using StatisticsAnalysisTool.Cluster;
 using StatisticsAnalysisTool.EventLogging;
 using StatisticsAnalysisTool.EventLogging.Notification;
+using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Localization;
 using StatisticsAnalysisTool.Models.NetworkModel;
 using StatisticsAnalysisTool.Network.Events;
@@ -14,6 +15,16 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
 {
     protected override async Task OnActionAsync(DiedEvent value)
     {
+        ImortaisEventBridge.ObservePlayerDeath(
+            value.DiedObjectId,
+            value.Died,
+            value.DiedPlayerGuild,
+            value.KillerObjectId,
+            value.KilledBy,
+            value.KilledByGuild,
+            value.IsLethal,
+            ClusterController.GetCurrentClusterDisplayName());
+
         if (trackingController.DungeonController is { } dungeonController)
         {
             await dungeonController.SetDiedIfInDungeonAsync(new DiedObject(value.Died, value.KilledBy, value.KilledByGuild));
