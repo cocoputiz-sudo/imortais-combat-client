@@ -425,7 +425,8 @@ public class StatisticController
             combatResult.ToString(),
             diedPlayerName,
             killerPlayerName,
-            isLethal);
+            isLethal,
+            ClusterController.GetCurrentClusterDisplayName());
 
         var valueType = combatResult switch
         {
