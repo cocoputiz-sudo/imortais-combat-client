@@ -7,6 +7,7 @@ using StatisticsAnalysisTool.Models.NetworkModel;
 using StatisticsAnalysisTool.Network.Events;
 using StatisticsAnalysisTool.Network.Manager;
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace StatisticsAnalysisTool.Network.Handler;
@@ -15,15 +16,26 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
 {
     protected override async Task OnActionAsync(DiedEvent value)
     {
-        ImortaisEventBridge.ObservePlayerDeath(
-            value.DiedObjectId,
-            value.Died,
-            value.DiedPlayerGuild,
-            value.KillerObjectId,
-            value.KilledBy,
-            value.KilledByGuild,
-            value.IsLethal,
-            ClusterController.GetCurrentClusterDisplayName());
+        var relevantToImortais =
+            IsImortaisFamilyGuild(value.DiedPlayerGuild)
+            || IsImortaisFamilyGuild(value.KilledByGuild)
+            || trackingController.EntityController.IsEntityInParty(value.DiedObjectId)
+            || trackingController.EntityController.IsEntityInParty(value.KillerObjectId)
+            || trackingController.EntityController.IsEntityInParty(value.Died)
+            || trackingController.EntityController.IsEntityInParty(value.KilledBy);
+
+        if (value.IsLethal && relevantToImortais)
+        {
+            ImortaisEventBridge.ObservePlayerDeath(
+                value.DiedObjectId,
+                value.Died,
+                value.DiedPlayerGuild,
+                value.KillerObjectId,
+                value.KilledBy,
+                value.KilledByGuild,
+                true,
+                ClusterController.GetCurrentClusterDisplayName());
+        }
 
         if (trackingController.DungeonController is { } dungeonController)
         {
@@ -50,6 +62,12 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
             await trackingController.LootController.AddKillDeathAsync(value.Died, value.DiedPlayerGuild, diedPlayerAlliance, value.KilledBy, value.KilledByGuild, killedByAlliance, clusterName);
             await trackingController.AddNotificationAsync(SetKillNotification(value.Died, value.DiedPlayerGuild, diedPlayerAlliance, value.KilledBy, value.KilledByGuild, killedByAlliance, clusterName));
         }
+    }
+
+    private static bool IsImortaisFamilyGuild(string guild)
+    {
+        var normalized = string.Concat((guild ?? string.Empty).Where(char.IsLetterOrDigit)).ToLowerInvariant();
+        return normalized is "imortais" or "imortais2" or "imortaisacademy";
     }
 
     private static TrackingNotification SetKillNotification(string died, string diedPlayerGuild, string diedPlayerAlliance,
