@@ -74,7 +74,7 @@ $gh = Need "gh.exe"
 $dotnet = Need "dotnet.exe"
 
 Write-Host "== PUBLICAÇÃO ICC v$Version ==" -ForegroundColor Cyan
-Write-Host "Script revision: v056-r1 (CTA routing fix)" -ForegroundColor DarkGray
+Write-Host "Script revision: v056-r2 (CTA routing fix)" -ForegroundColor DarkGray
 Write-Host "Publicação da v0.5.6 com correção de roteamento de CTA stale." -ForegroundColor DarkGray
 Write-Host ""
 
@@ -173,6 +173,8 @@ $assemblyRaw = [regex]::Replace(
     'AssemblyInformationalVersion("0.5.6")'
 )
 Write-Utf8Lf -FilePath $AssemblyFile -Text $assemblyRaw
+
+Write-Host "Versão preparada no clone: csproj/assembly -> v0.5.6" -ForegroundColor DarkGray
 
 # Pré-validação do código que realmente será publicado.
 $projectText = [System.IO.File]::ReadAllText($ProjectFile)
