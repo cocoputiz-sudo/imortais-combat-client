@@ -18,7 +18,7 @@ jobs:
   build-linux:
     runs-on: ubuntu-24.04
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
@@ -51,3 +51,20 @@ jobs:
             dist/linux/*.deb
             dist/linux/*.sha256
           if-no-files-found: error
+
+      - name: Publish Linux pre-release
+        if: github.ref == 'refs/heads/feat/linux-client-v010'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="v0.1.0-linux-preview.1"
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/linux/*.deb dist/linux/*.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$TAG"               dist/linux/*.deb               dist/linux/*.sha256               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --prerelease               --title "IMORTAIS Combat Client Linux v0.1.0 Preview 1"               --notes "Primeira prévia pública do IMORTAIS Combat Client nativo para Ubuntu/Linux.
+
+Inclui GUI Avalonia com abas Início, Registro, Medidor de dano, Party e Configurações; ativação por código do War Room; captura libpcap; parser Photon; outbox; party_snapshot; combat_delta; player_death_observed; atalho no menu do Ubuntu e pacote .deb amd64.
+
+Build validado automaticamente em Ubuntu 24.04. Esta é uma versão Preview para teste antes de integrar à main."
+          fi
