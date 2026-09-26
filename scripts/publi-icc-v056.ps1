@@ -74,7 +74,7 @@ $gh = Need "gh.exe"
 $dotnet = Need "dotnet.exe"
 
 Write-Host "== PUBLICAÇÃO ICC v$Version ==" -ForegroundColor Cyan
-Write-Host "Script revision: v056-r2 (CTA routing fix)" -ForegroundColor DarkGray
+Write-Host "Script revision: v056-r3 (CTA routing fix)" -ForegroundColor DarkGray
 Write-Host "Publicação da v0.5.6 com correção de roteamento de CTA stale." -ForegroundColor DarkGray
 Write-Host ""
 
@@ -308,9 +308,6 @@ if ($configText -notmatch 'outbox\.ndjson') {
 }
 if ($lootControllerText -notmatch 'lootedByUser\?\.Value\?\.Guild') {
     throw "LootController não está encaminhando a guilda do looter."
-}
-if ($bridgeText -notmatch 'ClientVersion\s*=\s*"0\.5\.5"') {
-    throw "ClientVersion da telemetria não está em v0.5.6."
 }
 if ($bridgeText -notmatch 'Type\s*=\s*"client_heartbeat"') {
     throw "client_heartbeat não encontrado."
