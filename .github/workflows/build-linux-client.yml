@@ -57,10 +57,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v0.1.0-linux-preview.1"
+          TAG="v0.1.0-linux-preview.2"
 
           cat > /tmp/linux-release-notes.md <<'EOF'
-          Primeira prévia pública do IMORTAIS Combat Client nativo para Ubuntu/Linux.
+          Preview 2 do IMORTAIS Combat Client nativo para Ubuntu/Linux. Corrige a GUI vazia carregando explicitamente o tema Fluent escuro do Avalonia.
 
           Inclui GUI Avalonia com abas Início, Registro, Medidor de dano, Party e Configurações; ativação por código do War Room; captura libpcap; parser Photon; outbox; party_snapshot; combat_delta; player_death_observed; atalho no menu do Ubuntu e pacote .deb amd64.
 
@@ -70,5 +70,5 @@ jobs:
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/linux/*.deb dist/linux/*.sha256 --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG"               dist/linux/*.deb               dist/linux/*.sha256               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --prerelease               --title "IMORTAIS Combat Client Linux v0.1.0 Preview 1"               --notes-file /tmp/linux-release-notes.md
+            gh release create "$TAG"               dist/linux/*.deb               dist/linux/*.sha256               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --prerelease               --title "IMORTAIS Combat Client Linux v0.1.0 Preview 2"               --notes-file /tmp/linux-release-notes.md
           fi
