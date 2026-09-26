@@ -42,7 +42,7 @@ public static class ImortaisEventBridge
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-    private const string ClientVersion = "0.5.5";
+    private const string ClientVersion = "0.5.6";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
@@ -696,7 +696,9 @@ public static class ImortaisEventBridge
                         playerName = _config.PlayerName,
                         version = ClientVersion
                     },
-                    ctaEventId = _config.CtaEventId,
+                    // O backend e a fonte de verdade para rotear cada lote ao CTA correto.
+                    // Nao envie o CtaEventId salvo localmente como vinculacao autoritativa:
+                    // ele pode ter sido resolvido em um CTA anterior e ficar stale entre CTAs.
                     events = batch
                 });
 
