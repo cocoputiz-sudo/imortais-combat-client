@@ -195,13 +195,13 @@ $configText = [System.IO.File]::ReadAllText($ConfigFile)
 $lootControllerText = [System.IO.File]::ReadAllText($LootControllerFile)
 $diedEventHandlerText = [System.IO.File]::ReadAllText($DiedEventHandlerFile)
 
-if ($projectText -notmatch '<ApplicationVersion>\s*0\.5\.5\.0\s*</ApplicationVersion>') {
+if ($projectText -notmatch '<ApplicationVersion>\s*0\.5\.6\.0\s*</ApplicationVersion>') {
     throw "csproj não está em v0.5.6."
 }
-if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.5\.5\.0"\s*\)') {
+if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.5\.6\.0"\s*\)') {
     throw "AssemblyFileVersion não está em v0.5.6."
 }
-if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.5\.5"\s*\)') {
+if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.5\.6"\s*\)') {
     throw "AssemblyInformationalVersion não está em v0.5.6."
 }
 if ($updaterText -match 'if \(!await IsAppCastSignatureTrustedAsync') {
