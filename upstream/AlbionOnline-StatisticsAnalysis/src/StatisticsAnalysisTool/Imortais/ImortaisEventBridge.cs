@@ -42,7 +42,7 @@ public static class ImortaisEventBridge
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-    private const string ClientVersion = "0.5.6";
+    private const string ClientVersion = "0.5.7";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
@@ -86,6 +86,24 @@ public static class ImortaisEventBridge
         int GuildPresenceDistinctPlayers,
         DateTime? LastGuildPresenceProbeAtUtc,
         IReadOnlyList<string> RecentActivity);
+
+    public sealed record PartyEquipmentSnapshot(
+        string? MainHand,
+        string? OffHand,
+        string? Head,
+        string? Chest,
+        string? Shoes,
+        string? Bag,
+        string? Cape,
+        string? Mount,
+        string? Potion,
+        string? Food);
+
+    public sealed record PartyMemberSnapshot(
+        string Name,
+        double ItemPower,
+        bool Inspected,
+        PartyEquipmentSnapshot Equipment);
 
     public static void Start() => EnsureStarted();
 
@@ -178,16 +196,60 @@ public static class ImortaisEventBridge
         }
     }
 
-    public static void PartySnapshot(IEnumerable<string> members)
+    public static void PartySnapshot(IEnumerable<PartyMemberSnapshot> members)
     {
-        var normalized = members
-            .Where(x => !string.IsNullOrWhiteSpace(x))
-            .Select(x => x.Trim())
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+        static string? CleanItem(string? uniqueName)
+        {
+            return string.IsNullOrWhiteSpace(uniqueName) ? null : uniqueName.Trim();
+        }
+
+        var normalizedStates = members
+            .Where(x => x != null && !string.IsNullOrWhiteSpace(x.Name))
+            .Select(x => new PartyMemberSnapshot(
+                x.Name.Trim(),
+                Math.Round(Math.Max(0, x.ItemPower), 1),
+                x.Inspected,
+                new PartyEquipmentSnapshot(
+                    CleanItem(x.Equipment?.MainHand),
+                    CleanItem(x.Equipment?.OffHand),
+                    CleanItem(x.Equipment?.Head),
+                    CleanItem(x.Equipment?.Chest),
+                    CleanItem(x.Equipment?.Shoes),
+                    CleanItem(x.Equipment?.Bag),
+                    CleanItem(x.Equipment?.Cape),
+                    CleanItem(x.Equipment?.Mount),
+                    CleanItem(x.Equipment?.Potion),
+                    CleanItem(x.Equipment?.Food))))
+            .GroupBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.Last())
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var fingerprint = string.Join("|", normalized);
+        var normalizedNames = normalizedStates.Select(x => x.Name).ToArray();
+
+        // O fingerprint inclui o equipamento. Assim, se a composição da PT continua
+        // igual mas alguém troca uma peça, o War Room recebe um novo snapshot.
+        var memberStates = normalizedStates.Select(x => new Dictionary<string, object?>
+        {
+            ["name"] = x.Name,
+            ["itemPower"] = x.ItemPower,
+            ["inspected"] = x.Inspected,
+            ["equipment"] = new Dictionary<string, object?>
+            {
+                ["mainHand"] = x.Equipment.MainHand,
+                ["offHand"] = x.Equipment.OffHand,
+                ["head"] = x.Equipment.Head,
+                ["chest"] = x.Equipment.Chest,
+                ["shoes"] = x.Equipment.Shoes,
+                ["bag"] = x.Equipment.Bag,
+                ["cape"] = x.Equipment.Cape,
+                ["mount"] = x.Equipment.Mount,
+                ["potion"] = x.Equipment.Potion,
+                ["food"] = x.Equipment.Food
+            }
+        }).ToArray();
+
+        var fingerprint = JsonSerializer.Serialize(memberStates);
 
         lock (PartySnapshotLock)
         {
@@ -202,7 +264,13 @@ public static class ImortaisEventBridge
                 {
                     Type = "party_snapshot",
                     PlayerName = _config.PlayerName,
-                    Payload = new Dictionary<string, object?> { ["members"] = normalized }
+                    Payload = new Dictionary<string, object?>
+                    {
+                        // Mantém o formato antigo para roteamento e compatibilidade.
+                        ["members"] = normalizedNames,
+                        // V2: estado visual do equipamento, sem julgamento certo/errado.
+                        ["memberStates"] = memberStates
+                    }
                 }))
             {
                 return;
@@ -212,10 +280,23 @@ public static class ImortaisEventBridge
             lock (StatusLock)
             {
                 _lastPartySnapshotAtUtc = DateTime.UtcNow;
-                _lastPartyMemberCount = normalized.Length;
+                _lastPartyMemberCount = normalizedNames.Length;
             }
-            AddActivity($"PARTY snapshot enviado · {normalized.Length} membro{(normalized.Length == 1 ? string.Empty : "s")}");
+            AddActivity($"PARTY snapshot enviado · {normalizedNames.Length} membro{(normalizedNames.Length == 1 ? string.Empty : "s")} · equipamentos");
         }
+    }
+
+    // Compatibilidade para qualquer chamada legada que ainda envie somente nomes.
+    public static void PartySnapshot(IEnumerable<string> members)
+    {
+        PartySnapshot(
+            members
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => new PartyMemberSnapshot(
+                    x.Trim(),
+                    0,
+                    false,
+                    new PartyEquipmentSnapshot(null, null, null, null, null, null, null, null, null, null))));
     }
 
     public static void SetGameDetected(bool detected)
