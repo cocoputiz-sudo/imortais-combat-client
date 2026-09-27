@@ -77,8 +77,22 @@ public class PartyController
 
             ImortaisEventBridge.PartySnapshot(
                 bindingsParty
-                    .Select(x => x.Username)
-                    .Where(x => !string.IsNullOrWhiteSpace(x))
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Username))
+                    .Select(x => new ImortaisEventBridge.PartyMemberSnapshot(
+                        x.Username,
+                        x.AverageItemPower?.ItemPower ?? 0,
+                        x.IsPlayerInspected,
+                        new ImortaisEventBridge.PartyEquipmentSnapshot(
+                            x.MainHand?.UniqueName,
+                            x.OffHand?.UniqueName,
+                            x.Head?.UniqueName,
+                            x.Chest?.UniqueName,
+                            x.Shoes?.UniqueName,
+                            x.Bag?.UniqueName,
+                            x.Cape?.UniqueName,
+                            x.Mount?.UniqueName,
+                            x.Potion?.UniqueName,
+                            x.BuffFood?.UniqueName)))
                     .ToArray());
         });
     }
