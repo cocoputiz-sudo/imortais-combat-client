@@ -3,6 +3,7 @@ using StatisticsAnalysisTool.Common;
 using StatisticsAnalysisTool.DamageMeter;
 using StatisticsAnalysisTool.Enumerations;
 using StatisticsAnalysisTool.GameFileData;
+using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Network.Manager;
 using StatisticsAnalysisTool.Properties;
 using StatisticsAnalysisTool.ViewModels;
@@ -29,6 +30,7 @@ public sealed class ClusterController(TrackingController trackingController, Mai
         OnChangeCluster += SetAndResetValues;
         OnChangeCluster += UpdateUserInfoUi;
         OnChangeCluster += SaveUserData;
+        OnChangeCluster += SendImortaisZoneChange;
     }
 
     public void UnregisterEvents()
@@ -37,6 +39,7 @@ public sealed class ClusterController(TrackingController trackingController, Mai
         OnChangeCluster -= SetAndResetValues;
         OnChangeCluster -= UpdateUserInfoUi;
         OnChangeCluster -= SaveUserData;
+        OnChangeCluster -= SendImortaisZoneChange;
     }
 
     public event Action<ClusterInfo> OnChangeCluster;
@@ -67,6 +70,32 @@ public sealed class ClusterController(TrackingController trackingController, Mai
         }
 
         Debug.Print($"[StateHandler] Changed cluster to: Index: '{CurrentCluster.Index}' UniqueName: '{CurrentCluster.UniqueName}' ClusterType: '{CurrentCluster.ClusterMode}' MapType: '{CurrentCluster.MapType}'");
+    }
+
+    private static void SendImortaisZoneChange(ClusterInfo currentCluster)
+    {
+        if (currentCluster == null)
+        {
+            return;
+        }
+
+        var displayName = currentCluster.UniqueName;
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            displayName = currentCluster.UniqueClusterName;
+        }
+
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            displayName = GetClusterDisplayName(currentCluster);
+        }
+
+        ImortaisEventBridge.ZoneChange(
+            currentCluster.Index,
+            displayName,
+            currentCluster.ClusterMode.ToString(),
+            currentCluster.MapType.ToString(),
+            currentCluster.SourceClusterIndex);
     }
 
     public void SetAndResetValues(ClusterInfo currentCluster)

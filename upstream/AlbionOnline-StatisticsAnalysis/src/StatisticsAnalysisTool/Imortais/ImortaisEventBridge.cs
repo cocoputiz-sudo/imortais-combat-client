@@ -42,7 +42,7 @@ public static class ImortaisEventBridge
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-    private const string ClientVersion = "0.5.7";
+    private const string ClientVersion = "0.5.8";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
@@ -302,6 +302,39 @@ public static class ImortaisEventBridge
     public static void SetGameDetected(bool detected)
     {
         Volatile.Write(ref _gameDetectedState, detected ? 1 : 0);
+    }
+
+    public static void ZoneChange(
+        string? clusterIndex,
+        string? clusterName,
+        string? clusterMode,
+        string? mapType,
+        string? sourceClusterIndex)
+    {
+        var index = string.IsNullOrWhiteSpace(clusterIndex) ? null : clusterIndex.Trim();
+        var name = string.IsNullOrWhiteSpace(clusterName) ? null : clusterName.Trim();
+
+        if (string.IsNullOrWhiteSpace(index) && string.IsNullOrWhiteSpace(name))
+        {
+            return;
+        }
+
+        if (Enqueue(new ImortaisTelemetryEvent
+            {
+                Type = "zone_change",
+                PlayerName = _config.PlayerName,
+                Payload = new Dictionary<string, object?>
+                {
+                    ["clusterIndex"] = index,
+                    ["clusterName"] = name,
+                    ["clusterMode"] = string.IsNullOrWhiteSpace(clusterMode) ? null : clusterMode.Trim(),
+                    ["mapType"] = string.IsNullOrWhiteSpace(mapType) ? null : mapType.Trim(),
+                    ["sourceClusterIndex"] = string.IsNullOrWhiteSpace(sourceClusterIndex) ? null : sourceClusterIndex.Trim()
+                }
+            }))
+        {
+            AddActivity($"ZONE {(name ?? index ?? "?")}");
+        }
     }
 
     public static void Loot(string lootedBy, string? lootedByGuild, string lootedFrom, string itemUniqueName, int quantity, double estimatedValue, string? clusterName)
