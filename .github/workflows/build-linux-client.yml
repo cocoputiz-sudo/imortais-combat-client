@@ -41,12 +41,12 @@ jobs:
         run: dotnet build src/Imortais.LinuxClient/Imortais.LinuxClient.csproj -c Release --no-restore
 
       - name: Build .deb
-        run: bash scripts/build-linux-deb.sh 0.1.0
+        run: bash scripts/build-linux-deb.sh 0.1.1
 
       - name: Upload Linux package
         uses: actions/upload-artifact@v4
         with:
-          name: IMORTAIS-Combat-Client-v0.1.0-linux-x64
+          name: IMORTAIS-Combat-Client-v0.1.1-linux-x64
           path: |
             dist/linux/*.deb
             dist/linux/*.sha256
@@ -57,10 +57,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v0.1.0-linux-preview.2"
+          TAG="v0.1.1-linux-preview.3"
 
           cat > /tmp/linux-release-notes.md <<'EOF'
-          Preview 2 do IMORTAIS Combat Client nativo para Ubuntu/Linux. Corrige a GUI vazia carregando explicitamente o tema Fluent escuro do Avalonia.
+          Preview 3 do IMORTAIS Combat Client nativo para Ubuntu/Linux. Corrige a captura real no Ubuntu: remontagem de IPv4 fragmentado, suporte a Ethernet/raw/SLL/SLL2, diagnóstico automático de interfaces e tráfego Photon, e instalador que valida as capabilities de captura.
 
           Inclui GUI Avalonia com abas Início, Registro, Medidor de dano, Party e Configurações; ativação por código do War Room; captura libpcap; parser Photon; outbox; party_snapshot; combat_delta; player_death_observed; atalho no menu do Ubuntu e pacote .deb amd64.
 
@@ -70,5 +70,5 @@ jobs:
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" dist/linux/*.deb dist/linux/*.sha256 --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$TAG"               dist/linux/*.deb               dist/linux/*.sha256               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --prerelease               --title "IMORTAIS Combat Client Linux v0.1.0 Preview 2"               --notes-file /tmp/linux-release-notes.md
+            gh release create "$TAG"               dist/linux/*.deb               dist/linux/*.sha256               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --prerelease               --title "IMORTAIS Combat Client Linux v0.1.1 Preview 3"               --notes-file /tmp/linux-release-notes.md
           fi
