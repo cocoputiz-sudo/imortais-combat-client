@@ -81,12 +81,37 @@ public sealed class LinuxCaptureService : IDisposable
 
                 dispatcher = new PcapDispatcher(Dispatch);
 
-                var opened = OpenDevices(dispatcher, devices, requireUpFlag: true);
+                int OpenPass(bool requireUpFlag)
+                {
+                    var openedInPass = 0;
+
+                    foreach (var device in devices)
+                    {
+                        if (device.Flags.HasFlag(PcapDeviceFlags.Loopback)) continue;
+                        if (requireUpFlag && !device.Flags.HasFlag(PcapDeviceFlags.Up)) continue;
+                        if (_openedDeviceNames.Contains(device.Name, StringComparer.OrdinalIgnoreCase)) continue;
+
+                        try
+                        {
+                            dispatcher.OpenDevice(device, pcap => pcap.NonBlocking = true);
+                            _openedDeviceNames.Add(device.Name);
+                            openedInPass++;
+                        }
+                        catch (Exception ex)
+                        {
+                            StatusChanged?.Invoke($"Interface ignorada: {device.Name} · {ex.Message}");
+                        }
+                    }
+
+                    return openedInPass;
+                }
+
+                var opened = OpenPass(requireUpFlag: true);
 
                 // Alguns drivers/libpcap no Linux não expõem a flag UP de forma confiável.
                 // Se a primeira tentativa não abriu nada, tentamos qualquer interface não-loopback.
                 if (opened == 0)
-                    opened = OpenDevices(dispatcher, devices, requireUpFlag: false);
+                    opened = OpenPass(requireUpFlag: false);
 
                 if (opened == 0)
                 {
@@ -120,31 +145,6 @@ public sealed class LinuxCaptureService : IDisposable
                 return (false, "Falha ao iniciar captura: " + ex.Message, 0);
             }
         }
-    }
-
-    private int OpenDevices(PcapDispatcher dispatcher, IReadOnlyList<PcapDevice> devices, bool requireUpFlag)
-    {
-        var opened = 0;
-
-        foreach (var device in devices)
-        {
-            if (device.Flags.HasFlag(PcapDeviceFlags.Loopback)) continue;
-            if (requireUpFlag && !device.Flags.HasFlag(PcapDeviceFlags.Up)) continue;
-            if (_openedDeviceNames.Contains(device.Name, StringComparer.OrdinalIgnoreCase)) continue;
-
-            try
-            {
-                dispatcher.OpenDevice(device, pcap => pcap.NonBlocking = true);
-                _openedDeviceNames.Add(device.Name);
-                opened++;
-            }
-            catch (Exception ex)
-            {
-                StatusChanged?.Invoke($"Interface ignorada: {device.Name} · {ex.Message}");
-            }
-        }
-
-        return opened;
     }
 
     public void Stop()
