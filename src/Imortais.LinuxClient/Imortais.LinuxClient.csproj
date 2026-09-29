@@ -6,8 +6,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>IMORTAIS-Combat-Client</AssemblyName>
     <RootNamespace>Imortais.LinuxClient</RootNamespace>
-    <ApplicationVersion>0.1.0.0</ApplicationVersion>
-    <Version>0.1.0</Version>
+    <ApplicationVersion>0.1.1.0</ApplicationVersion>
+    <Version>0.1.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

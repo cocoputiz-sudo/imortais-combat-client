@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${1:-0.1.0}"
+VERSION="${1:-0.1.1}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT/src/Imortais.LinuxClient/Imortais.LinuxClient.csproj"
 PUBLISH="$ROOT/dist/linux/publish"
@@ -52,8 +52,19 @@ cat > "$PKGROOT/DEBIAN/postinst" <<'EOF'
 #!/usr/bin/env bash
 set -e
 BIN=/opt/imortais-combat-client/IMORTAIS-Combat-Client
-if command -v setcap >/dev/null 2>&1 && [ -f "$BIN" ]; then
-  setcap cap_net_raw,cap_net_admin=eip "$BIN" || true
+if ! command -v setcap >/dev/null 2>&1; then
+  echo "IMORTAIS: libcap2-bin/setcap não está disponível." >&2
+  exit 1
+fi
+if [ ! -f "$BIN" ]; then
+  echo "IMORTAIS: executável não encontrado em $BIN." >&2
+  exit 1
+fi
+setcap cap_net_raw,cap_net_admin=eip "$BIN"
+if command -v getcap >/dev/null 2>&1; then
+  CAPS="$(getcap "$BIN" || true)"
+  echo "$CAPS" | grep -q "cap_net_raw" || { echo "IMORTAIS: cap_net_raw não foi aplicada." >&2; exit 1; }
+  echo "$CAPS" | grep -q "cap_net_admin" || { echo "IMORTAIS: cap_net_admin não foi aplicada." >&2; exit 1; }
 fi
 if command -v update-desktop-database >/dev/null 2>&1; then
   update-desktop-database /usr/share/applications >/dev/null 2>&1 || true

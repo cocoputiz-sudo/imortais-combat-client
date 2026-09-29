@@ -7,7 +7,7 @@ namespace Imortais.LinuxClient.Services;
 
 public sealed class TelemetrySender : IDisposable
 {
-    public const string ClientVersion = "0.1.0-linux";
+    public const string ClientVersion = "0.1.1-linux";
     private readonly HttpClient _http = new() { Timeout = TimeSpan.FromSeconds(10) };
     private readonly Outbox _outbox;
 

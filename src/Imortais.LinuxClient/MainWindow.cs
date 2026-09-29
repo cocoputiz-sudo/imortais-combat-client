@@ -34,6 +34,7 @@ public sealed class MainWindow : Window
     private bool _tickBusy;
     private int _tick;
     private string? _ctaTime;
+    private string _lastCaptureHealth = string.Empty;
 
     private readonly ObservableCollection<string> _logs = [];
     private readonly ObservableCollection<string> _damageRows = [];
@@ -42,6 +43,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock _warRoomStatus = LabelValue("● NÃO ATIVADO", Gold);
     private readonly TextBlock _albionStatus = LabelValue("● AGUARDANDO", Gold);
     private readonly TextBlock _captureStatus = LabelValue("● PARADA", Gold);
+    private readonly TextBlock _captureDetailStatus = LabelValue("0 pacotes · 0 Photon", Muted);
     private readonly TextBlock _playerStatus = LabelValue("-", Text);
     private readonly TextBlock _ctaStatus = LabelValue("-", Text);
     private readonly TextBlock _queueStatus = LabelValue("0", Text);
@@ -93,7 +95,7 @@ public sealed class MainWindow : Window
 
         Opened += async (_, _) =>
         {
-            AddLog("SYSTEM  IMORTAIS Combat Client Linux v0.1.0 iniciado");
+            AddLog("SYSTEM  IMORTAIS Combat Client Linux v0.1.1 iniciado");
             if (_settings.StartCaptureAutomatically) StartCapture();
             await RefreshContextAsync();
             RefreshAll();
@@ -117,7 +119,7 @@ public sealed class MainWindow : Window
 
         var title = new StackPanel { Spacing = 2 };
         title.Children.Add(new TextBlock { Text = "IMORTAIS", FontSize = 28, FontWeight = FontWeight.Bold, Foreground = Text });
-        title.Children.Add(new TextBlock { Text = "COMBAT CLIENT · LINUX v0.1.0", FontSize = 12, Foreground = Gold });
+        title.Children.Add(new TextBlock { Text = "COMBAT CLIENT · LINUX v0.1.1", FontSize = 12, Foreground = Gold });
         Grid.SetRow(title, 0);
         root.Children.Add(title);
 
@@ -153,6 +155,7 @@ public sealed class MainWindow : Window
         statusBody.Children.Add(StatusLine("Albion Online", _albionStatus));
         statusBody.Children.Add(StatusLine("War Room", _warRoomStatus));
         statusBody.Children.Add(StatusLine("Captura", _captureStatus));
+        statusBody.Children.Add(StatusLine("Rede / Photon", _captureDetailStatus));
         statusBody.Children.Add(StatusLine("Jogador", _playerStatus));
         statusBody.Children.Add(StatusLine("CTA atual", _ctaStatus));
         statusBody.Children.Add(StatusLine("Mapa/cluster", _clusterStatus));
@@ -324,6 +327,7 @@ public sealed class MainWindow : Window
 
             if (_tick % 15 == 0)
             {
+                var capture = _capture.Snapshot();
                 await _outbox.AddAsync(TelemetryEvent.Create(
                     "client_heartbeat",
                     _settings.PlayerName,
@@ -332,6 +336,13 @@ public sealed class MainWindow : Window
                         ["version"] = TelemetrySender.ClientVersion,
                         ["gameDetected"] = _gameDetected,
                         ["captureRunning"] = _capture.IsRunning,
+                        ["captureDevices"] = capture.OpenedDevices,
+                        ["captureDeviceNames"] = capture.DeviceNames.ToArray(),
+                        ["captureFrames"] = capture.FramesSeen,
+                        ["photonDatagrams"] = capture.PhotonDatagrams,
+                        ["ipv4Fragments"] = capture.Ipv4FragmentPackets,
+                        ["ipv4Reassemblies"] = capture.Ipv4Reassemblies,
+                        ["captureMalformed"] = capture.MalformedFrames,
                         ["currentCtaId"] = _settings.CurrentCtaId,
                         ["cluster"] = _combat.CurrentCluster,
                         ["partyMembers"] = _combat.SnapshotParty().Count
@@ -341,6 +352,7 @@ public sealed class MainWindow : Window
 
             if (_tick % 3 == 0) await FlushAsync(false);
             RefreshAll();
+            ReportCaptureHealth();
         }
         finally { _tickBusy = false; }
     }
@@ -379,9 +391,10 @@ public sealed class MainWindow : Window
     {
         var result = _capture.Start();
         AddLog(result.Ok
-            ? $"CAPTURE ativa · {result.Devices} interface(s)"
+            ? "CAPTURE " + result.Message
             : "CAPTURE ERRO · " + result.Message);
         RefreshHeader();
+        ReportCaptureHealth();
     }
 
     private async Task FlushAsync(bool logSuccess)
@@ -441,8 +454,19 @@ public sealed class MainWindow : Window
         _albionStatus.Text = _gameDetected ? "● DETECTADO" : "● AGUARDANDO";
         _albionStatus.Foreground = _gameDetected ? Green : Gold;
 
-        _captureStatus.Text = _capture.IsRunning ? "● ATIVA" : "● PARADA";
+        var capture = _capture.Snapshot();
+        _captureStatus.Text = _capture.IsRunning
+            ? $"● ATIVA · {capture.OpenedDevices} IF"
+            : "● PARADA";
         _captureStatus.Foreground = _capture.IsRunning ? Green : Gold;
+
+        _captureDetailStatus.Text =
+            $"{capture.FramesSeen:N0} pacotes · {capture.PhotonDatagrams:N0} Photon · " +
+            $"{capture.Ipv4FragmentPackets:N0} frag / {capture.Ipv4Reassemblies:N0} remont.";
+        _captureDetailStatus.Foreground =
+            capture.PhotonDatagrams > 0 ? Green :
+            capture.FramesSeen > 0 ? Gold :
+            Muted;
 
         var activated = !string.IsNullOrWhiteSpace(_settings.AgentKey);
         _warRoomStatus.Text = activated ? "● ATIVADO" : "● NÃO ATIVADO";
@@ -455,6 +479,43 @@ public sealed class MainWindow : Window
         _clusterStatus.Text = _combat.CurrentCluster;
         _partyCount.Text = _combat.SnapshotParty().Count.ToString();
         _queueStatus.Text = _outbox.Count.ToString();
+    }
+
+    private void ReportCaptureHealth()
+    {
+        var capture = _capture.Snapshot();
+        string state;
+        string message;
+
+        if (!capture.IsRunning)
+        {
+            state = "stopped";
+            message = "captura parada";
+        }
+        else if (capture.OpenedDevices == 0)
+        {
+            state = "no-interface";
+            message = "ERRO · nenhuma interface de rede aberta";
+        }
+        else if (capture.PhotonDatagrams > 0)
+        {
+            state = "photon";
+            message = $"OK · Photon recebendo dados ({capture.PhotonDatagrams:N0} datagramas)";
+        }
+        else if (capture.FramesSeen > 0)
+        {
+            state = "network-no-photon";
+            message = $"rede detectada, aguardando datagramas Photon ({capture.FramesSeen:N0} pacotes)";
+        }
+        else
+        {
+            state = "waiting";
+            message = $"aguardando tráfego do Albion em {capture.OpenedDevices} interface(s)";
+        }
+
+        if (state == _lastCaptureHealth) return;
+        _lastCaptureHealth = state;
+        AddLog("DIAG    " + message);
     }
 
     private void RefreshParty()
