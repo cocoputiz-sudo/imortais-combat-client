@@ -1,3 +1,4 @@
+using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Network.Events;
 using StatisticsAnalysisTool.Network.Manager;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ public class LeaveEventHandler(TrackingController trackingController) : EventPac
     {
         if (value.ObjectId is { } objectId)
         {
+            ImortaisEventBridge.NearbyPlayerLeft(objectId);
             trackingController.CombatController.CombatEventTracker.RemoveKnownMob(objectId);
         }
 

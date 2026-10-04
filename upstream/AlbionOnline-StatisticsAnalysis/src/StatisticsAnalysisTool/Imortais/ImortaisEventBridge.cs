@@ -30,6 +30,9 @@ public static class ImortaisEventBridge
     private static readonly ConcurrentDictionary<string, string> LastGuildPresenceProbePayloads = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, string> LastPartySnapshotPayloads = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, byte> GuildPresencePlayersSeen = new(StringComparer.OrdinalIgnoreCase);
+    // Presence Collector separado do combate: NewCharacter abre a presença local e
+    // Leave a remove. O War Room recebe snapshots periódicos para deduplicar observers.
+    private static readonly ConcurrentDictionary<long, NearbyPlayerPresence> NearbyPlayers = new();
     private static readonly ConcurrentQueue<string> RecentActivity = new();
     private static readonly CancellationTokenSource Cts = new();
     private static readonly object StartLock = new();
@@ -42,7 +45,8 @@ public static class ImortaisEventBridge
     };
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
-    private const string ClientVersion = "0.5.8";
+    private static readonly TimeSpan PlayerPresenceSnapshotInterval = TimeSpan.FromSeconds(15);
+    private const string ClientVersion = "0.5.9";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
@@ -61,6 +65,8 @@ public static class ImortaisEventBridge
     private static DateTime? _lastPartySnapshotAtUtc;
     private static int _lastPartyMemberCount;
     private static DateTime _lastHeartbeatEnqueuedUtc = DateTime.MinValue;
+    private static DateTime _lastPlayerPresenceSnapshotEnqueuedUtc = DateTime.MinValue;
+    private static string? _currentPresenceCluster;
     private static int _gameDetectedState = -1;
     private static long _partySnapshotDeduplicatedCount;
     private static long _guildPresenceProbeCount;
@@ -86,6 +92,14 @@ public static class ImortaisEventBridge
         int GuildPresenceDistinctPlayers,
         DateTime? LastGuildPresenceProbeAtUtc,
         IReadOnlyList<string> RecentActivity);
+
+    private sealed record NearbyPlayerPresence(
+        long ObjectId,
+        string? PlayerId,
+        string Name,
+        string? Guild,
+        string? Alliance,
+        string? Cluster);
 
     public sealed record PartyEquipmentSnapshot(
         string? MainHand,
@@ -304,6 +318,43 @@ public static class ImortaisEventBridge
         Volatile.Write(ref _gameDetectedState, detected ? 1 : 0);
     }
 
+    public static void NearbyPlayerObserved(
+        long objectId,
+        Guid? playerId,
+        string? playerName,
+        string? guildName,
+        string? allianceName,
+        string? clusterName)
+    {
+        if (objectId <= 0 || string.IsNullOrWhiteSpace(playerName))
+        {
+            return;
+        }
+
+        var name = playerName.Trim();
+        var guild = string.IsNullOrWhiteSpace(guildName) ? null : guildName.Trim();
+        var alliance = string.IsNullOrWhiteSpace(allianceName) ? null : allianceName.Trim();
+        var cluster = string.IsNullOrWhiteSpace(clusterName)
+            ? _currentPresenceCluster
+            : clusterName.Trim();
+
+        NearbyPlayers[objectId] = new NearbyPlayerPresence(
+            objectId,
+            playerId?.ToString("D"),
+            name,
+            guild,
+            alliance,
+            cluster);
+    }
+
+    public static void NearbyPlayerLeft(long objectId)
+    {
+        if (objectId > 0)
+        {
+            NearbyPlayers.TryRemove(objectId, out _);
+        }
+    }
+
     public static void ZoneChange(
         string? clusterIndex,
         string? clusterName,
@@ -318,6 +369,9 @@ public static class ImortaisEventBridge
         {
             return;
         }
+
+        _currentPresenceCluster = name ?? index;
+        NearbyPlayers.Clear();
 
         if (Enqueue(new ImortaisTelemetryEvent
             {
@@ -719,6 +773,51 @@ public static class ImortaisEventBridge
         }
     }
 
+    private static void TryEnqueuePlayerPresenceSnapshot()
+    {
+        var configured = _config.Enabled
+                         && !string.IsNullOrWhiteSpace(_config.AgentKey)
+                         && !string.IsNullOrWhiteSpace(_config.ServerUrl);
+        if (!configured || string.IsNullOrWhiteSpace(_config.CtaEventId)) return;
+
+        var now = DateTime.UtcNow;
+        if (now - _lastPlayerPresenceSnapshotEnqueuedUtc < PlayerPresenceSnapshotInterval) return;
+
+        var cluster = _currentPresenceCluster;
+        if (string.IsNullOrWhiteSpace(cluster)) return;
+
+        var players = NearbyPlayers.Values
+            .Where(x => string.Equals(x.Cluster, cluster, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(500)
+            .Select(x => new Dictionary<string, object?>
+            {
+                ["objectId"] = x.ObjectId,
+                ["playerId"] = x.PlayerId,
+                ["name"] = x.Name,
+                ["guild"] = x.Guild,
+                ["alliance"] = x.Alliance
+            })
+            .ToArray();
+
+        if (Enqueue(new ImortaisTelemetryEvent
+            {
+                Type = "player_presence_snapshot",
+                PlayerName = _config.PlayerName,
+                Payload = new Dictionary<string, object?>
+                {
+                    ["cluster"] = cluster,
+                    ["players"] = players,
+                    ["observedCount"] = players.Length,
+                    ["snapshotIntervalMs"] = (int)PlayerPresenceSnapshotInterval.TotalMilliseconds,
+                    ["source"] = "NewCharacter+Leave"
+                }
+            }))
+        {
+            _lastPlayerPresenceSnapshotEnqueuedUtc = now;
+        }
+    }
+
     private static void TryEnqueueHeartbeat()
     {
         var configured = _config.Enabled
@@ -782,6 +881,7 @@ public static class ImortaisEventBridge
                 await RefreshContextAsync(token);
                 FlushCombatAccumulators();
                 TryEnqueueHeartbeat();
+                TryEnqueuePlayerPresenceSnapshot();
 
                 if (!await PersistQueuedEventsAsync(token))
                 {

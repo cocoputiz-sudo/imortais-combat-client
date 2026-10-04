@@ -64,6 +64,12 @@ jobs:
           if ($appCode -notmatch 'IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940') { throw "Application mutex for installer detection is missing." }
           if ($bridge -notmatch 'GuildPresenceProbe') { throw "Guild Presence Collector missing from bridge." }
           if ($bridge -notmatch 'guild_presence_probe') { throw "guild_presence_probe telemetry type missing." }
+          if ($bridge -notmatch 'player_presence_snapshot') { throw "Player presence snapshot telemetry missing." }
+          if ($bridge -notmatch 'NearbyPlayerObserved') { throw "NewCharacter presence collector missing from bridge." }
+          $newCharacterHandler = Get-Content "$root\Network\Handler\NewCharacterEventHandler.cs" -Raw
+          $leaveHandler = Get-Content "$root\Network\Handler\LeaveEventHandler.cs" -Raw
+          if ($newCharacterHandler -notmatch 'NearbyPlayerObserved') { throw "NewCharacter handler is not feeding player presence." }
+          if ($leaveHandler -notmatch 'NearbyPlayerLeft') { throw "Leave handler is not closing player presence." }
           if ($main -notmatch 'IMORTAIS COMBAT CLIENT') { throw "IMORTAIS UI branding missing." }
           $presenceHandler = Get-Content "$root\Network\Handler\ImortaisGuildPresenceProbeEventHandler.cs" -Raw
           $networkManager = Get-Content "$root\Network\NetworkManager.cs" -Raw
