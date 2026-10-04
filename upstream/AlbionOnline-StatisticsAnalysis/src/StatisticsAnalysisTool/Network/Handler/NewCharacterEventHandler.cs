@@ -1,4 +1,6 @@
+using StatisticsAnalysisTool.Cluster;
 using StatisticsAnalysisTool.Enumerations;
+using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Models.NetworkModel;
 using StatisticsAnalysisTool.Network.Events;
 using StatisticsAnalysisTool.Network.Manager;
@@ -11,7 +13,16 @@ public class NewCharacterEventHandler(TrackingController trackingController) : E
 {
     protected override async Task OnActionAsync(NewCharacterEvent value)
     {
-
+        if (value.ObjectId is { } presenceObjectId && !string.IsNullOrWhiteSpace(value.Name))
+        {
+            ImortaisEventBridge.NearbyPlayerObserved(
+                presenceObjectId,
+                value.Guid,
+                value.Name,
+                value.GuildName,
+                value.AllianceName,
+                ClusterController.GetCurrentClusterDisplayName());
+        }
 
         if (value.Guid != null && value.ObjectId != null)
         {
