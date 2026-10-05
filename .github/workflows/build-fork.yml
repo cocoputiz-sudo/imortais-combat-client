@@ -29,7 +29,7 @@ jobs:
           $appConfig = Get-Content "$root\App.config" -Raw
           $settingsDefinition = Get-Content "$root\Properties\Settings.settings" -Raw
           $settingsDesigner = Get-Content "$root\Properties\Settings.Designer.cs" -Raw
-          $releaseScript = Get-Content ".\scripts\publi-icc-v050.ps1" -Raw
+          $releaseScript = Get-Content ".\scripts\publi-icc-v059.ps1" -Raw
           $installerIss = Get-Content ".\upstream\AlbionOnline-StatisticsAnalysis\.github\installers\release-installer.iss" -Raw
           $appCode = Get-Content "$root\App.xaml.cs" -Raw
 
@@ -59,6 +59,8 @@ jobs:
           if ($releaseScript -notmatch 'CloseApplications=no') { throw "Official release installer must not invoke Inno Restart Manager during NetSparkle handoff." }
           if ($releaseScript -notmatch '#define AppExe "IMORTAIS-Combat-Client\.exe"') { throw "Official release installer executable name is wrong." }
           if ($releaseScript -notmatch 'OutputBaseFilename=IMORTAIS-Combat-Client-Setup-v\$Version') { throw "Official release asset filename is wrong." }
+          if ($releaseScript -notmatch '\$Version\s*=\s*"0\.5\.9"') { throw "Official release script is not v0.5.9." }
+          if ($releaseScript -notmatch 'player_presence_snapshot') { throw "Official release script does not validate player presence snapshot." }
           if ($updater -notmatch 'ShouldKillParentProcessWhenStartingInstaller\s*=\s*true') { throw "Updater does not explicitly wait for client shutdown before installer handoff." }
           if ($installerIss -notmatch '#define MyAppExeName "IMORTAIS-Combat-Client\.exe"') { throw "Legacy installer still targets the upstream executable." }
           if ($appCode -notmatch 'IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940') { throw "Application mutex for installer detection is missing." }
