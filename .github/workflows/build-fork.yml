@@ -80,6 +80,20 @@ jobs:
               if ($networkManager -notmatch [regex]::Escape("EventCodes.$eventName")) { throw "Guild presence event $eventName is not registered." }
           }
 
+      - name: Validate v0.5.9 release script syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path ".\scripts\publi-icc-v059.ps1"),
+            [ref]$null,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            throw "publi-icc-v059.ps1 has PowerShell syntax errors."
+          }
+
       - name: Build fork Release
         shell: pwsh
         run: dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release --no-incremental
