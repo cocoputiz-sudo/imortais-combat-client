@@ -13,6 +13,14 @@ on:
       - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool.Abstractions/**"
       - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool.Diagnostics/**"
       - ".github/workflows/build-linux-client.yml"
+  pull_request:
+    branches:
+      - feat/linux-client-v010
+    paths:
+      - "src/Imortais.LinuxClient/**"
+      - "scripts/build-linux-deb.sh"
+      - "docs/LINUX-CLIENT.md"
+      - ".github/workflows/build-linux-client.yml"
 
 jobs:
   build-linux:
@@ -36,6 +44,20 @@ jobs:
 
       - name: Restore
         run: dotnet restore src/Imortais.LinuxClient/Imortais.LinuxClient.csproj
+
+      - name: Validate v0.5.9 telemetry parity
+        shell: bash
+        run: |
+          set -euo pipefail
+          RX="src/Imortais.LinuxClient/Network/LinuxPhotonReceiver.cs"
+          WIN="src/Imortais.LinuxClient/MainWindow.cs"
+          grep -q 'case Leave:' "$RX"
+          grep -q '"player_presence_snapshot"' "$RX"
+          grep -q '"zone_change"' "$RX"
+          grep -q '\["playerId"\]' "$RX"
+          grep -q '\["alliance"\]' "$RX"
+          grep -q '\["snapshotIntervalMs"\] = 15000' "$RX"
+          grep -q 'EmitPlayerPresenceSnapshot' "$WIN"
 
       - name: Build
         run: dotnet build src/Imortais.LinuxClient/Imortais.LinuxClient.csproj -c Release --no-restore

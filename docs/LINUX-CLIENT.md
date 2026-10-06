@@ -19,6 +19,7 @@ O cliente usa **libpcap** e o mesmo parser Photon multiplataforma existente no r
 Eventos já ligados na v0.1.1:
 
 - NewCharacter
+- Leave
 - HealthUpdate
 - HealthUpdates
 - PartyJoined
@@ -34,6 +35,60 @@ A telemetria usa os mesmos tipos esperados pelo War Room:
 - party_snapshot
 - combat_delta
 - player_death_observed
+- zone_change
+- player_presence_snapshot
+
+## Checklist de validação real — Ubuntu 22.04 / 24.04
+
+Antes de integrar o cliente Linux à `main`, validar **o mesmo pacote .deb** nos dois sistemas quando possível:
+
+1. **Instalação do .deb**
+   - instalar com `sudo apt install ./IMORTAIS-Combat-Client-v0.1.1-linux-x64.deb`;
+   - confirmar que o atalho **IMORTAIS Combat Client** aparece no menu;
+   - abrir pelo menu, sem executar o aplicativo com `sudo`.
+
+2. **GUI**
+   - confirmar as cinco abas: **IMORTAIS / Início**, **Registro**, **Medidor de dano**, **Party** e **Configurações**;
+   - confirmar que a tela não congela ao iniciar/parar captura.
+
+3. **Captura sem root**
+   - em **Início**, clicar em **INICIAR CAPTURA**;
+   - confirmar `Captura ● ATIVA` e ao menos uma interface aberta;
+   - jogar/mover no Albion e confirmar que **Rede / Photon** aumenta sem iniciar o programa como root.
+
+4. **Heartbeat no War Room**
+   - ativar o dispositivo pelo código de 6 dígitos;
+   - no painel **Dispositivos** do War Room, confirmar heartbeat recente do device Linux;
+   - conferir que o heartbeat mostra captura ativa, interfaces, datagramas Photon e cluster.
+
+5. **Party snapshot**
+   - entrar/sair de uma party ou alterar membros;
+   - confirmar no ingest/War Room a chegada de `party_snapshot` do device Linux.
+
+6. **Presença na área — paridade v0.5.9**
+   - deixar uma CTA ativa no contexto do cliente;
+   - aproximar-se de jogadores de guildas diferentes;
+   - confirmar a chegada de `player_presence_snapshot` a cada ~15 s;
+   - verificar payload com `cluster`, `players[].objectId`, `players[].playerId`, `name`, `guild`, `alliance`, `observedCount` e `snapshotIntervalMs: 15000`;
+   - sair do alcance de um jogador e confirmar que, após `Leave`, ele deixa de aparecer nos snapshots seguintes;
+   - sem CTA ativo, confirmar que não são gerados snapshots de presença.
+
+7. **Mudança de zona**
+   - trocar de mapa/cluster;
+   - confirmar atualização do mapa na GUI;
+   - confirmar chegada de `zone_change` ao War Room;
+   - confirmar que os jogadores observados do mapa anterior não continuam no próximo snapshot.
+
+8. **Fragmentação IPv4**
+   - acompanhar **Rede / Photon** na tela inicial;
+   - confirmar que o contador `frag` aumenta quando houver pacotes fragmentados;
+   - quando ocorrer remontagem, confirmar aumento do contador `remont.`;
+   - no heartbeat, conferir `ipv4Fragments` e `ipv4Reassemblies`.
+
+9. **Sanidade final**
+   - confirmar `combat_delta` durante dano/cura;
+   - confirmar `player_death_observed` quando houver morte relevante;
+   - fechar/reabrir o cliente e confirmar que ativação/configuração permanecem salvas.
 
 ## Build
 

@@ -7,6 +7,7 @@ namespace Imortais.LinuxClient.Network;
 
 public sealed class LinuxPhotonReceiver : PhotonParser
 {
+    private const byte Leave = 1;
     private const byte HealthUpdate = 6;
     private const byte HealthUpdates = 7;
     private const byte NewCharacter = 29;
@@ -51,6 +52,19 @@ public sealed class LinuxPhotonReceiver : PhotonParser
 
         _state.SetCluster(cluster);
         lock (_entityLock) _entities.Clear();
+
+        _ = _outbox.AddAsync(TelemetryEvent.Create(
+            "zone_change",
+            _settings().PlayerName,
+            new Dictionary<string, object?>
+            {
+                ["clusterIndex"] = cluster,
+                ["clusterName"] = cluster,
+                ["clusterMode"] = null,
+                ["mapType"] = null,
+                ["sourceClusterIndex"] = null
+            }));
+
         Log?.Invoke($"MAPA   {cluster}");
     }
 
@@ -60,6 +74,9 @@ public sealed class LinuxPhotonReceiver : PhotonParser
 
         switch (code)
         {
+            case Leave:
+                HandleLeave(parameters);
+                break;
             case NewCharacter:
                 HandleNewCharacter(parameters);
                 break;
@@ -97,8 +114,60 @@ public sealed class LinuxPhotonReceiver : PhotonParser
         var name = GetString(p, 1);
         if (objectId <= 0 || string.IsNullOrWhiteSpace(name)) return;
 
+        var playerId = ToGuid(GetValue(p, 7));
         var guild = GetString(p, 8);
-        lock (_entityLock) _entities[objectId] = new PlayerInfo(name, guild);
+        var alliance = GetString(p, 51);
+        lock (_entityLock)
+            _entities[objectId] = new PlayerInfo(
+                name,
+                guild,
+                alliance,
+                playerId == Guid.Empty ? null : playerId);
+    }
+
+    private void HandleLeave(Dictionary<byte, object> p)
+    {
+        var objectId = GetLong(p, 0);
+        if (objectId <= 0) return;
+        lock (_entityLock) _entities.Remove(objectId);
+    }
+
+    public void EmitPlayerPresenceSnapshot()
+    {
+        var settings = _settings();
+        if (string.IsNullOrWhiteSpace(settings.CurrentCtaId)) return;
+
+        KeyValuePair<long, PlayerInfo>[] nearby;
+        lock (_entityLock)
+        {
+            nearby = _entities
+                .OrderBy(x => x.Value.Name, StringComparer.OrdinalIgnoreCase)
+                .Take(500)
+                .ToArray();
+        }
+
+        var players = nearby
+            .Select(x => new Dictionary<string, object?>
+            {
+                ["objectId"] = x.Key,
+                ["playerId"] = x.Value.PlayerId?.ToString("D"),
+                ["name"] = x.Value.Name,
+                ["guild"] = NullIfEmpty(x.Value.Guild),
+                ["alliance"] = NullIfEmpty(x.Value.Alliance)
+            })
+            .ToArray();
+
+        _ = _outbox.AddAsync(TelemetryEvent.Create(
+            "player_presence_snapshot",
+            settings.PlayerName,
+            new Dictionary<string, object?>
+            {
+                ["cluster"] = _state.CurrentCluster,
+                ["players"] = players,
+                ["observedCount"] = players.Length,
+                ["snapshotIntervalMs"] = 15000,
+                ["source"] = "NewCharacter+Leave-linux"
+            }));
     }
 
     private void HandleHealthUpdate(Dictionary<byte, object> p)
@@ -314,5 +383,9 @@ public sealed class LinuxPhotonReceiver : PhotonParser
         catch { return Guid.Empty; }
     }
 
-    private sealed record PlayerInfo(string Name, string Guild);
+    private sealed record PlayerInfo(
+        string Name,
+        string Guild,
+        string Alliance,
+        Guid? PlayerId);
 }

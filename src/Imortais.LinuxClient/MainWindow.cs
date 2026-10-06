@@ -327,6 +327,7 @@ public sealed class MainWindow : Window
 
             if (_tick % 15 == 0)
             {
+                _receiver.EmitPlayerPresenceSnapshot();
                 var capture = _capture.Snapshot();
                 await _outbox.AddAsync(TelemetryEvent.Create(
                     "client_heartbeat",
