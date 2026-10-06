@@ -333,14 +333,7 @@ public sealed class MainWindow : Window
                     await _outbox.AddAsync(TelemetryEvent.Create(
                         "player_presence_snapshot",
                         _settings.PlayerName,
-                        new Dictionary<string, object?>
-                        {
-                            ["cluster"] = _combat.CurrentCluster,
-                            ["players"] = nearby,
-                            ["observedCount"] = nearby.Count,
-                            ["snapshotIntervalMs"] = 15000,
-                            ["source"] = "NewCharacter+Leave"
-                        }));
+                        LinuxTelemetryPayloads.PlayerPresence(_combat.CurrentCluster, nearby)));
                 }
 
                 var capture = _capture.Snapshot();
