@@ -42,9 +42,30 @@ A telemetria usa os mesmos tipos esperados pelo War Room:
 
 ### Nome do mapa
 
-O `ChangeCluster` entrega um índice interno (por exemplo, `3004`). No cliente Windows esse índice passa por `WorldData.GetUniqueNameOrDefault()` antes de `ImortaisEventBridge.ZoneChange`, resultando no nome legível do mapa. O Linux replica essa resolução com uma tabela compacta índice → nome embutida no cliente, gerada a partir do `formatted/world.json` do projeto ao-data/ao-bin-dumps.
+O `ChangeCluster` entrega um índice interno. No cliente Windows esse índice passa por `WorldData.GetUniqueNameOrDefault()` antes de `ImortaisEventBridge.ZoneChange`, resultando no nome legível do mapa. O Linux replica a mesma resolução com uma tabela índice → `UniqueName` embutida no cliente.
 
-Assim, para `3004`, o Linux envia `Martlock` em `zone_change.clusterName` e em `player_presence_snapshot.cluster`, preservando `3004` apenas em `zone_change.clusterIndex`.
+A tabela Linux contém **todas as 1.427 entradas** do `formatted/world.json`, incluindo índices numéricos e não numéricos (`TNL-*`, `HELLGATE-*`, `DNG-*`, `BLACKBANK-*` etc.). Ela é gerada por `scripts/generate-linux-world-map-names.mjs`.
+
+Fonte reproduzível usada:
+- repositório: `ao-data/ao-bin-dumps`;
+- arquivo: `formatted/world.json`;
+- commit: `585e848493070f2d918f695d0c40fedfe9735ecb`;
+- data da fonte: `2026-08-31T11:35:17Z`.
+
+Para regenerar:
+
+```bash
+node scripts/generate-linux-world-map-names.mjs
+```
+
+O script também aceita `--input caminho/world.json` para geração offline e `--check` para verificar se o arquivo gerado está atualizado.
+
+Exemplos cobertos pelo teste de contrato:
+- `3004` → `Martlock`;
+- `TNL-001` → `Ouyos-Aoeuam`;
+- `HELLGATE-01-10v10-01` → `The Plains`.
+
+A telemetria envia o nome resolvido em `zone_change.clusterName` e em `player_presence_snapshot.cluster`, preservando o valor cru apenas em `zone_change.clusterIndex`.
 
 ## Build
 
