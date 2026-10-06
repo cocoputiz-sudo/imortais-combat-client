@@ -47,25 +47,21 @@ public sealed class LinuxPhotonReceiver : PhotonParser
         GameDataDetected?.Invoke();
         if (operationCode != ChangeClusterOperation || returnCode != 0) return;
 
-        var cluster = GetString(parameters, 0);
-        if (string.IsNullOrWhiteSpace(cluster)) return;
+        var clusterIndex = GetString(parameters, 0).Trim();
+        if (string.IsNullOrWhiteSpace(clusterIndex)) return;
 
-        _state.SetCluster(cluster);
+        // O Windows resolve ChangeCluster.Index por WorldData antes de publicar
+        // zone_change. O Linux faz a mesma conversão com a tabela compacta embutida.
+        var clusterName = AlbionWorldMapNames.Resolve(clusterIndex).Trim();
+        _state.SetCluster(clusterName);
         lock (_entityLock) _entities.Clear();
 
         _ = _outbox.AddAsync(TelemetryEvent.Create(
             "zone_change",
             _settings().PlayerName,
-            new Dictionary<string, object?>
-            {
-                ["clusterIndex"] = cluster,
-                ["clusterName"] = cluster,
-                ["clusterMode"] = null,
-                ["mapType"] = null,
-                ["sourceClusterIndex"] = null
-            }));
+            LinuxTelemetryPayloads.ZoneChange(clusterIndex, clusterName)));
 
-        Log?.Invoke($"MAPA   {cluster}");
+        Log?.Invoke($"MAPA   {clusterName} ({clusterIndex})");
     }
 
     protected override void OnEvent(byte code, Dictionary<byte, object> parameters)
