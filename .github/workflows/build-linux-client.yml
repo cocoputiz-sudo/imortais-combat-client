@@ -7,6 +7,8 @@ on:
       - main
     paths:
       - "src/Imortais.LinuxClient/**"
+      - "src/Imortais.LinuxClient.ContractTests/**"
+      - "src/Imortais.LinuxClient.ContractTests/**"
       - "scripts/build-linux-deb.sh"
       - "docs/LINUX-CLIENT.md"
       - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool.PhotonPackageParser/**"
@@ -49,14 +51,8 @@ jobs:
       - name: Restore
         run: dotnet restore src/Imortais.LinuxClient/Imortais.LinuxClient.csproj
 
-      - name: Validate v0.5.9 telemetry parity
-        shell: bash
-        run: |
-          grep -q 'player_presence_snapshot' src/Imortais.LinuxClient/MainWindow.cs
-          grep -q 'zone_change' src/Imortais.LinuxClient/Network/LinuxPhotonReceiver.cs
-          grep -q 'case Leave:' src/Imortais.LinuxClient/Network/LinuxPhotonReceiver.cs
-          grep -q 'SnapshotNearbyPlayers' src/Imortais.LinuxClient/Network/LinuxPhotonReceiver.cs
-          grep -q 'ipv4Fragments' src/Imortais.LinuxClient/MainWindow.cs
+      - name: Validate Linux telemetry contract
+        run: dotnet run --project src/Imortais.LinuxClient.ContractTests/Imortais.LinuxClient.ContractTests.csproj -c Release
 
       - name: Build
         run: dotnet build src/Imortais.LinuxClient/Imortais.LinuxClient.csproj -c Release --no-restore
@@ -85,7 +81,7 @@ jobs:
 
           Inclui GUI Avalonia com abas Início, Registro, Medidor de dano, Party e Configurações; ativação por código do War Room; captura libpcap; parser Photon; outbox; party_snapshot; combat_delta; player_death_observed; atalho no menu do Ubuntu e pacote .deb amd64.
 
-          Build validado automaticamente em Ubuntu 24.04. Esta é uma versão Preview para teste antes de integrar à main.
+          Build validado automaticamente em Ubuntu 24.04. Esta é uma versão Preview publicada a partir da main para validação real em Ubuntu antes de promovê-la a release Linux estável.
           EOF
 
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
