@@ -27,6 +27,7 @@ Eventos já ligados na v0.1.1:
 - PartyDisbanded
 - Died
 - ChangeCluster response
+- Leave
 
 A telemetria usa os mesmos tipos esperados pelo War Room:
 
@@ -34,6 +35,10 @@ A telemetria usa os mesmos tipos esperados pelo War Room:
 - party_snapshot
 - combat_delta
 - player_death_observed
+- zone_change
+- player_presence_snapshot
+
+`player_presence_snapshot` é emitido a cada 15 s durante CTA ativo, com até 500 jogadores observados pelo `NewCharacter`, removidos pelo `Leave`. A troca de mapa limpa imediatamente o conjunto local antes do próximo snapshot.
 
 ## Build
 
@@ -90,3 +95,25 @@ A tela inicial mostra o diagnóstico de captura em tempo real: quantidade de int
 ## Captura v0.1.1
 
 A captura Linux agora remonta IPv4 fragmentado antes de entregar o UDP ao parser Photon. O filtro inclui fragmentos posteriores, que não carregam o cabeçalho UDP. Também há suporte de leitura para Ethernet II, VLAN simples, raw IP, Linux cooked capture SLL e SLL2, reduzindo diferenças entre drivers e interfaces no Ubuntu.
+
+
+## Checklist de teste real · Ubuntu 22.04 / 24.04
+
+Execute este checklist **antes de mesclar o cliente Linux na main**:
+
+- [ ] Instalar o pacote `.deb` em Ubuntu 22.04 LTS.
+- [ ] Instalar o mesmo pacote `.deb` em Ubuntu 24.04 LTS.
+- [ ] Abrir pelo menu de aplicativos sem `sudo` e confirmar que a GUI inicia.
+- [ ] Confirmar as 5 abas: **IMORTAIS / Início**, **Registro**, **Medidor de dano**, **Party** e **Configurações**.
+- [ ] Confirmar que a captura inicia sem root e que o executável possui somente `cap_net_raw,cap_net_admin`.
+- [ ] Abrir Albion Online e confirmar na aba Início que **Rede / Photon** passa a registrar datagramas.
+- [ ] No War Room > **Dispositivos**, confirmar heartbeat do Linux com versão, captura ativa, nome do player e CTA atual.
+- [ ] Entrar/sair de party e confirmar `party_snapshot` chegando ao War Room.
+- [ ] Durante CTA ativo, aproximar-se de outros jogadores e confirmar `player_presence_snapshot` chegando a cada ~15 s.
+- [ ] Trocar de mapa e confirmar `zone_change` imediatamente e que o snapshot seguinte não contém jogadores do mapa anterior.
+- [ ] Confirmar que o painel **Forças observadas** contabiliza um observer Linux sem duplicar jogadores vistos também por Windows.
+- [ ] Confirmar no heartbeat/GUI que **fragmentos IPv4** e **remontagens IPv4** aumentam quando houver tráfego fragmentado.
+- [ ] Confirmar `player_death_observed`, dano/cura e Medidor de dano durante uma fight real.
+- [ ] Fechar e reabrir o cliente e confirmar persistência de ativação/configuração e reenvio do outbox pendente.
+
+Somente após esse teste real a integração deve ser mesclada.
