@@ -40,6 +40,12 @@ A telemetria usa os mesmos tipos esperados pelo War Room:
 
 `player_presence_snapshot` é emitido a cada 15 s durante CTA ativo, com até 500 jogadores observados pelo `NewCharacter`, removidos pelo `Leave`. A troca de mapa limpa imediatamente o conjunto local antes do próximo snapshot.
 
+### Nome do mapa
+
+O `ChangeCluster` entrega um índice interno (por exemplo, `3004`). No cliente Windows esse índice passa por `WorldData.GetUniqueNameOrDefault()` antes de `ImortaisEventBridge.ZoneChange`, resultando no nome legível do mapa. O Linux replica essa resolução com uma tabela compacta índice → nome embutida no cliente, gerada a partir do `formatted/world.json` do projeto ao-data/ao-bin-dumps.
+
+Assim, para `3004`, o Linux envia `Martlock` em `zone_change.clusterName` e em `player_presence_snapshot.cluster`, preservando `3004` apenas em `zone_change.clusterIndex`.
+
 ## Build
 
 Em Ubuntu:
