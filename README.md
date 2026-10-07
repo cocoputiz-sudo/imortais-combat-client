@@ -2,56 +2,113 @@
 
 Cliente desktop da guilda **I M O R T A I S** para Albion Online, baseado no projeto open source **AlbionOnline-StatisticsAnalysis** e integrado ao **IMORTAIS War Room**.
 
-O objetivo do projeto é aproveitar a captura passiva e os parsers já existentes do Statistics Analysis para transformar dados observados no jogo em telemetria útil para organização de CTA, conferência de party, loot e desempenho de combate.
+> **Versão estável atual:** v0.6.0  
+> **Plataforma estável:** Windows 10/11 x64  
+> **Runtime:** .NET 10 / WPF  
+> **Release oficial:** `IMORTAIS-Combat-Client-Setup-v0.6.0.exe`
 
-> **Versão publicada atual:** v0.6.0  
-> **Plataforma:** Windows 10/11 x64  
-> **Runtime/build:** .NET 10 / WPF
+O Combat Client reaproveita a captura passiva e os parsers Photon do Statistics Analysis para transformar dados observados no Albion em telemetria operacional da guilda. O cliente **não injeta código no Albion, não controla o personagem e não automatiza ações dentro do jogo**.
 
 ---
 
-## Estado atual
+## v0.6.0
 
-O projeto deixou de ser apenas uma bridge de demonstração. Hoje o fork do Statistics Analysis já contém a integração IMORTAIS diretamente no cliente desktop.
+A v0.6.0 consolida três frentes principais:
 
-A linha v0.6.0 inclui:
+### Highlights automáticos de abates
 
-- identidade visual **IMORTAIS COMBAT CLIENT**;
-- ícone próprio no executável, janela e instalador;
-- detecção normal do personagem, guilda, mapa e dados do Albion;
-- painel **IMORTAIS STATUS** no cabeçalho;
-- conexão ao War Room;
-- resolução automática do CTA ativo;
-- envio de Party, Loot, Damage, Healing e resultados de combate;
-- telemetria agregada para reduzir volume de eventos;
-- autenticação por token do dispositivo;
-- updater próprio baseado em releases do repositório IMORTAIS;
-- validação Ed25519 do instalador de atualização;
-- janela de atualização com progresso de download;
-- aviso antes do fechamento do client;
-- instalação e relançamento do Combat Client.
+- replay buffer H.264 em memória;
+- captura da janela do Albion via Windows Graphics Capture;
+- encoder H.264 por hardware quando disponível;
+- áudio somente do processo do Albion;
+- abate pessoal letal pode salvar automaticamente:
+  - **45 s antes**;
+  - **15 s depois**;
+- abates próximos são coalescidos no mesmo clipe;
+- teto de **120 s por arquivo**;
+- fila e snapshots com limites de pressão de memória;
+- quota padrão de **10 GiB** para `IMORTAIS Highlights`;
+- salvamento suspenso se não for possível preservar pelo menos 1 GiB livre;
+- gravação vem **DESLIGADA por padrão**;
+- migração one-shot da v0.6.0 força `GRAVAÇÃO: NÃO` mesmo se uma build experimental antiga tiver deixado `SIM` salvo.
 
-A captura continua sendo passiva. O projeto não injeta código no Albion e não automatiza ações do jogador.
+O recurso é experimental. Em Windows 10 a captura pode mostrar a borda amarela do sistema. Ainda não foi validado em larga escala em máquinas fracas ou em todas as condições de ZvZ.
+
+### Telemetria mais resiliente
+
+- contexto de CTA consultado no máximo a cada **30 s**;
+- ingest com backoff progressivo de **2 s até 60 s**;
+- primeiro sucesso restaura o retry inicial de 2 s;
+- HTTP 401 bloqueia reenvio repetitivo com a mesma chave;
+- `ctaEventId` retornado pelo backend continua sendo a fonte de verdade;
+- outbox persistente mantém eventos através de restart/falha de rede;
+- Party snapshots repetidos são ignorados;
+- Guild Presence, combate, loot e heartbeat permanecem integrados ao War Room.
+
+### GuildMight experimental
+
+A v0.6.0 também inicia a coleta passiva de Guild Might.
+
+O cliente observa, sem criar requests próprios:
+
+```text
+GetGuildMightCategoryOverview
+GetGuildMightCategoryContribution
+```
+
+São observados **request e response**, porque o identificador da categoria pode estar no request enquanto nomes, Might e demais dados podem aparecer na response.
+
+Os eventos enviados ao War Room usam:
+
+```text
+guild_might_probe
+```
+
+O payload é saneado e deduplicado antes do envio.
+
+O backend já:
+
+- correlaciona request → response por dispositivo/operação;
+- procura automaticamente arrays paralelos de `nomes[]` e `might[]`;
+- inspeciona estruturas aninhadas;
+- expõe diagnóstico editor-only para validar o layout real do Photon;
+- mantém pesos de 07/10/2026 apenas como referência de validação.
+
+**A v0.6.0 ainda não promete ranking/SP definitivo.** Primeiro o layout real será validado com tráfego vivo; depois os probes serão convertidos em snapshots tipados e histórico de contribuição.
 
 ---
 
 ## IMORTAIS STATUS
 
-O cabeçalho do cliente mostra o estado operacional da integração:
+A Home IMORTAIS mostra o estado operacional real do cliente:
 
 ```text
-IMORTAIS STATUS
-
-● WAR ROOM: conectado
-● ALBION: capturando
-● CTA: 21:20 · vinculado
-● PARTY: 20 jogadores
-● TELEMETRIA: enviando / sincronizada
+WAR ROOM: CONECTADO
+ALBION: CAPTURANDO
+PERSONAGEM: BadMack
+CTA: 19:20 · VINCULADO
+PARTY: 20 detectados
+TELEMETRIA: ENVIANDO / SINCRONIZADA
 ```
 
-Esses indicadores são alimentados pelo estado real do cliente e pela comunicação com o War Room.
+Também há diagnóstico detalhado com:
 
-O contexto do CTA é consultado automaticamente no backend usando o jogador e o dispositivo configurados. Quando um CTA é identificado, o ID é mantido localmente para que os eventos enviados sejam associados ao CTA correto.
+- versão instalada;
+- estado do updater;
+- última comunicação com War Room;
+- Party snapshot e repetições ignoradas;
+- Guild Presence;
+- Guild Might Probe;
+- outbox;
+- erros recentes;
+- estado do replay buffer;
+- FPS WGC / submit / encoded;
+- FrameBusy;
+- uso do pool NV12;
+- áudio do Albion;
+- salvamentos automáticos e pressão de snapshots.
+
+O botão **COPIAR DIAGNÓSTICO** produz um texto seguro para suporte e testes internos.
 
 ---
 
@@ -60,14 +117,15 @@ O contexto do CTA é consultado automaticamente no backend usando o jogador e o 
 ```text
 Albion Online
     ↓
-Statistics Analysis
-(socket/Npcap + parser Photon)
+captura passiva socket/Npcap
     ↓
-Party / Loot / Combat handlers
+parser Photon / handlers
     ↓
 ImortaisEventBridge
     ↓
-fila local em memória
+Channel em memória
+    ↓
+outbox NDJSON persistente
     ↓ HTTPS
 /api/telemetry/ingest
     ↓
@@ -76,272 +134,243 @@ Railway / PostgreSQL
 IMORTAIS War Room
 ```
 
-O client também consulta:
+O cliente também consulta:
 
 ```text
 GET /api/telemetry/context
 ```
 
-para descobrir o CTA ativo e manter o estado exibido no painel.
+para resolver o CTA ativo e manter o contexto operacional sincronizado.
 
 ---
 
-## Eventos enviados
+## Telemetria enviada
 
 ### Party
-
-O snapshot da party observada é enviado como:
 
 ```text
 party_snapshot
 ```
 
-A lista é normalizada, deduplicada e ordenada antes do envio.
+A lista observada é normalizada, deduplicada e ordenada. O War Room usa esses snapshots para comparar a Party real do Albion com as PTs planejadas no CTA.
 
-No War Room isso é usado para comparar a party real do Albion com as PTs planejadas no CTA.
+### Guild Presence
+
+```text
+guild_presence_probe
+```
+
+Observa passivamente eventos de guilda e alimenta presença/last-seen sem transformar qualquer pacote isolado em verdade absoluta.
+
+### Guild Might
+
+```text
+guild_might_probe
+```
+
+Probe experimental das operações de Overview/Contribution de Might, incluindo direção request/response e parâmetros Photon saneados.
 
 ### Loot
 
-O evento de loot inclui, entre outros dados:
+Eventos de loot incluem, conforme disponível:
 
-- jogador que pegou o item;
-- guilda do jogador;
-- origem do loot;
+- jogador;
+- guilda;
+- origem;
 - item;
 - quantidade;
 - valor estimado;
-- mapa/cluster.
-
-A guilda observada também é enviada para permitir validações relacionadas a **I M O R T A I S** no backend.
+- cluster/mapa.
 
 ### Damage e Healing
 
-Damage e Healing são acumulados localmente por jogador e enviados em janelas de tempo como:
+São acumulados localmente e enviados em janelas:
 
 ```text
 combat_delta
 ```
 
-Cada delta contém:
+com jogador, damage, healing e duração da janela.
 
-```text
-player
-damage
-healing
-windowMs
-```
+### Combate
 
-Isso evita enviar um request separado para cada hit ou cura.
+O cliente observa eventos de combate/morte e alimenta o War Room com dados usados para:
 
-### Resultados de combate
+- deaths;
+- kills;
+- knockouts;
+- Kill Fame;
+- placares por guilda inimiga;
+- análise de desempenho.
 
-O client também envia eventos como:
-
-```text
-death
-kill
-knockout
-knocked_out
-combat_result
-```
-
-com vítima, killer e informação de letalidade quando disponível.
+O mesmo caminho de morte letal também pode disparar Highlight quando o jogador local é o killer e a gravação estiver habilitada.
 
 ---
 
-## Uso no War Room
+## Highlights
 
-A telemetria do Combat Client alimenta atualmente módulos como:
+Pasta padrão:
 
-- validação do CTA;
-- comparação entre PT planejada e Party real;
-- identificação de jogador faltando;
-- identificação de jogador em PT errada;
-- Loot Logger por CTA;
-- ranking de Top DPS;
-- ranking de Top Heal;
-- mortes e resultados de combate;
-- status de dispositivos conectados.
+```text
+%USERPROFILE%\Videos\IMORTAIS Highlights
+```
 
-Os registros operacionais de Loot e Combat podem ser consultados no War Room por CTA durante a janela de retenção configurada no backend.
+Configuração atual:
+
+- replay buffer aproximado de 150 s;
+- H.264 Main;
+- B-frames desabilitados;
+- GOP alvo de 120 frames;
+- áudio AAC 48 kHz estéreo;
+- pool NV12 limitado;
+- snapshots e gravações serializados/protegidos contra crescimento ilimitado.
+
+Nome automático:
+
+```text
+AAAA-MM-DD_HH-mm-ss_ABATE_<vitima>.mp4
+AAAA-MM-DD_HH-mm-ss_ABATE_<vitima>_xN.mp4
+```
+
+Uma sequência de vários abates dentro do pós-roll estende o mesmo clipe em vez de gerar um arquivo por vítima.
 
 ---
 
-## Configuração local da telemetria
+## Configuração local
 
-O arquivo local fica em:
+Telemetria:
 
 ```text
 %LOCALAPPDATA%\IMORTAIS Combat Client\telemetry.json
 ```
 
-Estrutura atual:
-
-```json
-{
-  "Enabled": true,
-  "ServerUrl": "https://cta-imortais.up.railway.app",
-  "AgentKey": "TOKEN_DO_DISPOSITIVO",
-  "DeviceId": "NOME_DO_PC",
-  "PlayerName": "NomeDoPersonagem",
-  "CtaEventId": null,
-  "BatchIntervalMs": 1000,
-  "MaxBatchSize": 100,
-  "OutboxPath": "%LOCALAPPDATA%\\IMORTAIS Combat Client\\outbox.ndjson",
-  "MaxOutboxEvents": 50000,
-  "MaxOutboxBytes": 52428800
-}
-```
-
-O `AgentKey` deve ser um token destinado ao dispositivo.
-
-**Não distribua a chave mestre do Railway para os jogadores.** A credencial mestre de ingestão deve permanecer somente no backend.
-
-O script auxiliar existente pode gravar a configuração:
-
-```powershell
-.\configure-telemetry.ps1 `
-  -AgentKey "TOKEN_DO_DISPOSITIVO" `
-  -PlayerName "NomeDoPersonagem"
-```
-
-O servidor padrão já é:
-
-```text
-https://cta-imortais.up.railway.app
-```
-
----
-
-## Dispositivos e pareamento
-
-A arquitetura do War Room trabalha com dispositivos individualizados.
-
-Cada instalação possui:
-
-- `DeviceId`;
-- personagem;
-- token próprio;
-- estado de conexão;
-- associação ao CTA quando aplicável.
-
-O War Room possui fluxo de gerenciamento de dispositivos e pareamento. Tokens de dispositivos podem ser revogados sem expor ou substituir a chave mestre do servidor.
-
----
-
-## Fila, outbox e envio
-
-A captura continua usando um `Channel` em memória como **hot buffer**. As threads que observam Party, Loot e combate nunca fazem I/O em disco nem rede.
-
-O worker persiste os eventos em:
+Outbox:
 
 ```text
 %LOCALAPPDATA%\IMORTAIS Combat Client\outbox.ndjson
 ```
 
-A outbox usa NDJSON, um evento por linha, preservando o `EventId` original.
+Instalação padrão:
 
-Fluxo:
+```text
+%LOCALAPPDATA%\Programs\IMORTAIS Combat Client
+```
+
+Cada instalação trabalha com:
+
+- `DeviceId`;
+- personagem;
+- token próprio do dispositivo;
+- estado de conexão;
+- associação ao CTA quando aplicável.
+
+**Nunca distribua a chave mestre de ingestão do backend.** Os jogadores usam tokens próprios de dispositivo.
+
+---
+
+## Outbox e entrega
+
+As threads de captura não fazem I/O de rede ou disco diretamente.
 
 ```text
 captura
   ↓
 Channel em memória
   ↓
-append na outbox em disco
+append em outbox.ndjson
   ↓
-lê lote da cabeça (FIFO)
+lote FIFO
   ↓
 POST /api/telemetry/ingest
   ↓
-ACK HTTP de sucesso
+ACK
   ↓
-remove exatamente os EventIds confirmados
+remoção dos EventIds confirmados
 ```
 
-Regras de durabilidade:
+Propriedades importantes:
 
-- reiniciar ou derrubar o client não descarta eventos já persistidos;
-- falha HTTP não remove eventos da outbox;
-- não há reenfileiramento do batch no Channel após falha de rede;
-- um crash depois do POST e antes do ACK local pode causar reenvio, mas mantém o mesmo `EventId` para deduplicação no servidor;
-- remoção após ACK reescreve sobreviventes em `outbox.ndjson.tmp` e faz troca atômica por `File.Replace`/Move;
-- arquivo `.tmp` deixado por interrupção é recuperado no boot;
-- o disco é limitado por `MaxOutboxEvents` e `MaxOutboxBytes`;
-- defaults: 50.000 eventos / 50 MB;
-- ao exceder o teto, somente os eventos mais antigos são descartados e o estado registra aviso;
-- campos novos do `telemetry.json` são opcionais e configs antigas continuam válidas.
+- restart do client não perde eventos já persistidos;
+- falha HTTP mantém o lote;
+- os EventIds são preservados para deduplicação;
+- troca do arquivo usa fluxo temporário/atômico;
+- recuperação de `.tmp` ocorre no boot;
+- limites padrão: **50.000 eventos / 50 MiB**;
+- campos novos de configuração permanecem retrocompatíveis.
 
 ---
 
-## Atualizador
+## Updater
 
-O updater usa o feed hospedado neste próprio repositório e releases do GitHub.
+O updater usa o feed oficial deste repositório e releases do GitHub.
 
-A arquitetura da v0.4.6 foi ajustada para evitar o problema de bootstrap encontrado nas versões v0.4.4 e v0.4.5.
-
-### Segurança do updater
-
-O instalador de atualização é assinado com **Ed25519** para o fluxo interno do Combat Client.
-
-A chave pública fica incorporada na build. A chave privada usada para publicar novas versões **não faz parte do repositório**.
-
-Ela deve permanecer armazenada com segurança fora do GitHub.
-
-A assinatura Ed25519 do updater não é a mesma coisa que assinatura **Authenticode** do Windows.
-
-### SmartScreen / Windows Defender
-
-O projeto ainda não possui assinatura Authenticode de um publicador confiável do Windows.
-
-Por isso, em máquinas novas, o Microsoft Defender SmartScreen pode exibir aviso de aplicativo desconhecido durante a instalação.
-
-Isso não significa, por si só, que o arquivo foi detectado como malware. Uma próxima etapa do projeto é adicionar assinatura Authenticode/Code Signing ao executável e ao instalador.
-
-### Migração e teste do updater
-
-As versões v0.4.4 e v0.4.5 possuíam uma validação adicional do próprio appcast que se mostrou frágil e impedia a oferta de atualização em alguns cenários.
-
-Por isso:
+Feed de produção:
 
 ```text
-v0.4.4 / v0.4.5
-        ↓
-instalação manual da v0.4.6
-        ↓
-v0.4.6 detecta v0.4.7 pelo updater
-        ↓
-v0.4.7 restaura a Home IMORTAIS e mantém o novo fluxo
+upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/imortais-netsparkle-update-check.xml
 ```
 
-A v0.4.6 mantém a validação Ed25519 do instalador baixado e deixa de depender daquele bloqueio adicional do feed. A v0.4.7 é a primeira versão usada para validar esse novo fluxo de ponta a ponta.
+A v0.6.0 foi validada no fluxo real:
 
-A v0.4.8 restaura a separação entre detecção de atualização e interface: o detector roda primeiro, registra a atualização disponível e só depois agenda a janela IMORTAIS no dispatcher da UI. Também remove o pré-teste HEAD do appcast que podia impedir silenciosamente a checagem real do NetSparkle.
+```text
+v0.5.9
+  ↓ Verificar atualização
+NetSparkle detecta v0.6.0
+  ↓
+validação Ed25519
+  ↓
+download do instalador
+  ↓
+fechamento do client
+  ↓
+instalação por cima
+  ↓
+relançamento em v0.6.0
+```
+
+### Segurança
+
+O instalador distribuído pelo updater é validado por **Ed25519**.
+
+- a chave pública fica incorporada na build;
+- a chave privada de publicação não está no repositório;
+- a release também publica SHA-256 do instalador;
+- uma release existente não deve ser sobrescrita: correções futuras usam versão superior, por exemplo v0.6.1.
+
+A assinatura Ed25519 do updater **não substitui Authenticode**. Como o projeto ainda não possui certificado Code Signing confiável do Windows, o SmartScreen pode exibir aviso de publicador desconhecido.
+
+### Rollback
+
+O NetSparkle não faz downgrade automático.
+
+A release v0.5.9 e seus assets permanecem disponíveis para fallback manual. Se uma correção for necessária após a v0.6.0, o procedimento é publicar uma versão superior, como **v0.6.1**.
 
 ---
 
-## Instalação para jogadores
+## Instalação
 
-Use preferencialmente o instalador publicado em **Releases**:
+Para jogadores, use o instalador oficial da release:
 
 ```text
-IMORTAIS-Combat-Client-Setup-v0.4.7.exe
+IMORTAIS-Combat-Client-Setup-v0.6.0.exe
 ```
 
 Também são publicados:
 
 ```text
-IMORTAIS-Combat-Client-Setup-v0.4.7.exe.sha256
-IMORTAIS-Combat-Client-v0.4.7-win-x64.zip
+IMORTAIS-Combat-Client-Setup-v0.6.0.exe.sha256
+IMORTAIS-Combat-Client-v0.6.0-win-x64.zip
 ```
 
-Para usuários em v0.4.6, a v0.4.7 deve ser recebida pelo updater interno. Usuários em v0.4.4/v0.4.5 ainda devem migrar manualmente para v0.4.6 ou mais recente.
+O instalador é o caminho recomendado. O ZIP é destinado principalmente a diagnóstico/desenvolvimento.
 
-O diretório padrão de instalação é:
+---
 
-```text
-%LOCALAPPDATA%\Programs\IMORTAIS Combat Client
-```
+## Linux
+
+Existe uma linha nativa Linux em desenvolvimento/preview, separada da release Windows.
+
+Ela **não faz parte da v0.6.0 estável** e continua em validação real no Ubuntu antes de ser anunciada para uso geral.
 
 ---
 
@@ -353,8 +382,6 @@ Pré-requisito:
 dotnet --version
 ```
 
-O projeto atualmente utiliza .NET 10.
-
 Clone:
 
 ```powershell
@@ -362,7 +389,7 @@ git clone https://github.com/cocoputiz-sudo/imortais-combat-client.git
 cd imortais-combat-client
 ```
 
-Projeto WPF integrado:
+Projeto WPF:
 
 ```text
 upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj
@@ -374,7 +401,7 @@ Build:
 dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release
 ```
 
-Publish win-x64 self-contained:
+Publish Windows x64 self-contained:
 
 ```powershell
 dotnet publish .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj `
@@ -383,7 +410,32 @@ dotnet publish .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysis
   --self-contained true
 ```
 
-Builds oficiais de Release exigem a chave pública do updater.
+Builds oficiais exigem a chave pública do updater.
+
+---
+
+## Publicação de release
+
+A v0.6.0 usa:
+
+```powershell
+.\scripts\publi-icc-v060.ps1
+```
+
+O script oficial valida, entre outros pontos:
+
+- metadados de versão;
+- `ClientVersion` da telemetria;
+- gravação OFF por padrão;
+- Highlights e proteções de pressão;
+- refresh de contexto em 30 s;
+- backoff de ingest;
+- GuildMight request/response;
+- assinatura Ed25519;
+- tamanho/hash do instalador;
+- inexistência prévia da tag estável antes de publicar.
+
+O script histórico `publi-icc-v059.ps1` não deve ser usado para publicar a v0.6.0.
 
 ---
 
@@ -394,75 +446,102 @@ upstream/
   AlbionOnline-StatisticsAnalysis/
     src/
       StatisticsAnalysisTool/
-        Imortais/              # integração IMORTAIS CANÔNICA
-        Network/Manager/       # controllers canônicos
-        Party/                 # PartyController canônico
+        Imortais/        # integração IMORTAIS
+        Network/         # handlers IMORTAIS no app WPF
         Updater/
         Views/
-        Styles/
+        Common/
+
+scripts/
+docs/
+tests/
 
 legacy/
-  v0.3-hooks/                 # snapshots congelados, não compiláveis
+  v0.3-hooks/           # histórico não compilável
 
 src/
-  Imortais.Bridge/            # bridge histórica/de referência
-
-docs/
-scripts/
-
-dist/                         # gerado, gitignored
-installer/                    # gerado, gitignored
-release/                      # gerado, gitignored
+  Imortais.Bridge/      # bridge histórica/de referência
 ```
 
 ### Fonte única de verdade
 
-O código executável da integração IMORTAIS vive **somente** em
-`upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/`.
+O código executável da integração IMORTAIS vive em:
 
-Não mantenha ou reaplique cópias paralelas de `ImortaisEventBridge` ou dos controllers.
-Os arquivos de `legacy/` são históricos, usam extensão não compilável e nunca devem ser copiados por cima do fork.
+```text
+upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/
+```
 
-O `install-hooks.ps1` é deliberadamente um no-op: os hooks já estão incorporados ao fork.
-
-A pasta `src/Imortais.Bridge` representa a bridge criada durante a fase inicial e continua útil apenas como referência.
+Não reaplique cópias antigas de `ImortaisEventBridge` ou controllers sobre o fork.
 
 ---
 
-## Backend esperado
+## Backend / War Room
 
-O backend do War Room é responsável por:
+O backend `imortais-cta-bot` é responsável por:
 
-- autenticar o dispositivo;
-- registrar telemetria;
-- deduplicar eventos;
+- autenticar dispositivos;
+- ingerir e deduplicar telemetria;
 - associar eventos ao CTA;
-- armazenar Party snapshots;
-- agregar dano e cura;
-- registrar kills/deaths;
-- filtrar e apresentar Loot Logger;
-- comparar composição planejada e observada;
-- manter histórico operacional;
-- fornecer contexto do CTA para o Combat Client.
+- Party / attendance;
+- Guild Presence;
+- Guild Might experimental;
+- combate, mortes, Kill Fame e placares;
+- Loot Logger;
+- contexto do CTA;
+- diagnóstico de dispositivos;
+- histórico operacional.
 
-A chave mestre de ingestão nunca deve ser embutida ou distribuída com o executável.
+No GuildMight, o backend atual correlaciona request/response e tenta descobrir automaticamente o layout real dos parâmetros antes de promover os probes a snapshots definitivos.
 
 ---
 
 ## Segurança e escopo
 
-O IMORTAIS Combat Client foi desenvolvido para observação passiva dos dados que o Statistics Analysis já consegue interpretar.
+O IMORTAIS Combat Client é observacional.
 
 O projeto não pretende:
 
-- movimentar o personagem;
+- movimentar personagem;
 - executar skills;
 - automatizar combate;
-- automatizar decisões dentro do jogo;
-- modificar o processo do Albion;
-- injetar código no cliente do jogo.
+- automatizar decisões;
+- modificar memória do Albion;
+- injetar código no processo do jogo;
+- criar requests de Might por conta própria.
 
-Ferramentas de terceiros não são oficialmente suportadas pela Sandbox Interactive. O uso deve sempre acompanhar as regras e alterações do Albion Online.
+A captura observa tráfego que o próprio cliente Albion produz/recebe.
+
+Ferramentas de terceiros não são oficialmente suportadas pela Sandbox Interactive. O uso deve acompanhar as regras e alterações do Albion Online.
+
+---
+
+## Roadmap
+
+### Entregue na v0.6.0
+
+- telemetria Party/Loot/Combat;
+- Guild Presence;
+- outbox persistente;
+- contexto automático de CTA;
+- diagnóstico central;
+- updater Ed25519;
+- Highlights automáticos de abates;
+- replay buffer com áudio do Albion;
+- hardening de memória/fila/disco dos Highlights;
+- polling reduzido e backoff de ingest;
+- GuildMight passivo request/response.
+
+### Próximos passos
+
+- transformar GuildMight Probe em snapshots tipados;
+- mapear categoria → nível/meta/SP;
+- histórico de Might por jogador e período;
+- ranking de contribuição e SP estimado;
+- contribuição incremental por snapshots;
+- segmentação de combate por fight;
+- histórico consolidado por temporada;
+- assinatura Authenticode;
+- continuidade da validação Linux.
 
 ---
 
@@ -490,67 +569,8 @@ LICENSE-NOTE.md
 
 ---
 
-## Situação do roadmap
-
-### Entregue
-
-- integração real com o parser/captura do Statistics Analysis;
-- branding IMORTAIS;
-- ícone próprio;
-- telemetria Party;
-- telemetria Loot;
-- guilda do looter;
-- Damage/Healing agregados;
-- kills/deaths/knockouts;
-- contexto automático do CTA;
-- painel IMORTAIS STATUS;
-- integração com War Room;
-- updater visual;
-- releases próprias no GitHub;
-- verificação Ed25519 do instalador;
-- outbox persistente e atômica para telemetria offline/restart.
-
-### Em validação
-
-- fluxo automático completo de atualização v0.4.8 → v0.4.9;
-- relançamento automático após update em diferentes máquinas;
-- comportamento do updater fora da máquina de desenvolvimento.
-
-### v0.4.9 em preparação
-
-- Central de Diagnóstico na Home IMORTAIS;
-- versão instalada e estado do updater;
-- última checagem de atualização;
-- última comunicação bem-sucedida com o War Room;
-- quantidade e tamanho da outbox pendente;
-- último erro de telemetria;
-- botão para verificar atualização na Home;
-- botão para copiar diagnóstico seguro para suporte no Discord;
-- botão de atualização em Configurações com status visual e progresso da checagem.
-
-A v0.4.9 também serve como teste controlado do fluxo automático v0.4.8 → v0.4.9.
-
-### v0.5.0 experimental · Guild Presence Collector
-
-- observa passivamente `GuildUpdate`, `GuildPlayerUpdated`, `GuildMemberWorldUpdate` e `GuildMemberTerritoryUpdate`;
-- envia ao War Room eventos `guild_presence_probe` limitados e deduplicados;
-- mantém os campos como dados brutos/normalizados enquanto validamos o protocolo real do Albion;
-- não marca jogador como online/offline por inferência ainda;
-- permitirá construir `lastSeen`, presença no Albion e o cruzamento Albion × Discord × ping × PT real após a validação dos payloads.
-
-### Próximos passos
-
-- assinatura Authenticode para melhorar a confiança do Windows/SmartScreen;
-- segmentação de combate por fight;
-- histórico consolidado de desempenho por temporada;
-- Loot Comparator real contra depósitos no baú da guilda;
-- endurecimento adicional do processo de release;
-- evolução do gerenciamento de dispositivos.
-
----
-
 ## Releases
 
-As builds oficiais estão disponíveis na seção **Releases** deste repositório.
+Use sempre a seção **Releases** deste repositório para obter builds oficiais.
 
-Para jogadores, prefira sempre o instalador oficial da release mais recente em vez de builds locais ou arquivos compartilhados fora do fluxo oficial.
+Para jogadores, prefira o instalador da release estável mais recente em vez de builds locais ou arquivos compartilhados fora do fluxo oficial.
