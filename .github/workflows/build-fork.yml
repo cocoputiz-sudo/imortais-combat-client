@@ -30,7 +30,13 @@ jobs:
           $appConfig = Get-Content "$root\App.config" -Raw
           $settingsDefinition = Get-Content "$root\Properties\Settings.settings" -Raw
           $settingsDesigner = Get-Content "$root\Properties\Settings.Designer.cs" -Raw
-          $releaseScript = Get-Content ".\scripts\publi-icc-v059.ps1" -Raw
+          $releaseScript = Get-Content ".\scripts\publi-icc-v060.ps1" -Raw
+          $projectFileText = Get-Content "$root\StatisticsAnalysisTool.csproj" -Raw
+          $assemblyInfoText = Get-Content "$root\Properties\AssemblyInfo.cs" -Raw
+          $productionFeedText = Get-Content "$root\imortais-netsparkle-update-check.xml" -Raw
+          $readmeText = Get-Content ".\README.md" -Raw
+          $rcPrepare = Get-Content ".\scripts\prepare-icc-v060-local-rc.ps1" -Raw
+          $rcTest = Get-Content ".\scripts\test-icc-v060-local-update.ps1" -Raw
           $installerIss = Get-Content ".\upstream\AlbionOnline-StatisticsAnalysis\.github\installers\release-installer.iss" -Raw
           $appCode = Get-Content "$root\App.xaml.cs" -Raw
           $highlightEncoder = Get-Content "$root\Imortais\Highlights\HardwareH264SinkEncoder.cs" -Raw
@@ -98,8 +104,17 @@ jobs:
           if ($releaseScript -notmatch 'CloseApplications=no') { throw "Official release installer must not invoke Inno Restart Manager during NetSparkle handoff." }
           if ($releaseScript -notmatch '#define AppExe "IMORTAIS-Combat-Client\.exe"') { throw "Official release installer executable name is wrong." }
           if ($releaseScript -notmatch 'OutputBaseFilename=IMORTAIS-Combat-Client-Setup-v\$Version') { throw "Official release asset filename is wrong." }
-          if ($releaseScript -notmatch '\$Version\s*=\s*"0\.5\.9"') { throw "Official release script is not v0.5.9." }
+          if ($releaseScript -notmatch '\$Version\s*=\s*"0\.6\.0"') { throw "Official release script is not v0.6.0." }
           if ($releaseScript -notmatch 'player_presence_snapshot') { throw "Official release script does not validate player presence snapshot." }
+          if ($projectFileText -notmatch '<ApplicationVersion>0\.6\.0\.0</ApplicationVersion>') { throw "ApplicationVersion is not 0.6.0.0." }
+          if ($assemblyInfoText -notmatch 'AssemblyFileVersion\("0\.6\.0\.0"\)' -or $assemblyInfoText -notmatch 'AssemblyInformationalVersion\("0\.6\.0"\)') { throw "Assembly versions are not v0.6.0." }
+          if ($bridge -notmatch 'ClientVersion\s*=\s*"0\.6\.0"') { throw "Telemetry ClientVersion is not 0.6.0." }
+          if ($settingsObject -match 'IsImortaisAutoSaveDeathsEnabled') { throw "Reserved death autosave setting must be removed before v0.6.0." }
+          if ($settingsObject -notmatch 'IsImortaisBackgroundRecordingEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*false') { throw "Background recording must default to OFF." }
+          if ($productionFeedText -match 'v0\.6\.0' -or $productionFeedText -notmatch 'v0\.5\.9') { throw "Production feed must remain on v0.5.9 during RC preparation." }
+          if ($readmeText -notmatch 'Versão publicada atual:\*\* v0\.5\.9') { throw "README must keep v0.5.9 as the published version before release approval." }
+          if ($rcPrepare -notmatch '127\.0\.0\.1' -or $rcTest -notmatch '127\.0\.0\.1') { throw "RC localhost helpers must stay loopback-only." }
+          if ($rcTest -notmatch '\.signature' -or $rcTest -notmatch '--verify') { throw "RC helper must verify XML .signature before testing." }
           if ($updater -notmatch 'ShouldKillParentProcessWhenStartingInstaller\s*=\s*true') { throw "Updater does not explicitly wait for client shutdown before installer handoff." }
           if ($installerIss -notmatch '#define MyAppExeName "IMORTAIS-Combat-Client\.exe"') { throw "Legacy installer still targets the upstream executable." }
           if ($appCode -notmatch 'IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940') { throw "Application mutex for installer detection is missing." }
@@ -119,18 +134,26 @@ jobs:
               if ($networkManager -notmatch [regex]::Escape("EventCodes.$eventName")) { throw "Guild presence event $eventName is not registered." }
           }
 
-      - name: Validate v0.5.9 release script syntax
+      - name: Validate v0.6.0 release and RC helper script syntax
         shell: pwsh
         run: |
           $errors = $null
           [System.Management.Automation.Language.Parser]::ParseFile(
-            (Resolve-Path ".\scripts\publi-icc-v059.ps1"),
+            (Resolve-Path ".\scripts\publi-icc-v060.ps1"),
             [ref]$null,
             [ref]$errors
           ) | Out-Null
           if ($errors.Count -gt 0) {
             $errors | ForEach-Object { Write-Error $_.Message }
-            throw "publi-icc-v059.ps1 has PowerShell syntax errors."
+            throw "publi-icc-v060.ps1 has PowerShell syntax errors."
+          }
+          foreach ($script in @(".\scripts\prepare-icc-v060-local-rc.ps1",".\scripts\test-icc-v060-local-update.ps1")) {
+            $scriptErrors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script),[ref]$null,[ref]$scriptErrors) | Out-Null
+            if ($scriptErrors.Count -gt 0) {
+              $scriptErrors | ForEach-Object { Write-Error $_.Message }
+              throw "$script has PowerShell syntax errors."
+            }
           }
 
       - name: Highlights logic
@@ -141,12 +164,12 @@ jobs:
         shell: pwsh
         run: dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release --no-incremental
 
-      - name: Publish highlights test ZIP
+      - name: Publish v0.6.0 RC ZIP
         shell: pwsh
         run: |
           $project = ".\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj"
-          $out = Join-Path $env:RUNNER_TEMP "imortais-highlights-test"
-          $zip = Join-Path $env:RUNNER_TEMP "IMORTAIS-High-M2-Safe-x64.zip"
+          $out = Join-Path $env:RUNNER_TEMP "imortais-v060-rc"
+          $zip = Join-Path $env:RUNNER_TEMP "IMORTAIS-Combat-Client-v0.6.0-rc-win-x64.zip"
           Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           dotnet publish $project -c Release -r win-x64 --self-contained true -p:LocalInstallerBuild=true -o $out
@@ -156,22 +179,26 @@ jobs:
           $delta = $size - $baseline
           $pct = if ($baseline -gt 0) { [math]::Round(($delta / $baseline) * 100, 2) } else { 0 }
           $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          "ZIP_PATH=$zip" >> $env:GITHUB_ENV
-          "HIGHLIGHTS_ZIP_BYTES=$size" >> $env:GITHUB_ENV
-          Write-Host "HIGHLIGHTS_ZIP_BYTES=$size"
-          Write-Host "HIGHLIGHTS_ZIP_DELTA_BYTES=$delta"
-          Write-Host "HIGHLIGHTS_ZIP_DELTA_PCT=$pct"
-          Write-Host "HIGHLIGHTS_ZIP_SHA256=$sha"
-          "### Highlights Marco 2 artifact" >> $env:GITHUB_STEP_SUMMARY
+          "RC_ZIP_PATH=$zip" >> $env:GITHUB_ENV
+          "RC_ZIP_BYTES=$size" >> $env:GITHUB_ENV
+          Write-Host "RC_ZIP_BYTES=$size"
+          Write-Host "RC_ZIP_DELTA_BYTES=$delta"
+          Write-Host "RC_ZIP_DELTA_PCT=$pct"
+          Write-Host "RC_ZIP_SHA256=$sha"
+          "### IMORTAIS Combat Client v0.6.0 RC artifact" >> $env:GITHUB_STEP_SUMMARY
           "- baseline v0.5.9 ZIP: **$baseline bytes**" >> $env:GITHUB_STEP_SUMMARY
-          "- Marco 2 ZIP: **$size bytes**" >> $env:GITHUB_STEP_SUMMARY
+          "- RC ZIP: **$size bytes**" >> $env:GITHUB_STEP_SUMMARY
           "- delta: **$delta bytes ($pct%)**" >> $env:GITHUB_STEP_SUMMARY
           "- SHA-256: $sha" >> $env:GITHUB_STEP_SUMMARY
 
-      - name: Upload highlights test ZIP
+      - name: Upload v0.6.0 RC package
         uses: actions/upload-artifact@v4
         with:
-          name: IMORTAIS-High-M2-Safe-x64
-          path: ${{ env.ZIP_PATH }}
+          name: IMORTAIS-Combat-Client-v0.6.0-rc-win-x64
+          path: |
+            ${{ env.RC_ZIP_PATH }}
+            scripts/prepare-icc-v060-local-rc.ps1
+            scripts/test-icc-v060-local-update.ps1
+            docs/RC-v0.6.0.md
           if-no-files-found: error
           retention-days: 14

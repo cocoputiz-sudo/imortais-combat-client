@@ -49,7 +49,7 @@ public static class ImortaisEventBridge
     private static readonly TimeSpan ContextRefreshInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan InitialIngestRetryDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan MaxIngestRetryDelay = TimeSpan.FromSeconds(60);
-    private const string ClientVersion = "0.5.9";
+    private const string ClientVersion = "0.6.0";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;

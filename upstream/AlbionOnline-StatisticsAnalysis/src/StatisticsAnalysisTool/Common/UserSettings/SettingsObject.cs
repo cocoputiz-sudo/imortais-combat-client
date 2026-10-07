@@ -47,7 +47,6 @@ public class SettingsObject
     public bool IsMinimizeToSystemTrayActive { get; set; } = false;
     public bool IsImortaisBackgroundRecordingEnabled { get; set; } = false;
     public int ImortaisHighlightFps { get; set; } = 60;
-    public bool IsImortaisAutoSaveDeathsEnabled { get; set; } = false; // reservado para análise futura de defensivas
     public bool IsImortaisAutoSaveAbatesEnabled { get; set; } = true;
     public bool IsNavigationMenuOpen { get; set; } = true;
     public bool IsTrackingResetByMapChangeActive { get; set; } = false;
