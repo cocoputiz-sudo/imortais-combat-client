@@ -192,22 +192,26 @@ $BridgeFile = Join-Path $ProjectDir "Imortais\ImortaisEventBridge.cs"
 $ConfigFile = Join-Path $ProjectDir "Imortais\ImortaisTelemetryConfig.cs"
 $LootControllerFile = Join-Path $ProjectDir "Network\Manager\LootController.cs"
 $DiedEventHandlerFile = Join-Path $ProjectDir "Network\Handler\DiedEventHandler.cs"
+$SettingsObjectFile = Join-Path $ProjectDir "Common\UserSettings\SettingsObject.cs"
+$HighlightRecorderFile = Join-Path $ProjectDir "Imortais\Highlights\HighlightRecorderService.cs"
 $NewCharacterHandlerFile = Join-Path $ProjectDir "Network\Handler\NewCharacterEventHandler.cs"
 $LeaveEventHandlerFile = Join-Path $ProjectDir "Network\Handler\LeaveEventHandler.cs"
 $bridgeText = [System.IO.File]::ReadAllText($BridgeFile)
 $configText = [System.IO.File]::ReadAllText($ConfigFile)
 $lootControllerText = [System.IO.File]::ReadAllText($LootControllerFile)
 $diedEventHandlerText = [System.IO.File]::ReadAllText($DiedEventHandlerFile)
+$settingsObjectText = [System.IO.File]::ReadAllText($SettingsObjectFile)
+$highlightRecorderText = [System.IO.File]::ReadAllText($HighlightRecorderFile)
 $newCharacterHandlerText = [System.IO.File]::ReadAllText($NewCharacterHandlerFile)
 $leaveEventHandlerText = [System.IO.File]::ReadAllText($LeaveEventHandlerFile)
 
-if ($projectText -notmatch '<ApplicationVersion>\s*0\.5\.9\.0\s*</ApplicationVersion>') {
+if ($projectText -notmatch '<ApplicationVersion>\s*0\.6\.0\.0\s*</ApplicationVersion>') {
     throw "csproj não está em v0.6.0."
 }
-if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.5\.9\.0"\s*\)') {
+if ($assemblyText -notmatch 'AssemblyFileVersion\s*\(\s*"0\.6\.0\.0"\s*\)') {
     throw "AssemblyFileVersion não está em v0.6.0."
 }
-if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.5\.9"\s*\)') {
+if ($assemblyText -notmatch 'AssemblyInformationalVersion\s*\(\s*"0\.6\.0"\s*\)') {
     throw "AssemblyInformationalVersion não está em v0.6.0."
 }
 if ($updaterText -match 'if \(!await IsAppCastSignatureTrustedAsync') {
@@ -326,8 +330,33 @@ if ($bridgeText -notmatch '/api/telemetry/context') {
 if ($bridgeText -match 'ctaEventId\s*=\s*_config\.CtaEventId') {
     throw "O client ainda está forçando CtaEventId salvo localmente no ingest."
 }
-if ($bridgeText -notmatch 'ClientVersion\s*=\s*"0\.5\.9"') {
+if ($bridgeText -notmatch 'ClientVersion\s*=\s*"0\.6\.0"') {
     throw "ClientVersion da telemetria não está em v0.6.0."
+}
+if ($bridgeText -notmatch 'ContextRefreshInterval\s*=\s*TimeSpan\.FromSeconds\(30\)') {
+    throw "Refresh de contexto da telemetria não está limitado a 30 s."
+}
+if ($bridgeText -notmatch 'InitialIngestRetryDelay\s*=\s*TimeSpan\.FromSeconds\(2\)' -or
+    $bridgeText -notmatch 'MaxIngestRetryDelay\s*=\s*TimeSpan\.FromSeconds\(60\)' -or
+    $bridgeText -notmatch 'blockedAgentKey') {
+    throw "Backoff/401 da telemetria v0.6.0 não está presente."
+}
+if ($diedEventHandlerText -notmatch 'HighlightTriggerKind\.Abate' -or
+    $diedEventHandlerText -notmatch 'value\.IsLethal') {
+    throw "Gatilho de Highlight por abate letal não está presente."
+}
+if ($settingsObjectText -match 'IsImortaisAutoSaveDeathsEnabled') {
+    throw "Configuração reservada de auto-save de mortes ainda existe."
+}
+if ($settingsObjectText -notmatch 'IsImortaisBackgroundRecordingEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*false') {
+    throw "Gravação de Highlights precisa vir desligada por padrão."
+}
+if ($settingsObjectText -notmatch 'IsImortaisAutoSaveAbatesEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*true') {
+    throw "Opção de salvar abates não está habilitada como preferência quando a gravação for ligada."
+}
+if ($highlightRecorderText -notmatch 'MaxDetachedSnapshots=2' -or
+    $highlightRecorderText -notmatch 'MaxTriggerInbox=512') {
+    throw "Proteções de pressão de memória/fila dos Highlights não estão presentes."
 }
 if ($bridgeText -notmatch 'PersistQueuedEventsAsync') {
     throw "Outbox persistente não encontrada."

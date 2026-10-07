@@ -105,6 +105,9 @@ jobs:
           if ($releaseScript -notmatch '#define AppExe "IMORTAIS-Combat-Client\.exe"') { throw "Official release installer executable name is wrong." }
           if ($releaseScript -notmatch 'OutputBaseFilename=IMORTAIS-Combat-Client-Setup-v\$Version') { throw "Official release asset filename is wrong." }
           if ($releaseScript -notmatch '\$Version\s*=\s*"0\.6\.0"') { throw "Official release script is not v0.6.0." }
+          if ($releaseScript -notmatch '<ApplicationVersion>\\s\*0\\\.6\\\.0\\\.0' -and $releaseScript -notmatch '0\\\.6\\\.0\\\.0') { throw "v0.6.0 publisher does not validate v0.6.0 metadata." }
+          if ($releaseScript -match '0\\\.5\\\.9\\\.0') { throw "v0.6.0 publisher still contains a stale v0.5.9 metadata regex." }
+          if ($releaseScript -notmatch 'ContextRefreshInterval' -or $releaseScript -notmatch 'HighlightTriggerKind\\\.Abate') { throw "v0.6.0 publisher lacks telemetry/highlight release guards." }
           if ($releaseScript -notmatch 'player_presence_snapshot') { throw "Official release script does not validate player presence snapshot." }
           if ($projectFileText -notmatch '<ApplicationVersion>0\.6\.0\.0</ApplicationVersion>') { throw "ApplicationVersion is not 0.6.0.0." }
           if ($assemblyInfoText -notmatch 'AssemblyFileVersion\("0\.6\.0\.0"\)' -or $assemblyInfoText -notmatch 'AssemblyInformationalVersion\("0\.6\.0"\)') { throw "Assembly versions are not v0.6.0." }
@@ -173,6 +176,12 @@ jobs:
           Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
           Remove-Item $zip -Force -ErrorAction SilentlyContinue
           dotnet publish $project -c Release -r win-x64 --self-contained true -p:LocalInstallerBuild=true -o $out
+          $exe = Join-Path $out "IMORTAIS-Combat-Client.exe"
+          if (-not (Test-Path $exe)) { throw "RC executable missing." }
+          $vi = (Get-Item $exe).VersionInfo
+          if ($vi.FileVersion -notlike "0.6.0*") { throw "RC executable FileVersion is not 0.6.0: $($vi.FileVersion)" }
+          Write-Host "RC_FILE_VERSION=$($vi.FileVersion)"
+          Write-Host "RC_PRODUCT_VERSION=$($vi.ProductVersion)"
           Compress-Archive -Path "$out\*" -DestinationPath $zip -CompressionLevel Optimal
           $size = (Get-Item $zip).Length
           $baseline = 153024966
