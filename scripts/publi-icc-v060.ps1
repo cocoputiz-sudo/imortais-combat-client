@@ -194,6 +194,9 @@ $LootControllerFile = Join-Path $ProjectDir "Network\Manager\LootController.cs"
 $DiedEventHandlerFile = Join-Path $ProjectDir "Network\Handler\DiedEventHandler.cs"
 $SettingsObjectFile = Join-Path $ProjectDir "Common\UserSettings\SettingsObject.cs"
 $HighlightRecorderFile = Join-Path $ProjectDir "Imortais\Highlights\HighlightRecorderService.cs"
+$SettingsControllerFile = Join-Path $ProjectDir "Common\UserSettings\SettingsController.cs"
+$MightProbeHandlerFile = Join-Path $ProjectDir "Network\Handler\ImortaisGuildMightProbeResponseHandler.cs"
+$NetworkManagerFile = Join-Path $ProjectDir "Network\NetworkManager.cs"
 $NewCharacterHandlerFile = Join-Path $ProjectDir "Network\Handler\NewCharacterEventHandler.cs"
 $LeaveEventHandlerFile = Join-Path $ProjectDir "Network\Handler\LeaveEventHandler.cs"
 $bridgeText = [System.IO.File]::ReadAllText($BridgeFile)
@@ -202,6 +205,9 @@ $lootControllerText = [System.IO.File]::ReadAllText($LootControllerFile)
 $diedEventHandlerText = [System.IO.File]::ReadAllText($DiedEventHandlerFile)
 $settingsObjectText = [System.IO.File]::ReadAllText($SettingsObjectFile)
 $highlightRecorderText = [System.IO.File]::ReadAllText($HighlightRecorderFile)
+$settingsControllerText = [System.IO.File]::ReadAllText($SettingsControllerFile)
+$mightProbeHandlerText = [System.IO.File]::ReadAllText($MightProbeHandlerFile)
+$networkManagerText = [System.IO.File]::ReadAllText($NetworkManagerFile)
 $newCharacterHandlerText = [System.IO.File]::ReadAllText($NewCharacterHandlerFile)
 $leaveEventHandlerText = [System.IO.File]::ReadAllText($LeaveEventHandlerFile)
 
@@ -357,6 +363,15 @@ if ($settingsObjectText -notmatch 'IsImortaisAutoSaveAbatesEnabled\s*\{\s*get;\s
 if ($highlightRecorderText -notmatch 'MaxDetachedSnapshots=2' -or
     $highlightRecorderText -notmatch 'MaxTriggerInbox=512') {
     throw "Proteções de pressão de memória/fila dos Highlights não estão presentes."
+}
+if ($settingsControllerText -notmatch 'MigrateImortaisSettingsIfNeededAsync' -or
+    $settingsControllerText -notmatch 'IsImortaisBackgroundRecordingEnabled\s*=\s*false') {
+    throw "Migração one-shot para GRAVAÇÃO OFF na v0.6.0 não está presente."
+}
+if ($mightProbeHandlerText -notmatch 'GuildMightProbe' -or
+    $networkManagerText -notmatch 'GetGuildMightCategoryOverview' -or
+    $networkManagerText -notmatch 'GetGuildMightCategoryContribution') {
+    throw "Might Probe experimental não está registrado para Overview/Contribution."
 }
 if ($bridgeText -notmatch 'PersistQueuedEventsAsync') {
     throw "Outbox persistente não encontrada."
@@ -584,6 +599,11 @@ $notes = @"
 - Buffer H.264 por hardware, proteção de memória/fila e quota de 10 GiB para a pasta de highlights.
 - No Windows 10, a captura pode exibir a borda amarela do sistema ao redor da janela.
 - Recurso ainda não medido em ZvZ de grande escala nem em máquinas de baixo desempenho.
+
+### Might Probe experimental
+- Observa passivamente as respostas `GetGuildMightCategoryOverview` e `GetGuildMightCategoryContribution` quando o próprio jogador abre as telas de Might.
+- Não envia comandos ao Albion e não adiciona Python/Scapy ou uma segunda captura de rede.
+- Nesta versão o payload é enviado de forma saneada/deduplicada ao War Room para validar o layout real; ranking/SP definitivo ficará para etapa posterior.
 
 ### Estabilidade da telemetria
 - Contexto de CTA passa a ser consultado no máximo uma vez a cada 30 s.

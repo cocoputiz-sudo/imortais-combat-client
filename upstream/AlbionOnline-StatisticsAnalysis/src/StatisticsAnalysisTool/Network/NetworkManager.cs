@@ -137,6 +137,11 @@ public class NetworkManager
         builder.AddRequestHandler(new GetGuildAccountLogsRequestHandler(trackingController));
 
         // Response
+        // IMORTAIS experimental Might collector. Passivo: somente observa as respostas
+        // que o jogo recebe quando o usuário abre Overview/Contribution de Might.
+        builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGuildMightCategoryOverview));
+        builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGuildMightCategoryContribution));
+
         builder.AddResponseHandler(new ChangeClusterResponseHandler(trackingController));
         builder.AddResponseHandler(new PartyMakeLeaderResponseHandler(trackingController));
         builder.AddResponseHandler(new JoinResponseHandler(trackingController));

@@ -27,6 +27,9 @@ jobs:
           $mainCode = Get-Content "$root\Views\MainWindow.xaml.cs" -Raw
           $settings = Get-Content "$root\UserControls\SettingsControl.xaml" -Raw
           $settingsObject = Get-Content "$root\Common\UserSettings\SettingsObject.cs" -Raw
+          $settingsController = Get-Content "$root\Common\UserSettings\SettingsController.cs" -Raw
+          $mightProbeHandler = Get-Content "$root\Network\Handler\ImortaisGuildMightProbeResponseHandler.cs" -Raw
+          $networkManager = Get-Content "$root\Network\NetworkManager.cs" -Raw
           $appConfig = Get-Content "$root\App.config" -Raw
           $settingsDefinition = Get-Content "$root\Properties\Settings.settings" -Raw
           $settingsDesigner = Get-Content "$root\Properties\Settings.Designer.cs" -Raw
@@ -114,6 +117,9 @@ jobs:
           if ($bridge -notmatch 'ClientVersion\s*=\s*"0\.6\.0"') { throw "Telemetry ClientVersion is not 0.6.0." }
           if ($settingsObject -match 'IsImortaisAutoSaveDeathsEnabled') { throw "Reserved death autosave setting must be removed before v0.6.0." }
           if ($settingsObject -notmatch 'IsImortaisBackgroundRecordingEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*false') { throw "Background recording must default to OFF." }
+          if ($settingsObject -notmatch 'ImortaisSettingsSchemaVersion' -or $settingsController -notmatch 'MigrateImortaisSettingsIfNeededAsync') { throw "v0.6.0 one-shot settings migration missing." }
+          if ($mightProbeHandler -notmatch 'guild_might_probe|GuildMightProbe' -or $networkManager -notmatch 'GetGuildMightCategoryOverview' -or $networkManager -notmatch 'GetGuildMightCategoryContribution') { throw "Might Probe handlers missing." }
+          if ($bridge -notmatch 'Type\s*=\s*"guild_might_probe"' -or $bridge -notmatch 'LastGuildMightProbePayloads') { throw "Might Probe bridge/dedup missing." }
           if ($productionFeedText -match 'v0\.6\.0' -or $productionFeedText -notmatch 'v0\.5\.9') { throw "Production feed must remain on v0.5.9 during RC preparation." }
           if ($readmeText -notmatch 'Versão publicada atual:\*\* v0\.5\.9') { throw "README must keep v0.5.9 as the published version before release approval." }
           if ($rcPrepare -notmatch '127\.0\.0\.1' -or $rcTest -notmatch '127\.0\.0\.1') { throw "RC localhost helpers must stay loopback-only." }

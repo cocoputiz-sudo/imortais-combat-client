@@ -28,6 +28,8 @@ public static class ImortaisEventBridge
 
     private static readonly ConcurrentDictionary<string, CombatAccumulator> Combat = new(StringComparer.OrdinalIgnoreCase);
     private static readonly ConcurrentDictionary<string, string> LastGuildPresenceProbePayloads = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, string> LastGuildMightProbePayloads = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, byte> GuildMightOperationsSeen = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, string> LastPartySnapshotPayloads = new(StringComparer.Ordinal);
     private static readonly ConcurrentDictionary<string, byte> GuildPresencePlayersSeen = new(StringComparer.OrdinalIgnoreCase);
     // Presence Collector separado do combate: NewCharacter abre a presença local e
@@ -75,6 +77,8 @@ public static class ImortaisEventBridge
     private static long _partySnapshotDeduplicatedCount;
     private static long _guildPresenceProbeCount;
     private static DateTime? _lastGuildPresenceProbeAtUtc;
+    private static long _guildMightProbeCount;
+    private static DateTime? _lastGuildMightProbeAtUtc;
 
     public sealed record BridgeStatus(
         bool Enabled,
@@ -95,6 +99,9 @@ public static class ImortaisEventBridge
         long GuildPresenceProbeCount,
         int GuildPresenceDistinctPlayers,
         DateTime? LastGuildPresenceProbeAtUtc,
+        long GuildMightProbeCount,
+        int GuildMightOperationCount,
+        DateTime? LastGuildMightProbeAtUtc,
         IReadOnlyList<string> RecentActivity);
 
     private sealed record NearbyPlayerPresence(
@@ -211,6 +218,9 @@ public static class ImortaisEventBridge
                 Interlocked.Read(ref _guildPresenceProbeCount),
                 GuildPresencePlayersSeen.Count,
                 _lastGuildPresenceProbeAtUtc,
+                Interlocked.Read(ref _guildMightProbeCount),
+                GuildMightOperationsSeen.Count,
+                _lastGuildMightProbeAtUtc,
                 RecentActivity.ToArray());
         }
     }
@@ -471,6 +481,55 @@ public static class ImortaisEventBridge
                     AddActivity($"GUILD {observedPlayer} · {(online ? "ONLINE" : "OFFLINE")}");
                 }
             }
+        }
+    }
+
+    public static void GuildMightProbe(string operationName, int operationCode, IReadOnlyDictionary<byte, object> parameters)
+    {
+        if (string.IsNullOrWhiteSpace(operationName) || parameters == null)
+        {
+            return;
+        }
+
+        var normalizedParameters = new Dictionary<string, object?>(StringComparer.Ordinal);
+        foreach (var pair in parameters.OrderBy(x => x.Key).Take(96))
+        {
+            if (pair.Key == 253) continue;
+            normalizedParameters[pair.Key.ToString()] = SanitizePhotonValue(pair.Value, 0);
+        }
+
+        var payload = new Dictionary<string, object?>
+        {
+            ["operationName"] = operationName,
+            ["operationCode"] = operationCode,
+            ["parameters"] = normalizedParameters,
+            ["probeVersion"] = 1
+        };
+
+        var fingerprint = JsonSerializer.Serialize(payload);
+        if (LastGuildMightProbePayloads.TryGetValue(operationName, out var previous)
+            && string.Equals(previous, fingerprint, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        LastGuildMightProbePayloads[operationName] = fingerprint;
+
+        if (Enqueue(new ImortaisTelemetryEvent
+            {
+                Type = "guild_might_probe",
+                PlayerName = _config.PlayerName,
+                Payload = payload
+            }))
+        {
+            GuildMightOperationsSeen.TryAdd(operationName, 0);
+            Interlocked.Increment(ref _guildMightProbeCount);
+            lock (StatusLock)
+            {
+                _lastGuildMightProbeAtUtc = DateTime.UtcNow;
+            }
+
+            AddActivity($"MIGHT {operationName} · {normalizedParameters.Count} params");
         }
     }
 

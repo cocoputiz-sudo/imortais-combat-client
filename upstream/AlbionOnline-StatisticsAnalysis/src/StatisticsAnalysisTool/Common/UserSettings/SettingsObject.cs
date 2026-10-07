@@ -45,6 +45,7 @@ public class SettingsObject
     public bool IsStartTrackingWithGameActive { get; set; } = false;
     public bool IsStopTrackingWithGameActive { get; set; } = false;
     public bool IsMinimizeToSystemTrayActive { get; set; } = false;
+    public int ImortaisSettingsSchemaVersion { get; set; } = 0;
     public bool IsImortaisBackgroundRecordingEnabled { get; set; } = false;
     public int ImortaisHighlightFps { get; set; } = 60;
     public bool IsImortaisAutoSaveAbatesEnabled { get; set; } = true;
