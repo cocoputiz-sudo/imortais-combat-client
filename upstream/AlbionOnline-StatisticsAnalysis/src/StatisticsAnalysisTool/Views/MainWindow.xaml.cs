@@ -636,6 +636,7 @@ public partial class MainWindow
         builder.AppendLine($"Último replay: {highlight.LastSavedPath ?? "nenhum"}");
         builder.AppendLine($"Último erro highlights: {(highlight.LastCaptureError is null ? "nenhum" : $"[{highlight.LastCaptureErrorStage ?? "FRAME"}] {highlight.LastCaptureError}")}");
         builder.AppendLine($"Guild Presence: {status.GuildPresenceProbeCount} eventos / {status.GuildPresenceDistinctPlayers} jogadores distintos / último {(status.LastGuildPresenceProbeAtUtc.HasValue ? status.LastGuildPresenceProbeAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
+        builder.AppendLine($"Guild Might Probe: {status.GuildMightProbeCount} eventos / {status.GuildMightOperationCount} operações / último {(status.LastGuildMightProbeAtUtc.HasValue ? status.LastGuildMightProbeAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Último contato: {(status.LastSuccessfulContactUtc.HasValue ? status.LastSuccessfulContactUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Outbox: {status.PendingEvents} eventos / {FormatByteCount(status.PendingBytes)}");
         builder.AppendLine($"Último erro: {(string.IsNullOrWhiteSpace(status.LastError) ? "nenhum" : status.LastError)}");

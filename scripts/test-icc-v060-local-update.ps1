@@ -1,0 +1,236 @@
+param(
+    [int]$Port = 48159,
+    [int]$TimeoutMinutes = 30
+)
+
+$ErrorActionPreference = "Stop"
+$VersionFrom = "0.5.9"
+$VersionTo = "0.6.0"
+$Root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$FeedName = "imortais-netsparkle-v060-rc.xml"
+$Feed = Join-Path $Root $FeedName
+$FeedSigFile = "$Feed.signature"
+$Setup = Join-Path $Root "IMORTAIS-Combat-Client-Setup-v0.6.0.exe"
+$SetupHashFile = "$Setup.sha256"
+$InstallDir = Join-Path $env:LOCALAPPDATA "Programs\IMORTAIS Combat Client"
+$InstalledExe = Join-Path $InstallDir "IMORTAIS-Combat-Client.exe"
+$ProductionFeed = "https://raw.githubusercontent.com/cocoputiz-sudo/imortais-combat-client/main/upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/imortais-netsparkle-update-check.xml"
+$LocalFeed = "http://127.0.0.1:$Port/$FeedName"
+$SigningRoot = Join-Path $env:LOCALAPPDATA "IMORTAIS Combat Client\signing-keys"
+$ToolRoot = Join-Path $env:LOCALAPPDATA "IMORTAIS Combat Client\tools\netsparkle"
+$PubKeyFile = Join-Path $SigningRoot "NetSparkle_Ed25519.pub"
+$PrivKeyFile = Join-Path $SigningRoot "NetSparkle_Ed25519.priv"
+$SparkleTool = Join-Path $ToolRoot "netsparkle-generate-appcast.exe"
+$backups = @()
+$serverJob = $null
+$success = $false
+$installed = $false
+
+function Verify-File([string]$Path,[string]$Signature) {
+    $out = & $SparkleTool --verify $Path --signature $Signature
+    if ($LASTEXITCODE -ne 0 -or ($out -join "`n") -notmatch 'Signature valid') {
+        throw "Assinatura inválida: $Path"
+    }
+}
+function Restore-Configs {
+    foreach ($b in $backups) {
+        if (Test-Path -LiteralPath $b.Backup) {
+            Copy-Item -LiteralPath $b.Backup -Destination $b.Path -Force
+        }
+    }
+}
+function Get-Version([string]$Exe) {
+    if (-not (Test-Path -LiteralPath $Exe)) { return "" }
+    return (Get-Item -LiteralPath $Exe).VersionInfo.FileVersion
+}
+
+foreach ($p in @($Feed,$FeedSigFile,$Setup,$SetupHashFile,$PubKeyFile,$PrivKeyFile,$SparkleTool,$InstalledExe)) {
+    if (-not (Test-Path -LiteralPath $p)) { throw "Arquivo obrigatório ausente: $p" }
+}
+$env:SPARKLE_PUBLIC_KEY = (Get-Content -LiteralPath $PubKeyFile -Raw).Trim()
+$env:SPARKLE_PRIVATE_KEY = (Get-Content -LiteralPath $PrivKeyFile -Raw).Trim()
+
+# Exigência explícita da RC: verificar a assinatura separada do XML antes de servir qualquer byte.
+$feedSig = (Get-Content -LiteralPath $FeedSigFile -Raw).Trim()
+Verify-File $Feed $feedSig
+Write-Host "✅ .signature do XML RC verificada." -ForegroundColor Green
+
+[xml]$feedXml = Get-Content -LiteralPath $Feed -Raw
+$enclosure = $feedXml.rss.channel.item.enclosure
+$sparkleNs = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+$enclosureUrl = $enclosure.GetAttribute("url")
+$enclosureVersion = $enclosure.GetAttribute("version",$sparkleNs)
+$enclosureLength = $enclosure.GetAttribute("length")
+$installerSignature = $enclosure.GetAttribute("edSignature",$sparkleNs)
+if ($enclosureUrl -ne "http://127.0.0.1:$Port/IMORTAIS-Combat-Client-Setup-v0.6.0.exe") { throw "Feed RC não está preso ao loopback esperado." }
+if ($enclosureVersion -ne "0.6.0") { throw "Feed RC não anuncia 0.6.0." }
+if ([long]$enclosureLength -ne (Get-Item $Setup).Length) { throw "Length do enclosure não confere." }
+if ([string]::IsNullOrWhiteSpace($installerSignature)) { throw "Feed RC não contém sparkle:edSignature." }
+Verify-File $Setup $installerSignature
+Write-Host "✅ assinatura Ed25519 do instalador verificada." -ForegroundColor Green
+
+$expectedHash = (Get-Content -LiteralPath $SetupHashFile -Raw).Trim().ToLowerInvariant()
+$actualHash = (Get-FileHash -LiteralPath $Setup -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($expectedHash -ne $actualHash) { throw "SHA-256 do setup não confere." }
+Write-Host "✅ SHA-256 do instalador confere." -ForegroundColor Green
+
+$installedVersion = Get-Version $InstalledExe
+if ($installedVersion -notlike "0.5.9*") { throw "A máquina de teste precisa começar em v0.5.9. Encontrado: $installedVersion" }
+
+# Recupera automaticamente uma tentativa RC anterior interrompida antes de procurar o feed.
+Get-ChildItem -LiteralPath $InstallDir -Filter "*.config.v060-rc-backup" -File -ErrorAction SilentlyContinue | ForEach-Object {
+    $original = $_.FullName.Substring(0,$_.FullName.Length-".v060-rc-backup".Length)
+    if(Test-Path -LiteralPath $original) {
+        $current = Get-Content -LiteralPath $original -Raw
+        if($current -like "*127.0.0.1:*") {
+            Copy-Item -LiteralPath $_.FullName -Destination $original -Force
+            Write-Host "✅ config de tentativa RC anterior restaurado: $original" -ForegroundColor Green
+        }
+    }
+}
+
+$configFiles = Get-ChildItem -LiteralPath $InstallDir -Filter "*.config" -File | Where-Object {
+    (Get-Content -LiteralPath $_.FullName -Raw) -like "*$ProductionFeed*"
+}
+if (-not $configFiles) { throw "Nenhum config instalado contém o feed de produção; não vou alterar outro arquivo por aproximação." }
+
+try {
+    $serverRoot = $Root
+    $serverJob = Start-Job -ArgumentList $serverRoot,$Port -ScriptBlock {
+        param($root,$port)
+        $listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,$port)
+        $listener.Start()
+        try {
+            while ($true) {
+                $client = $listener.AcceptTcpClient()
+                try {
+                    $stream = $client.GetStream()
+                    $reader = New-Object IO.StreamReader($stream,[Text.Encoding]::ASCII,$false,1024,$true)
+                    $request = $reader.ReadLine()
+                    Write-Output ("REQ " + $request)
+                    while (($line=$reader.ReadLine()) -ne $null -and $line -ne "") {}
+                    if ($request -notmatch '^(GET|HEAD)\s+/([^ ?]+)') {
+                        $body=[Text.Encoding]::UTF8.GetBytes("method not allowed")
+                        $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 405 Method Not Allowed`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
+                        $stream.Write($head,0,$head.Length);$stream.Write($body,0,$body.Length);continue
+                    }
+                    $method=$Matches[1]
+                    $name=[Uri]::UnescapeDataString($Matches[2])
+                    if ($name -notin @("imortais-netsparkle-v060-rc.xml","imortais-netsparkle-v060-rc.xml.signature","IMORTAIS-Combat-Client-Setup-v0.6.0.exe","IMORTAIS-Combat-Client-Setup-v0.6.0.exe.sha256")) {
+                        $body=[Text.Encoding]::UTF8.GetBytes("not found")
+                        $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 404 Not Found`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
+                        $stream.Write($head,0,$head.Length);$stream.Write($body,0,$body.Length);continue
+                    }
+                    $path=Join-Path $root $name
+                    $bytes=[IO.File]::ReadAllBytes($path)
+                    $type=if($name.EndsWith(".xml")){"application/rss+xml"}else{"application/octet-stream"}
+                    $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 200 OK`r`nContent-Type: $type`r`nContent-Length: $($bytes.Length)`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n")
+                    $stream.Write($head,0,$head.Length)
+                    if($method -eq "GET") { $stream.Write($bytes,0,$bytes.Length) }
+                    $stream.Flush()
+                } finally { $client.Dispose() }
+            }
+        } finally { $listener.Stop() }
+    }
+
+    Start-Sleep -Milliseconds 500
+    if ($serverJob.State -ne "Running") {
+        Receive-Job $serverJob -Keep | Out-String | Write-Host
+        throw "Servidor localhost não iniciou."
+    }
+
+    # Não altere o cliente instalado até provar que o servidor responde de verdade.
+    $probeFeed = Invoke-WebRequest -UseBasicParsing -Uri $LocalFeed -TimeoutSec 5
+    if ($probeFeed.StatusCode -ne 200 -or $probeFeed.Content -notmatch '<rss') {
+        throw "Self-test do feed localhost falhou."
+    }
+    $probeSetupUri = "http://127.0.0.1:$Port/IMORTAIS-Combat-Client-Setup-v0.6.0.exe"
+    $probeSetup = Invoke-WebRequest -UseBasicParsing -Uri $probeSetupUri -Method Head -TimeoutSec 10
+    $probeLength = [long]$probeSetup.Headers["Content-Length"]
+    if ($probeSetup.StatusCode -ne 200 -or $probeLength -ne (Get-Item $Setup).Length) {
+        throw "Self-test HEAD do instalador localhost falhou."
+    }
+    Start-Sleep -Milliseconds 250
+    if ($serverJob.State -ne "Running") {
+        $serverOutput = Receive-Job $serverJob -Keep | Out-String
+        throw "Servidor localhost caiu durante o self-test. Saída: $serverOutput"
+    }
+    Write-Host "✅ self-test HTTP do feed e instalador localhost passou." -ForegroundColor Green
+
+    Get-Process "IMORTAIS-Combat-Client" -ErrorAction SilentlyContinue | Stop-Process -Force
+    foreach ($cfg in $configFiles) {
+        $backup = "$($cfg.FullName).v060-rc-backup"
+        Copy-Item -LiteralPath $cfg.FullName -Destination $backup -Force
+        $backups += [pscustomobject]@{Path=$cfg.FullName;Backup=$backup}
+        $txt = Get-Content -LiteralPath $cfg.FullName -Raw
+        $txt = $txt.Replace($ProductionFeed,$LocalFeed)
+        [IO.File]::WriteAllText($cfg.FullName,$txt,(New-Object Text.UTF8Encoding($false)))
+    }
+    Write-Host "✅ feed alterado SOMENTE na instalação local v0.5.9." -ForegroundColor Green
+    Write-Host "✅ feed RC servido somente em 127.0.0.1:$Port." -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Abrindo v0.5.9. No client, use VERIFICAR ATUALIZAÇÃO e aceite v0.6.0." -ForegroundColor Yellow
+    Start-Process -FilePath $InstalledExe
+
+    $deadline=(Get-Date).AddMinutes($TimeoutMinutes)
+    while ((Get-Date) -lt $deadline) {
+        Start-Sleep -Seconds 2
+        if ($serverJob.State -ne "Running") {
+            $serverOutput = Receive-Job $serverJob -Keep | Out-String
+            throw "Servidor localhost caiu durante o teste NetSparkle. Saída: $serverOutput"
+        }
+        $v=Get-Version $InstalledExe
+        if ($v -like "0.6.0*") {
+            $installed=$true
+            break
+        }
+    }
+    if (-not $installed) { throw "Timeout: v0.6.0 não foi instalada em $TimeoutMinutes minutos." }
+
+    Write-Host "✅ instalação atualizada para $(Get-Version $InstalledExe)." -ForegroundColor Green
+    Start-Sleep -Seconds 2
+    $localStillPresent=$false
+    Get-ChildItem -LiteralPath $InstallDir -Filter "*.config" -File | ForEach-Object {
+        if ((Get-Content -LiteralPath $_.FullName -Raw) -like "*127.0.0.1:$Port*") { $localStillPresent=$true }
+    }
+    if ($localStillPresent) { throw "v0.6.0 foi instalada, mas algum config ainda aponta para localhost." }
+    Write-Host "✅ v0.6.0 restaurou o feed normal; localhost não ficou persistido." -ForegroundColor Green
+
+    $relaunchDeadline=(Get-Date).AddSeconds(45)
+    $relaunched=$false
+    while((Get-Date)-lt $relaunchDeadline) {
+        $p=Get-Process "IMORTAIS-Combat-Client" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if($p) {
+            try {
+                if($p.MainModule.FileVersionInfo.FileVersion -like "0.6.0*") { $relaunched=$true; break }
+            } catch {}
+        }
+        Start-Sleep -Seconds 1
+    }
+    if(-not $relaunched) { throw "v0.6.0 foi instalada, mas o relançamento automático não foi confirmado em 45 s." }
+    Write-Host "✅ relançamento automático confirmado em v0.6.0." -ForegroundColor Green
+    $success=$true
+    foreach($b in $backups) {
+        Remove-Item -LiteralPath $b.Backup -Force -ErrorAction SilentlyContinue
+    }
+    Write-Host ""
+    Write-Host "UPDATER RC PASSOU: detecção -> assinatura -> download -> fechamento -> instalação -> relançamento." -ForegroundColor Green
+}
+finally {
+    if ($serverJob) { Stop-Job $serverJob -ErrorAction SilentlyContinue; Remove-Job $serverJob -Force -ErrorAction SilentlyContinue }
+    if (-not $success) {
+        if(-not $installed) {
+            Restore-Configs
+            Write-Host "Configs v0.5.9 restaurados após teste interrompido/falho." -ForegroundColor Yellow
+        } else {
+            Get-ChildItem -LiteralPath $InstallDir -Filter "*.config" -File | ForEach-Object {
+                $txt=Get-Content -LiteralPath $_.FullName -Raw
+                if($txt -like "*127.0.0.1:$Port*") {
+                    $txt=$txt.Replace($LocalFeed,$ProductionFeed)
+                    [IO.File]::WriteAllText($_.FullName,$txt,(New-Object Text.UTF8Encoding($false)))
+                }
+            }
+            Write-Host "v0.6.0 já estava instalada; qualquer URL localhost remanescente foi substituída pelo feed de produção." -ForegroundColor Yellow
+        }
+    }
+}

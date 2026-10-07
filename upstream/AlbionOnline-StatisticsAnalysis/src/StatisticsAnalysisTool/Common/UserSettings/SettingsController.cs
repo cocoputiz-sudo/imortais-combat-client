@@ -64,6 +64,7 @@ public static class SettingsController
 
             CurrentSettings = loaded;
             NormalizeRuntimePaths();
+            await MigrateImortaisSettingsIfNeededAsync().ConfigureAwait(false);
             await MigrateLegacyUserDataIfNeededAsync().ConfigureAwait(false);
             _haveSettingsAlreadyBeenLoaded = true;
 
@@ -85,6 +86,7 @@ public static class SettingsController
 
             CurrentSettings = new SettingsObject();
             NormalizeRuntimePaths();
+            await MigrateImortaisSettingsIfNeededAsync().ConfigureAwait(false);
             await MigrateLegacyUserDataIfNeededAsync().ConfigureAwait(false);
             _haveSettingsAlreadyBeenLoaded = true;
 
@@ -96,6 +98,7 @@ public static class SettingsController
 
             CurrentSettings ??= new SettingsObject();
             NormalizeRuntimePaths();
+            await MigrateImortaisSettingsIfNeededAsync().ConfigureAwait(false);
             await MigrateLegacyUserDataIfNeededAsync().ConfigureAwait(false);
             _haveSettingsAlreadyBeenLoaded = true;
 
@@ -134,6 +137,33 @@ public static class SettingsController
         if (CurrentSettings.StartupUserDataServerLocation is not (ServerLocation.America or ServerLocation.Asia or ServerLocation.Europe))
         {
             CurrentSettings.StartupUserDataServerLocation = ServerLocation.Europe;
+        }
+    }
+
+    private const int CurrentImortaisSettingsSchemaVersion = 1;
+
+    private static async Task MigrateImortaisSettingsIfNeededAsync()
+    {
+        if (CurrentSettings.ImortaisSettingsSchemaVersion >= CurrentImortaisSettingsSchemaVersion)
+        {
+            return;
+        }
+
+        // v0.6.0 é a primeira release pública com Highlights. Builds de teste anteriores
+        // podiam ter persistido GRAVAÇÃO=SIM; não herde isso para a versão estável.
+        // Depois desta migração one-shot, a escolha do usuário volta a ser persistida normalmente.
+        CurrentSettings.IsImortaisBackgroundRecordingEnabled = false;
+        CurrentSettings.ImortaisSettingsSchemaVersion = CurrentImortaisSettingsSchemaVersion;
+
+        var ok = await FileController.SaveAsync(CurrentSettings, SettingsFilePath, ValidateSettings).ConfigureAwait(false);
+        if (!ok)
+        {
+            Log.Warning("Failed to persist IMORTAIS v0.6.0 settings migration.");
+        }
+        else
+        {
+            Log.Information("IMORTAIS settings migrated to schema {Schema}; background recording forced OFF once.",
+                CurrentImortaisSettingsSchemaVersion);
         }
     }
 
