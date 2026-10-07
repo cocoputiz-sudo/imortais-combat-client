@@ -4,8 +4,10 @@ using StatisticsAnalysisTool.Common.UserSettings;
 using StatisticsAnalysisTool.Network.Manager;
 using StatisticsAnalysisTool.ViewModels;
 using StatisticsAnalysisTool.Imortais;
+using StatisticsAnalysisTool.Imortais.Highlights;
 using StatisticsAnalysisTool.Updater;
 using System;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
@@ -27,6 +29,7 @@ public partial class MainWindow
     private readonly DispatcherTimer _imortaisStatusTimer;
     private readonly SystemTrayService _systemTrayService;
     private readonly AlbionGameProcessMonitor _albionGameProcessMonitor;
+    private readonly HighlightRecorderService _highlightRecorder;
 
     public MainWindow(MainWindowViewModel mainWindowViewModel)
     {
@@ -52,12 +55,15 @@ public partial class MainWindow
         ServiceLocator.Register<AlbionGameProcessMonitor>(_albionGameProcessMonitor);
         _albionGameProcessMonitor.GameStarted += AlbionGameProcessMonitor_OnGameStarted;
         _albionGameProcessMonitor.GameStopped += AlbionGameProcessMonitor_OnGameStopped;
+        _highlightRecorder = new HighlightRecorderService();
+        _highlightRecorder.StatusChanged += HighlightRecorder_OnStatusChanged;
         _mainWindowViewModel = mainWindowViewModel;
         DataContext = _mainWindowViewModel;
         Loaded += MainWindow_OnLoaded;
         UpdateApplicationUptime();
         ImortaisEventBridge.Start();
         UpdateImortaisStatus();
+        UpdateImortaisBackgroundRecordingUi();
         _applicationUptimeTimer.Start();
         _imortaisStatusTimer.Start();
     }
@@ -97,6 +103,8 @@ public partial class MainWindow
         _imortaisStatusTimer.Stop();
         _albionGameProcessMonitor.GameStarted -= AlbionGameProcessMonitor_OnGameStarted;
         _albionGameProcessMonitor.GameStopped -= AlbionGameProcessMonitor_OnGameStopped;
+        _highlightRecorder.StatusChanged -= HighlightRecorder_OnStatusChanged;
+        _highlightRecorder.Dispose();
         _albionGameProcessMonitor.Dispose();
         _systemTrayService.Dispose();
         _mainWindowViewModel.DisposeItemDetails();
@@ -109,7 +117,16 @@ public partial class MainWindow
         Loaded -= MainWindow_OnLoaded;
 
         var settings = SettingsController.CurrentSettings;
+        ImortaisHighlightFpsCombo.SelectedIndex = NormalizeHighlightFps(settings.ImortaisHighlightFps) == 30 ? 0 : 1;
         _albionGameProcessMonitor.SetMonitoringEnabled(AlbionGameProcessMonitor.IsMonitoringRequired(settings));
+        if (settings.IsImortaisBackgroundRecordingEnabled)
+        {
+            _highlightRecorder.Enable(
+                NormalizeHighlightFps(settings.ImortaisHighlightFps),
+                settings.IsImortaisAutoSaveAbatesEnabled);
+        }
+        UpdateImortaisBackgroundRecordingUi();
+
         var shouldRemainVisibleForRunningGame = settings.IsOpenWithGameActive
                                                 && _albionGameProcessMonitor.IsGameRunning;
         if (settings.IsStartInSystemTrayActive && !shouldRemainVisibleForRunningGame)
@@ -121,6 +138,12 @@ public partial class MainWindow
     private async void AlbionGameProcessMonitor_OnGameStarted(object sender, EventArgs eventArgs)
     {
         var settings = SettingsController.CurrentSettings;
+        if (settings.IsImortaisBackgroundRecordingEnabled)
+        {
+            _highlightRecorder.OnAlbionStarted(
+                NormalizeHighlightFps(settings.ImortaisHighlightFps),
+                settings.IsImortaisAutoSaveAbatesEnabled);
+        }
         if (settings.IsOpenWithGameActive)
         {
             _systemTrayService.RestoreWindowFromSystemTray();
@@ -146,6 +169,10 @@ public partial class MainWindow
     private void AlbionGameProcessMonitor_OnGameStopped(object sender, EventArgs eventArgs)
     {
         var settings = SettingsController.CurrentSettings;
+        if (settings.IsImortaisBackgroundRecordingEnabled)
+        {
+            _highlightRecorder.OnAlbionStopped();
+        }
         if (settings.IsStopTrackingWithGameActive
             && _mainWindowViewModel.IsTrackingActive
             && ServiceLocator.IsServiceInDictionary<TrackingController>())
@@ -178,7 +205,13 @@ public partial class MainWindow
 
     private void ImortaisStatusTimer_OnTick(object sender, EventArgs e)
     {
+        var settings=SettingsController.CurrentSettings;
+        if(settings.IsImortaisBackgroundRecordingEnabled)
+        {
+            _highlightRecorder.Tick(NormalizeHighlightFps(settings.ImortaisHighlightFps));
+        }
         UpdateImortaisStatus();
+        UpdateImortaisBackgroundRecordingUi();
     }
 
     private void UpdateImortaisStatus()
@@ -302,6 +335,205 @@ public partial class MainWindow
             : status.LastError;
     }
 
+    private static int NormalizeHighlightFps(int fps) => fps == 30 ? 30 : 60;
+
+    private void HighlightRecorder_OnStatusChanged(object sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(UpdateImortaisBackgroundRecordingUi);
+            return;
+        }
+        UpdateImortaisBackgroundRecordingUi();
+    }
+
+    private void UpdateImortaisBackgroundRecordingUi()
+    {
+        if (ImortaisBackgroundRecordingButton == null) return;
+
+        var requested = SettingsController.CurrentSettings.IsImortaisBackgroundRecordingEnabled;
+        var status = _highlightRecorder.Snapshot();
+
+        if (!requested || status.State == HighlightRecorderService.RecorderState.Disabled)
+        {
+            ImortaisBackgroundRecordingButton.Content = "GRAVAÇÃO: NÃO";
+            ImortaisBackgroundRecordingButton.Foreground = Brushes.IndianRed;
+        }
+        else if (status.State == HighlightRecorderService.RecorderState.Unavailable)
+        {
+            ImortaisBackgroundRecordingButton.Content = "HIGHLIGHTS INDISPONÍVEIS";
+            ImortaisBackgroundRecordingButton.Foreground = Brushes.IndianRed;
+        }
+        else
+        {
+            ImortaisBackgroundRecordingButton.Content = status.State switch
+            {
+                HighlightRecorderService.RecorderState.Running => "GRAVAÇÃO: SIM",
+                HighlightRecorderService.RecorderState.Starting => "GRAVAÇÃO: INICIANDO",
+                _ => "GRAVAÇÃO: SIM · AGUARDANDO"
+            };
+            ImortaisBackgroundRecordingButton.Foreground =
+                status.State == HighlightRecorderService.RecorderState.Running ? Brushes.LimeGreen : Brushes.Gold;
+        }
+
+        ImortaisBackgroundRecordingButton.ToolTip = status.Message ??
+            (requested ? "Replay buffer habilitado." : "Nenhuma captura ou encoder de highlights está ativo.");
+
+        if(ImortaisAutoSaveAbatesCheckBox!=null)
+        {
+            ImortaisAutoSaveAbatesCheckBox.IsChecked=SettingsController.CurrentSettings.IsImortaisAutoSaveAbatesEnabled;
+            ImortaisAutoSaveAbatesCheckBox.IsEnabled=requested;
+        }
+
+        if (ImortaisHighlightStatusText != null)
+        {
+            var border = status.State == HighlightRecorderService.RecorderState.Running
+                ? status.BorderlessRequestAccepted
+                    ? " · pedido sem borda aceito pela API (confirme visualmente)"
+                    : " · a borda de captura pode permanecer"
+                : string.Empty;
+            var frameError = status.State == HighlightRecorderService.RecorderState.Running
+                             && !string.IsNullOrWhiteSpace(status.LastCaptureError)
+                ? $" · ERRO [{status.LastCaptureErrorStage ?? "FRAME"}]: {status.LastCaptureError}"
+                : string.Empty;
+            var audio = status.State == HighlightRecorderService.RecorderState.Running
+                ? $" · {status.AudioStatus}" +
+                  (string.IsNullOrWhiteSpace(status.AudioError) ? string.Empty : $" (erro: {status.AudioError})")
+                : string.Empty;
+            var recentlySaved=status.LastAutoSavedUtc.HasValue
+                && DateTime.UtcNow-status.LastAutoSavedUtc.Value<TimeSpan.FromSeconds(10);
+            var savedNotice=recentlySaved
+                ? $" · Highlight salvo · {Path.GetFileName(status.LastAutoSavedPath)}"
+                : string.Empty;
+            var autoError=string.IsNullOrWhiteSpace(status.LastAutoSaveError)
+                ? string.Empty
+                : $" · auto-highlight: {status.LastAutoSaveError}";
+            ImortaisHighlightStatusText.Text = (status.Message ?? "Gravação em segundo plano desligada.") + savedNotice + border + audio + frameError + autoError;
+            ImortaisHighlightStatusText.Foreground = !string.IsNullOrEmpty(frameError)
+                ? Brushes.IndianRed
+                : status.State switch
+                {
+                    HighlightRecorderService.RecorderState.Running => Brushes.LightGreen,
+                    HighlightRecorderService.RecorderState.Unavailable => Brushes.IndianRed,
+                    HighlightRecorderService.RecorderState.Disabled => Brushes.LightSlateGray,
+                    _ => Brushes.Gold
+                };
+        }
+
+        if (ImortaisHighlightMetricsText != null)
+        {
+            var mib = status.BufferBytes / 1024d / 1024d;
+            var encoder = string.IsNullOrWhiteSpace(status.EncoderName) ? "encoder parado" : status.EncoderName;
+            var format = status.Width.HasValue
+                ? $"{status.Width}x{status.Height} · {status.Fps} FPS"
+                : $"{NormalizeHighlightFps(SettingsController.CurrentSettings.ImortaisHighlightFps)} FPS";
+            var audioMib = status.AudioBytes / 1024d / 1024d;
+            ImortaisHighlightMetricsText.Text =
+                $"Buffer: {status.BufferedDuration.TotalSeconds:0.0}s / 150s · {mib:0.0} MiB / 192 MiB · {format} · {encoder} · frames {status.FramesAccepted} / descartados {status.FramesSkipped} · keyframes {status.CleanPoints} · áudio {status.AudioBufferedDuration.TotalSeconds:0.0}s / {audioMib:0.0} MiB";
+        }
+
+        if(ImortaisHighlightMetricsText!=null)
+        {
+            ImortaisHighlightMetricsText.Text +=
+                $" · auto gatilhos {status.AutoTriggersReceived} / salvos {status.AutoClipsSaved} / fila {status.AutoQueueCurrent}";
+        }
+
+        if (ImortaisSaveTestReplayButton != null)
+        {
+            ImortaisSaveTestReplayButton.IsEnabled = status.State == HighlightRecorderService.RecorderState.Running
+                                                     && status.BufferedDuration >= TimeSpan.FromSeconds(2);
+        }
+    }
+
+    private async void ImortaisBackgroundRecording_Click(object sender, RoutedEventArgs e)
+    {
+        if (ImortaisBackgroundRecordingButton == null) return;
+
+        ImortaisBackgroundRecordingButton.IsEnabled = false;
+        try
+        {
+            var settings = SettingsController.CurrentSettings;
+            settings.IsImortaisBackgroundRecordingEnabled = !settings.IsImortaisBackgroundRecordingEnabled;
+
+            if (settings.IsImortaisBackgroundRecordingEnabled)
+            {
+                _albionGameProcessMonitor.SetMonitoringEnabled(true);
+                _highlightRecorder.Enable(
+                    NormalizeHighlightFps(settings.ImortaisHighlightFps),
+                    settings.IsImortaisAutoSaveAbatesEnabled);
+            }
+            else
+            {
+                _highlightRecorder.Disable();
+            }
+
+            await SettingsController.SaveSettingsAsync();
+            _albionGameProcessMonitor.SetMonitoringEnabled(AlbionGameProcessMonitor.IsMonitoringRequired(settings));
+        }
+        finally
+        {
+            UpdateImortaisBackgroundRecordingUi();
+            ImortaisBackgroundRecordingButton.IsEnabled = true;
+        }
+    }
+
+    private async void ImortaisAutoSaveOption_Click(object sender,RoutedEventArgs e)
+    {
+        var settings=SettingsController.CurrentSettings;
+        settings.IsImortaisAutoSaveAbatesEnabled=ImortaisAutoSaveAbatesCheckBox?.IsChecked!=false;
+        _highlightRecorder.UpdateTriggerOptions(settings.IsImortaisAutoSaveAbatesEnabled);
+        await SettingsController.SaveSettingsAsync();
+        UpdateImortaisBackgroundRecordingUi();
+    }
+
+    private async void ImortaisHighlightFps_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_highlightRecorder == null || ImortaisHighlightFpsCombo?.SelectedItem is not System.Windows.Controls.ComboBoxItem item)
+        {
+            return;
+        }
+
+        if (!int.TryParse(item.Tag?.ToString(), out var fps)) return;
+        fps = NormalizeHighlightFps(fps);
+        var settings = SettingsController.CurrentSettings;
+        if (NormalizeHighlightFps(settings.ImortaisHighlightFps) == fps) return;
+
+        settings.ImortaisHighlightFps = fps;
+        await SettingsController.SaveSettingsAsync();
+
+        if (settings.IsImortaisBackgroundRecordingEnabled)
+        {
+            _highlightRecorder.Disable();
+            _highlightRecorder.Enable(
+                fps,
+                settings.IsImortaisAutoSaveAbatesEnabled);
+        }
+        UpdateImortaisBackgroundRecordingUi();
+    }
+
+    private async void ImortaisSaveTestReplay_Click(object sender, RoutedEventArgs e)
+    {
+        if (ImortaisSaveTestReplayButton == null) return;
+        ImortaisSaveTestReplayButton.IsEnabled = false;
+        try
+        {
+            ImortaisHighlightStatusText.Text = "Salvando replay de teste…";
+            ImortaisHighlightStatusText.Foreground = Brushes.Gold;
+            var path = await _highlightRecorder.SaveTestReplayAsync();
+            ImortaisHighlightStatusText.Text = "Replay salvo: " + path;
+            ImortaisHighlightStatusText.Foreground = Brushes.LimeGreen;
+        }
+        catch (Exception ex)
+        {
+            ImortaisHighlightStatusText.Text = "Falha ao salvar replay: " + ex.Message;
+            ImortaisHighlightStatusText.Foreground = Brushes.IndianRed;
+        }
+        finally
+        {
+            UpdateImortaisBackgroundRecordingUi();
+        }
+    }
+
     private async void ImortaisPairing_Click(object sender, RoutedEventArgs e)
     {
         var code = ImortaisPairingCodeTextBox?.Text?.Trim() ?? string.Empty;
@@ -384,6 +616,25 @@ public partial class MainWindow
         builder.AppendLine($"Party snapshots repetidos ignorados: {status.PartySnapshotDeduplicatedCount}");
         builder.AppendLine($"Último heartbeat enfileirado: {(status.LastHeartbeatEnqueuedUtc.HasValue ? status.LastHeartbeatEnqueuedUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Albion detectado: {(status.GameDetected == true ? "SIM" : status.GameDetected == false ? "NÃO" : "INDEFINIDO")}");
+        builder.AppendLine($"Gravação em segundo plano: {(SettingsController.CurrentSettings.IsImortaisBackgroundRecordingEnabled ? "SIM" : "NÃO")}");
+        var highlight = _highlightRecorder.Snapshot();
+        builder.AppendLine($"Highlights: {highlight.State} · {highlight.BufferedDuration.TotalSeconds:0.0}s · {highlight.BufferBytes / 1024d / 1024d:0.0} MiB · {highlight.Width}x{highlight.Height} · {highlight.Fps} FPS");
+        var gopEfetivo=highlight.EffectiveGopFrames>0?$"{highlight.EffectiveGopFrames} frames/keyframe":"aguardando 2 keyframes";
+        builder.AppendLine($"Encoder highlights: {highlight.EncoderName ?? "nenhum"} · frames {highlight.FramesAccepted} / descartados {highlight.FramesSkipped} · keyframes {highlight.CleanPoints} · GOP efetivo {gopEfetivo} · alvo {highlight.TargetGopFrames?.ToString() ?? "n/d"} · NV12 em uso {highlight.Nv12SurfacesInUse}/{highlight.Nv12PoolCapacity}");
+        var retention=highlight.WgcReceived>0?100d*highlight.EncoderSubmitted/highlight.WgcReceived:0;
+        builder.AppendLine($"Pipeline highlights: WGC recebidos {highlight.WgcReceived} · pacer rejeitou {highlight.PacerRejected} · FrameBusy {highlight.FrameBusyCallbacks} · tamanho mudou {highlight.ContentSizeChanged} · NV12 pool cheio {highlight.Nv12PoolFull} · enviados encoder {highlight.EncoderSubmitted} · codificados {highlight.EncodedSamples}");
+        builder.AppendLine($"FPS highlights (10s): WGC {highlight.WgcFps10s:0.0} · submit {highlight.SubmitFps10s:0.0} · encoded {highlight.EncodedFps10s:0.0} · retenção submit/WGC {retention:0.0}%");
+        builder.AppendLine($"Intervalo WGC (10s): mín {highlight.WgcIntervalMinMs:0.00} ms · médio {highlight.WgcIntervalAverageMs:0.00} ms · máx {highlight.WgcIntervalMaxMs:0.00} ms");
+        builder.AppendLine($"Erros pipeline: WGC_SURFACE {highlight.WgcSurfaceErrors} · BGRA_TO_NV12 {highlight.BgraToNv12Errors} · H264_WRITE_SAMPLE {highlight.H264WriteErrors} · FRAME_PIPELINE {highlight.FramePipelineErrors}");
+        builder.AppendLine($"Auto highlights: gatilhos {highlight.AutoTriggersReceived} · coalescidos {highlight.AutoTriggersCoalesced} · dedup {highlight.AutoTriggersDeduplicated} · pressão desc {highlight.AutoTriggersDroppedPressure} · salvos {highlight.AutoClipsSaved} · falhos {highlight.AutoClipsFailed} · fila atual {highlight.AutoQueueCurrent}");
+        builder.AppendLine($"Pressão highlights: inbox {highlight.TriggerInboxCurrent}/{MaxTriggerInboxForDiagnostics()} (pico {highlight.TriggerInboxPeak}) · snapshots ativos sessão {highlight.ActiveSnapshotOperations} · adiados {highlight.SnapshotPressureDeferrals} · memória snapshots {highlight.DetachedSnapshotBytes/1024d/1024d:0.0} MiB (pico {highlight.DetachedSnapshotPeakBytes/1024d/1024d:0.0} MiB)");
+        builder.AppendLine($"Disco highlights: {highlight.HighlightFolderBytes/1024d/1024d/1024d:0.00} GiB / {highlight.HighlightQuotaBytes/1024d/1024d/1024d:0.00} GiB · tempos saves {highlight.RecentSaveDurations}");
+        builder.AppendLine($"Impacto último save: snapshot {highlight.LastSnapshotMilliseconds:0.0} ms · FrameBusy Δ{highlight.LastSaveFrameBusyDelta} · WGC máx antes {highlight.LastSaveWgcMaxBeforeMs:0.00} ms / depois {highlight.LastSaveWgcMaxAfterMs:0.00} ms");
+        builder.AppendLine($"Áudio highlights: {highlight.AudioStatus} · {highlight.AudioBufferedDuration.TotalSeconds:0.0}s · {highlight.AudioBytes / 1024d / 1024d:0.0} MiB · pacotes {highlight.AudioPackets} · lacunas detectadas {highlight.AudioGapsDetected}" +
+                           (string.IsNullOrWhiteSpace(highlight.AudioError) ? string.Empty : $" · erro {highlight.AudioError}"));
+        builder.AppendLine($"Borda highlights: API={(highlight.BorderPropertyAvailable ? "SIM" : "NÃO")} · pedido sem borda={(highlight.BorderlessRequestAccepted ? "ACEITO" : "NÃO/INDISPONÍVEL")}");
+        builder.AppendLine($"Último replay: {highlight.LastSavedPath ?? "nenhum"}");
+        builder.AppendLine($"Último erro highlights: {(highlight.LastCaptureError is null ? "nenhum" : $"[{highlight.LastCaptureErrorStage ?? "FRAME"}] {highlight.LastCaptureError}")}");
         builder.AppendLine($"Guild Presence: {status.GuildPresenceProbeCount} eventos / {status.GuildPresenceDistinctPlayers} jogadores distintos / último {(status.LastGuildPresenceProbeAtUtc.HasValue ? status.LastGuildPresenceProbeAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Último contato: {(status.LastSuccessfulContactUtc.HasValue ? status.LastSuccessfulContactUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Outbox: {status.PendingEvents} eventos / {FormatByteCount(status.PendingBytes)}");
@@ -402,6 +653,8 @@ public partial class MainWindow
             MessageBoxButton.OK,
             MessageBoxImage.Information);
     }
+
+    private static int MaxTriggerInboxForDiagnostics()=>512;
 
     private static string GetCombatClientVersion()
     {

@@ -35,7 +35,8 @@ public sealed class AlbionGameProcessMonitor : IDisposable
         return settings.IsOpenWithGameActive
                || settings.IsHideWithGameActive
                || settings.IsStartTrackingWithGameActive
-               || settings.IsStopTrackingWithGameActive;
+               || settings.IsStopTrackingWithGameActive
+               || settings.IsImortaisBackgroundRecordingEnabled;
     }
 
     public void SetMonitoringEnabled(bool isEnabled)
