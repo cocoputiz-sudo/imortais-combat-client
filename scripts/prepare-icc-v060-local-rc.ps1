@@ -75,14 +75,18 @@ $vi = (Get-Item $Exe).VersionInfo
 if ($vi.FileVersion -notlike "0.6.0*") { throw "RC ZIP não contém FileVersion 0.6.0: $($vi.FileVersion)" }
 
 $iss = Join-Path $Work "icc-v060-local-rc.iss"
-$appEsc = $AppDir.Replace('\','\\')
-$outEsc = $OutDir.Replace('\','\\')
-$icon = Join-Path $AppDir "imortais-icon.ico"
-$iconEsc = $icon.Replace('\','\\')
+# O publish self-contained não carrega imortais-icon.ico (CopyToOutputDirectory=Never).
+# A RC local usa o ícone padrão do Inno; o instalador oficial continua usando o ícone
+# do repositório pelo publi-icc-v060.ps1.
+$appEsc = $AppDir.Replace('"','""')
+$outEsc = $OutDir.Replace('"','""')
 $issText = @"
 #define AppName "IMORTAIS Combat Client"
 #define AppVersion "$Version"
+#define AppVersionInfo "0.6.0.0"
 #define AppExe "IMORTAIS-Combat-Client.exe"
+#define AppSource "$appEsc"
+#define InstallerOutput "$outEsc"
 [Setup]
 AppId={{D842B071-73EA-42BF-B36E-3FD6C2F1A940}
 AppName={#AppName}
@@ -94,19 +98,20 @@ DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
-OutputDir=$outEsc
+OutputDir={#InstallerOutput}
 OutputBaseFilename=IMORTAIS-Combat-Client-Setup-v$Version
-SetupIconFile=$iconEsc
 UninstallDisplayIcon={app}\{#AppExe}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName=IMORTAIS Combat Client
+VersionInfoVersion={#AppVersionInfo}
+VersionInfoProductVersion={#AppVersionInfo}
 AppMutex=IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940
 CloseApplications=no
 RestartApplications=no
 [Files]
-Source: "$appEsc\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#AppSource}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 [Icons]
 Name: "{autoprograms}\IMORTAIS Combat Client"; Filename: "{app}\{#AppExe}"
 [Run]

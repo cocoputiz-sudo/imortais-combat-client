@@ -117,6 +117,8 @@ jobs:
           if ($productionFeedText -match 'v0\.6\.0' -or $productionFeedText -notmatch 'v0\.5\.9') { throw "Production feed must remain on v0.5.9 during RC preparation." }
           if ($readmeText -notmatch 'Versão publicada atual:\*\* v0\.5\.9') { throw "README must keep v0.5.9 as the published version before release approval." }
           if ($rcPrepare -notmatch '127\.0\.0\.1' -or $rcTest -notmatch '127\.0\.0\.1') { throw "RC localhost helpers must stay loopback-only." }
+          if ($rcPrepare -match 'SetupIconFile=\$iconEsc' -or $rcPrepare -match 'Join-Path \$AppDir "imortais-icon\.ico"') { throw "RC helper must not depend on imortais-icon.ico from publish output." }
+          if ($rcPrepare -notmatch '#define AppSource' -or $rcPrepare -notmatch '#define InstallerOutput') { throw "RC helper must quote source/output paths through Inno preprocessor constants." }
           if ($rcTest -notmatch '\.signature' -or $rcTest -notmatch '--verify') { throw "RC helper must verify XML .signature before testing." }
           if ($updater -notmatch 'ShouldKillParentProcessWhenStartingInstaller\s*=\s*true') { throw "Updater does not explicitly wait for client shutdown before installer handoff." }
           if ($installerIss -notmatch '#define MyAppExeName "IMORTAIS-Combat-Client\.exe"') { throw "Legacy installer still targets the upstream executable." }
