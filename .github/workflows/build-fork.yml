@@ -122,6 +122,7 @@ jobs:
           if ($rcTest -notmatch '\.signature' -or $rcTest -notmatch '--verify') { throw "RC helper must verify XML .signature before testing." }
           if ($rcTest -notmatch 'Invoke-WebRequest.*\$LocalFeed' -or $rcTest -notmatch 'self-test HTTP') { throw "RC helper must self-probe localhost before changing installed config." }
           if ($rcTest -notmatch '\^\(GET\|HEAD\)' -or $rcTest -notmatch '-Method Head') { throw "RC localhost server/self-test must support HTTP HEAD." }
+          if ($rcTest -notmatch 'config de tentativa RC anterior restaurado' -or $rcTest -notmatch '\.v060-rc-backup') { throw "RC helper must recover interrupted prior local-feed attempts." }
           if ($rcTest -match '\$stream\.Write\(\$head\);' -or $rcTest -match '\$stream\.Write\(\$bytes\)') { throw "RC localhost server must use explicit buffer offset/count writes." }
           if ($updater -notmatch 'ShouldKillParentProcessWhenStartingInstaller\s*=\s*true') { throw "Updater does not explicitly wait for client shutdown before installer handoff." }
           if ($installerIss -notmatch '#define MyAppExeName "IMORTAIS-Combat-Client\.exe"') { throw "Legacy installer still targets the upstream executable." }

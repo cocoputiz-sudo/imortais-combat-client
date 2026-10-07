@@ -77,6 +77,18 @@ Write-Host "✅ SHA-256 do instalador confere." -ForegroundColor Green
 $installedVersion = Get-Version $InstalledExe
 if ($installedVersion -notlike "0.5.9*") { throw "A máquina de teste precisa começar em v0.5.9. Encontrado: $installedVersion" }
 
+# Recupera automaticamente uma tentativa RC anterior interrompida antes de procurar o feed.
+Get-ChildItem -LiteralPath $InstallDir -Filter "*.config.v060-rc-backup" -File -ErrorAction SilentlyContinue | ForEach-Object {
+    $original = $_.FullName.Substring(0,$_.FullName.Length-".v060-rc-backup".Length)
+    if(Test-Path -LiteralPath $original) {
+        $current = Get-Content -LiteralPath $original -Raw
+        if($current -like "*127.0.0.1:*") {
+            Copy-Item -LiteralPath $_.FullName -Destination $original -Force
+            Write-Host "✅ config de tentativa RC anterior restaurado: $original" -ForegroundColor Green
+        }
+    }
+}
+
 $configFiles = Get-ChildItem -LiteralPath $InstallDir -Filter "*.config" -File | Where-Object {
     (Get-Content -LiteralPath $_.FullName -Raw) -like "*$ProductionFeed*"
 }
@@ -198,6 +210,9 @@ try {
     if(-not $relaunched) { throw "v0.6.0 foi instalada, mas o relançamento automático não foi confirmado em 45 s." }
     Write-Host "✅ relançamento automático confirmado em v0.6.0." -ForegroundColor Green
     $success=$true
+    foreach($b in $backups) {
+        Remove-Item -LiteralPath $b.Backup -Force -ErrorAction SilentlyContinue
+    }
     Write-Host ""
     Write-Host "UPDATER RC PASSOU: detecção -> assinatura -> download -> fechamento -> instalação -> relançamento." -ForegroundColor Green
 }
