@@ -2,13 +2,13 @@
 <rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
   <channel>
     <title>IMORTAIS Combat Client</title>
-    <description>Atualizações oficiais do IMORTAIS Combat Client.</description>
+    <description>AtualizaÃ§Ãµes oficiais do IMORTAIS Combat Client.</description>
     <language>pt-BR</language>
     <item>
-      <title>IMORTAIS Combat Client v0.5.9</title>
-      <description><![CDATA[<a href="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.5.9">Ver notas completas da versão no GitHub</a>]]></description>
-      <pubDate>Mon, 05 Oct 2026 13:27:19 GMT</pubDate>
-      <enclosure url="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.5.9/IMORTAIS-Combat-Client-Setup-v0.5.9.exe" sparkle:version="0.5.9" sparkle:shortVersionString="0.5.9" sparkle:os="windows-x64" length="112803061" type="application/octet-stream" sparkle:edSignature="qoJledqjKg20uWtFT4Fcqtz8F6MaNz7kHRdFOoUzQsXwRRLgMVruji3jWxzvmeaw+5mVS39Nz+HkEaPMetxGCA==" sparkle:signature="qoJledqjKg20uWtFT4Fcqtz8F6MaNz7kHRdFOoUzQsXwRRLgMVruji3jWxzvmeaw+5mVS39Nz+HkEaPMetxGCA==" />
+      <title>IMORTAIS Combat Client v0.6.0</title>
+      <description><![CDATA[<a href="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.6.0">Ver notas completas da versÃ£o no GitHub</a>]]></description>
+      <pubDate>Wed, 07 Oct 2026 20:49:31 GMT</pubDate>
+      <enclosure url="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.0/IMORTAIS-Combat-Client-Setup-v0.6.0.exe" sparkle:version="0.6.0" sparkle:shortVersionString="0.6.0" sparkle:os="windows-x64" length="113630038" type="application/octet-stream" sparkle:edSignature="EvkVgevtosBgRIlgiYm2oYwRE/wnP2ZKHlFMZknYQkZjjzo+SdVeK/nTe1V0tyj5OnqP3uERe0nr8A8ACD8EAA==" sparkle:signature="EvkVgevtosBgRIlgiYm2oYwRE/wnP2ZKHlFMZknYQkZjjzo+SdVeK/nTe1V0tyj5OnqP3uERe0nr8A8ACD8EAA==" />
     </item>
   </channel>
 </rss>
