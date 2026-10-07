@@ -46,6 +46,9 @@ public static class ImortaisEventBridge
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan PlayerPresenceSnapshotInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan ContextRefreshInterval = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan InitialIngestRetryDelay = TimeSpan.FromSeconds(2);
+    private static readonly TimeSpan MaxIngestRetryDelay = TimeSpan.FromSeconds(60);
     private const string ClientVersion = "0.5.9";
     private const string PartySnapshotFingerprintKey = "party";
 
@@ -65,6 +68,7 @@ public static class ImortaisEventBridge
     private static DateTime? _lastPartySnapshotAtUtc;
     private static int _lastPartyMemberCount;
     private static DateTime _lastHeartbeatEnqueuedUtc = DateTime.MinValue;
+    private static DateTime _lastContextRefreshAttemptUtc = DateTime.MinValue;
     private static DateTime _lastPlayerPresenceSnapshotEnqueuedUtc = DateTime.MinValue;
     private static string? _currentPresenceCluster;
     private static int _gameDetectedState = -1;
@@ -124,6 +128,7 @@ public static class ImortaisEventBridge
     public static void ReloadConfig()
     {
         _config = ImortaisTelemetryConfig.Load();
+        _lastContextRefreshAttemptUtc = DateTime.MinValue;
         ResetOutboxState();
         EnsureStarted();
     }
@@ -720,6 +725,21 @@ public static class ImortaisEventBridge
         }
     }
 
+    private static async Task RefreshContextIfDueAsync(CancellationToken token)
+    {
+        var now = DateTime.UtcNow;
+        if (now - _lastContextRefreshAttemptUtc < ContextRefreshInterval) return;
+
+        _lastContextRefreshAttemptUtc = now;
+        await RefreshContextAsync(token);
+    }
+
+    private static TimeSpan NextIngestRetryDelay(TimeSpan current)
+    {
+        var nextSeconds = Math.Min(MaxIngestRetryDelay.TotalSeconds, current.TotalSeconds * 2);
+        return TimeSpan.FromSeconds(Math.Max(InitialIngestRetryDelay.TotalSeconds, nextSeconds));
+    }
+
     private static async Task RefreshContextAsync(CancellationToken token)
     {
         if (!_config.Enabled
@@ -744,7 +764,11 @@ public static class ImortaisEventBridge
 
             if (!response.IsSuccessStatusCode)
             {
-                SetConnectionState(false, $"War Room HTTP {(int)response.StatusCode}");
+                SetConnectionState(
+                    false,
+                    response.StatusCode == System.Net.HttpStatusCode.Unauthorized
+                        ? "War Room HTTP 401 · reative o client"
+                        : $"War Room HTTP {(int)response.StatusCode}");
                 return;
             }
 
@@ -873,12 +897,15 @@ public static class ImortaisEventBridge
 
     private static async Task WorkerAsync(CancellationToken token)
     {
+        var ingestRetryDelay = InitialIngestRetryDelay;
+        string? blockedAgentKey = null;
+
         while (!token.IsCancellationRequested)
         {
             try
             {
                 await Task.Delay(Math.Max(250, _config.BatchIntervalMs), token);
-                await RefreshContextAsync(token);
+                await RefreshContextIfDueAsync(token);
                 FlushCombatAccumulators();
                 TryEnqueueHeartbeat();
                 TryEnqueuePlayerPresenceSnapshot();
@@ -894,6 +921,17 @@ public static class ImortaisEventBridge
                     || string.IsNullOrWhiteSpace(_config.ServerUrl))
                 {
                     continue;
+                }
+
+                if (!string.IsNullOrWhiteSpace(blockedAgentKey))
+                {
+                    if (string.Equals(blockedAgentKey, _config.AgentKey, StringComparison.Ordinal))
+                    {
+                        continue;
+                    }
+
+                    blockedAgentKey = null;
+                    ingestRetryDelay = InitialIngestRetryDelay;
                 }
 
                 var batch = await ReadOutboxHeadAsync(Math.Max(1, _config.MaxBatchSize), token);
@@ -916,30 +954,59 @@ public static class ImortaisEventBridge
                     events = batch
                 });
 
-                using var response = await Http.SendAsync(req, token);
-                if (!response.IsSuccessStatusCode)
+                HttpResponseMessage response;
+                try
                 {
-                    SetConnectionState(false, $"Ingest HTTP {(int)response.StatusCode}");
-                    await Task.Delay(2000, token);
+                    response = await Http.SendAsync(req, token);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (Exception e)
+                {
+                    SetConnectionState(false, $"Ingest: {e.Message}");
+                    await Task.Delay(ingestRetryDelay, token);
+                    ingestRetryDelay = NextIngestRetryDelay(ingestRetryDelay);
                     continue;
                 }
 
-                try
+                using (response)
                 {
-                    var responseJson = await response.Content.ReadAsStringAsync(token);
-                    using var responseDoc = JsonDocument.Parse(responseJson);
-                    if (responseDoc.RootElement.TryGetProperty("ctaEventId", out var ctaProp))
+                    if (!response.IsSuccessStatusCode)
                     {
-                        var resolvedId = ctaProp.ValueKind == JsonValueKind.String
-                            ? ctaProp.GetString()
-                            : ctaProp.ToString();
-                        if (!string.IsNullOrWhiteSpace(resolvedId))
-                            SetCtaContext(resolvedId, _activeCtaTime);
+                        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                        {
+                            blockedAgentKey = _config.AgentKey;
+                            SetConnectionState(false, "Ingest HTTP 401 · reative o client");
+                            continue;
+                        }
+
+                        SetConnectionState(false, $"Ingest HTTP {(int)response.StatusCode}");
+                        await Task.Delay(ingestRetryDelay, token);
+                        ingestRetryDelay = NextIngestRetryDelay(ingestRetryDelay);
+                        continue;
                     }
-                }
-                catch
-                {
-                    // O envio foi aceito; falha ao ler o corpo não invalida a conexão.
+
+                    ingestRetryDelay = InitialIngestRetryDelay;
+
+                    try
+                    {
+                        var responseJson = await response.Content.ReadAsStringAsync(token);
+                        using var responseDoc = JsonDocument.Parse(responseJson);
+                        if (responseDoc.RootElement.TryGetProperty("ctaEventId", out var ctaProp))
+                        {
+                            var resolvedId = ctaProp.ValueKind == JsonValueKind.String
+                                ? ctaProp.GetString()
+                                : ctaProp.ToString();
+                            if (!string.IsNullOrWhiteSpace(resolvedId))
+                                SetCtaContext(resolvedId, _activeCtaTime);
+                        }
+                    }
+                    catch
+                    {
+                        // O envio foi aceito; falha ao ler o corpo não invalida a conexão.
+                    }
                 }
 
                 await AcknowledgeOutboxAsync(batch.Select(x => x.EventId), token);
