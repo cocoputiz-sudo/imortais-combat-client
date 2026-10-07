@@ -196,6 +196,7 @@ $SettingsObjectFile = Join-Path $ProjectDir "Common\UserSettings\SettingsObject.
 $HighlightRecorderFile = Join-Path $ProjectDir "Imortais\Highlights\HighlightRecorderService.cs"
 $SettingsControllerFile = Join-Path $ProjectDir "Common\UserSettings\SettingsController.cs"
 $MightProbeHandlerFile = Join-Path $ProjectDir "Network\Handler\ImortaisGuildMightProbeResponseHandler.cs"
+$MightRequestProbeHandlerFile = Join-Path $ProjectDir "Network\Handler\ImortaisGuildMightProbeRequestHandler.cs"
 $NetworkManagerFile = Join-Path $ProjectDir "Network\NetworkManager.cs"
 $NewCharacterHandlerFile = Join-Path $ProjectDir "Network\Handler\NewCharacterEventHandler.cs"
 $LeaveEventHandlerFile = Join-Path $ProjectDir "Network\Handler\LeaveEventHandler.cs"
@@ -207,6 +208,7 @@ $settingsObjectText = [System.IO.File]::ReadAllText($SettingsObjectFile)
 $highlightRecorderText = [System.IO.File]::ReadAllText($HighlightRecorderFile)
 $settingsControllerText = [System.IO.File]::ReadAllText($SettingsControllerFile)
 $mightProbeHandlerText = [System.IO.File]::ReadAllText($MightProbeHandlerFile)
+$mightRequestProbeHandlerText = [System.IO.File]::ReadAllText($MightRequestProbeHandlerFile)
 $networkManagerText = [System.IO.File]::ReadAllText($NetworkManagerFile)
 $newCharacterHandlerText = [System.IO.File]::ReadAllText($NewCharacterHandlerFile)
 $leaveEventHandlerText = [System.IO.File]::ReadAllText($LeaveEventHandlerFile)
@@ -369,9 +371,12 @@ if ($settingsControllerText -notmatch 'MigrateImortaisSettingsIfNeededAsync' -or
     throw "Migração one-shot para GRAVAÇÃO OFF na v0.6.0 não está presente."
 }
 if ($mightProbeHandlerText -notmatch 'GuildMightProbe' -or
+    $mightRequestProbeHandlerText -notmatch 'GuildMightProbe' -or
+    $networkManagerText -notmatch 'ImortaisGuildMightProbeRequestHandler' -or
     $networkManagerText -notmatch 'GetGuildMightCategoryOverview' -or
-    $networkManagerText -notmatch 'GetGuildMightCategoryContribution') {
-    throw "Might Probe experimental não está registrado para Overview/Contribution."
+    $networkManagerText -notmatch 'GetGuildMightCategoryContribution' -or
+    $bridgeText -notmatch '\["direction"\]') {
+    throw "Might Probe request/response não está registrado para Overview/Contribution."
 }
 if ($bridgeText -notmatch 'PersistQueuedEventsAsync') {
     throw "Outbox persistente não encontrada."
@@ -601,7 +606,7 @@ $notes = @"
 - Recurso ainda não medido em ZvZ de grande escala nem em máquinas de baixo desempenho.
 
 ### Might Probe experimental
-- Observa passivamente as respostas `GetGuildMightCategoryOverview` e `GetGuildMightCategoryContribution` quando o próprio jogador abre as telas de Might.
+- Observa passivamente requests e responses de `GetGuildMightCategoryOverview` e `GetGuildMightCategoryContribution` quando o próprio jogador abre as telas de Might.
 - Não envia comandos ao Albion e não adiciona Python/Scapy ou uma segunda captura de rede.
 - Nesta versão o payload é enviado de forma saneada/deduplicada ao War Room para validar o layout real; ranking/SP definitivo ficará para etapa posterior.
 

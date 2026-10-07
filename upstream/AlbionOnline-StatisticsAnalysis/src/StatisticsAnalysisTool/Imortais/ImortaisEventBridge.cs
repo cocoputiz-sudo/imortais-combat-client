@@ -484,9 +484,11 @@ public static class ImortaisEventBridge
         }
     }
 
-    public static void GuildMightProbe(string operationName, int operationCode, IReadOnlyDictionary<byte, object> parameters)
+    public static void GuildMightProbe(string direction, string operationName, int operationCode, IReadOnlyDictionary<byte, object> parameters)
     {
-        if (string.IsNullOrWhiteSpace(operationName) || parameters == null)
+        if ((direction != "request" && direction != "response")
+            || string.IsNullOrWhiteSpace(operationName)
+            || parameters == null)
         {
             return;
         }
@@ -500,20 +502,22 @@ public static class ImortaisEventBridge
 
         var payload = new Dictionary<string, object?>
         {
+            ["direction"] = direction,
             ["operationName"] = operationName,
             ["operationCode"] = operationCode,
             ["parameters"] = normalizedParameters,
-            ["probeVersion"] = 1
+            ["probeVersion"] = 2
         };
 
+        var fingerprintKey = direction + ":" + operationName;
         var fingerprint = JsonSerializer.Serialize(payload);
-        if (LastGuildMightProbePayloads.TryGetValue(operationName, out var previous)
+        if (LastGuildMightProbePayloads.TryGetValue(fingerprintKey, out var previous)
             && string.Equals(previous, fingerprint, StringComparison.Ordinal))
         {
             return;
         }
 
-        LastGuildMightProbePayloads[operationName] = fingerprint;
+        LastGuildMightProbePayloads[fingerprintKey] = fingerprint;
 
         if (Enqueue(new ImortaisTelemetryEvent
             {
@@ -529,7 +533,7 @@ public static class ImortaisEventBridge
                 _lastGuildMightProbeAtUtc = DateTime.UtcNow;
             }
 
-            AddActivity($"MIGHT {operationName} · {normalizedParameters.Count} params");
+            AddActivity($"MIGHT {direction.ToUpperInvariant()} {operationName} · {normalizedParameters.Count} params");
         }
     }
 

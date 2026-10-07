@@ -4,23 +4,23 @@ using System.Threading.Tasks;
 namespace StatisticsAnalysisTool.Network.Handler;
 
 /// <summary>
-/// Probe passivo das respostas de Might da guilda. Não envia operação ao Albion;
-/// apenas observa respostas que o próprio cliente do jogo solicitou.
+/// Probe passivo dos requests de Might da guilda. Não cria nem altera requests:
+/// apenas observa aqueles que o próprio cliente do Albion enviou.
 /// </summary>
-public sealed class ImortaisGuildMightProbeResponseHandler : PacketHandler<ResponsePacket>
+public sealed class ImortaisGuildMightProbeRequestHandler : PacketHandler<RequestPacket>
 {
     private readonly string _operationName;
 
-    public ImortaisGuildMightProbeResponseHandler(OperationCodes operationCode)
+    public ImortaisGuildMightProbeRequestHandler(OperationCodes operationCode)
         : base((int) operationCode)
     {
         _operationName = operationCode.ToString();
     }
 
-    protected override Task OnHandleAsync(ResponsePacket packet)
+    protected override Task OnHandleAsync(RequestPacket packet)
     {
         ImortaisEventBridge.GuildMightProbe(
-            "response",
+            "request",
             _operationName,
             packet.OperationCode,
             packet.Parameters);

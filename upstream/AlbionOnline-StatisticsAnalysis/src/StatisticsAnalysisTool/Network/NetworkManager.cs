@@ -136,6 +136,11 @@ public class NetworkManager
         builder.AddRequestHandler(new LogoutCancelRequestHandler(trackingController));
         builder.AddRequestHandler(new GetGuildAccountLogsRequestHandler(trackingController));
 
+        // IMORTAIS GuildMight experimental: observa também os requests. O ID da
+        // categoria pode existir apenas no request, enquanto nomes/Might vêm na response.
+        builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGuildMightCategoryOverview));
+        builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGuildMightCategoryContribution));
+
         // Response
         // IMORTAIS experimental Might collector. Passivo: somente observa as respostas
         // que o jogo recebe quando o usuário abre Overview/Contribution de Might.
