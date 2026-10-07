@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/Highlights/EncodedSampleRing.cs" Link="EncodedSampleRing.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/Highlights/FramePacer.cs" Link="FramePacer.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/Highlights/PcmAudioRing.cs" Link="PcmAudioRing.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/Highlights/HighlightLogic.cs" Link="HighlightLogic.cs" />
+  </ItemGroup>
+</Project>

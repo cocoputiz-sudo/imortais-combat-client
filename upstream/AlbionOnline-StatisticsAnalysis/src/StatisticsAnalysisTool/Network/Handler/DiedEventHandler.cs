@@ -2,6 +2,7 @@ using StatisticsAnalysisTool.Cluster;
 using StatisticsAnalysisTool.EventLogging;
 using StatisticsAnalysisTool.EventLogging.Notification;
 using StatisticsAnalysisTool.Imortais;
+using StatisticsAnalysisTool.Imortais.Highlights;
 using StatisticsAnalysisTool.Localization;
 using StatisticsAnalysisTool.Models.NetworkModel;
 using StatisticsAnalysisTool.Network.Events;
@@ -16,6 +17,25 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
 {
     protected override async Task OnActionAsync(DiedEvent value)
     {
+        if(value.IsLethal)
+        {
+            var local=trackingController.EntityController.LocalUserData;
+            var localName=local?.Username??string.Empty;
+            var localObjectId=local?.UserObjectId;
+            var personalAbate=
+                (!string.IsNullOrWhiteSpace(localName)&&string.Equals(value.KilledBy,localName,StringComparison.OrdinalIgnoreCase))
+                || (localObjectId.HasValue&&localObjectId.Value!=0&&value.KillerObjectId==localObjectId.Value);
+
+            if(personalAbate)
+            {
+                HighlightTriggerService.Publish(
+                    HighlightTriggerKind.Abate,
+                    value.Died,
+                    value.KilledBy,
+                    HighlightTriggerService.QpcNow100Ns());
+            }
+        }
+
         var relevantToImortais =
             IsImortaisFamilyGuild(value.DiedPlayerGuild)
             || IsImortaisFamilyGuild(value.KilledByGuild)

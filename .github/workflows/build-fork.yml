@@ -26,12 +26,23 @@ jobs:
           $updater = Get-Content "$root\Updater\AutoUpdateController.cs" -Raw
           $mainCode = Get-Content "$root\Views\MainWindow.xaml.cs" -Raw
           $settings = Get-Content "$root\UserControls\SettingsControl.xaml" -Raw
+          $settingsObject = Get-Content "$root\Common\UserSettings\SettingsObject.cs" -Raw
           $appConfig = Get-Content "$root\App.config" -Raw
           $settingsDefinition = Get-Content "$root\Properties\Settings.settings" -Raw
           $settingsDesigner = Get-Content "$root\Properties\Settings.Designer.cs" -Raw
           $releaseScript = Get-Content ".\scripts\publi-icc-v059.ps1" -Raw
           $installerIss = Get-Content ".\upstream\AlbionOnline-StatisticsAnalysis\.github\installers\release-installer.iss" -Raw
           $appCode = Get-Content "$root\App.xaml.cs" -Raw
+          $highlightEncoder = Get-Content "$root\Imortais\Highlights\HardwareH264SinkEncoder.cs" -Raw
+          $highlightAudio = Get-Content "$root\Imortais\Highlights\AlbionProcessAudioCapture.cs" -Raw
+          $highlightPacer = Get-Content "$root\Imortais\Highlights\FramePacer.cs" -Raw
+          $highlightSession = Get-Content "$root\Imortais\Highlights\WindowsHighlightCaptureSession.cs" -Raw
+          $highlightWriter = Get-Content "$root\Imortais\Highlights\Mp4PassthroughWriter.cs" -Raw
+          $highlightPcm = Get-Content "$root\Imortais\Highlights\PcmAudioRing.cs" -Raw
+          $highlightTrigger = Get-Content "$root\Imortais\Highlights\HighlightTriggerService.cs" -Raw
+          $highlightStorage = Get-Content "$root\Imortais\Highlights\HighlightStorageManager.cs" -Raw
+          $highlightRecorder = Get-Content "$root\Imortais\Highlights\HighlightRecorderService.cs" -Raw
+          $diedHandler = Get-Content "$root\Network\Handler\DiedEventHandler.cs" -Raw
 
           if ($main -notmatch '<TabItem Header="IMORTAIS"') { throw "IMORTAIS home tab missing." }
           if ($main.IndexOf('<TabItem Header="IMORTAIS"') -gt $main.IndexOf('DashboardTabVisibility')) { throw "IMORTAIS is not the first visible tab." }
@@ -49,6 +60,34 @@ jobs:
           if ($updater -notmatch 'LastUpdateCheckStatus') { throw "Updater diagnostic state missing." }
           if ($bridge -notmatch 'PendingEvents') { throw "Outbox diagnostics missing from bridge status." }
           if ($main -notmatch 'ImortaisDiagnosticsOutboxText') { throw "IMORTAIS diagnostics panel missing." }
+          if ($main -notmatch 'ImortaisBackgroundRecordingButton') { throw "IMORTAIS background recording toggle missing." }
+          if ($mainCode -notmatch 'ImortaisBackgroundRecording_Click') { throw "IMORTAIS background recording handler missing." }
+          if ($settingsObject -notmatch 'IsImortaisBackgroundRecordingEnabled') { throw "IMORTAIS background recording setting missing." }
+          if ($mainCode -notmatch 'SaveSettingsAsync') { throw "IMORTAIS background recording preference is not persisted." }
+          if ($highlightEncoder -match 'writer\.AddStream\(') { throw "Sample Grabber sink has fixed streams; SinkWriter.AddStream must not be used." }
+          if ($highlightEncoder -notmatch 'GetStreamSinkByIndex\(0\)') { throw "Highlights encoder must reuse the fixed Sample Grabber stream." }
+          if ($highlightEncoder -notmatch 'const int stream\s*=\s*0') { throw "Highlights SinkWriter must address the single fixed stream by zero-based index 0." }
+          if ($highlightAudio -notmatch 'WithProcessLoopback') { throw "Highlights audio must use per-process loopback." }
+          if ($highlightAudio -match 'WithLoopbackCapture|WasapiLoopbackCapture') { throw "Highlights audio must never fall back to global system loopback." }
+          if ($highlightPacer -notmatch 'minimumAcceptInterval100Ns') { throw "Highlights interval pacing guard missing." }
+          if ($highlightPacer -match 'lastAcceptedSlot|slot \* _frameDuration100Ns') { throw "Highlights pacer regressed to fixed-slot timestamp quantization." }
+          if ($highlightSession -notmatch 'while\(true\).*TryGetNextFrame' -and $highlightSession -notmatch 'while\(true\)[\s\S]*TryGetNextFrame') { throw "WGC frame-pool drain loop missing." }
+          if ($highlightSession -notmatch 'SetMultithreadProtected\(true\)') { throw "D3D11 multithread protection missing." }
+          if ($highlightEncoder -notmatch 'CodecBPictureCount,0u') { throw "H.264 B-frames must stay disabled." }
+          if ($highlightEncoder -notmatch 'SetInputMediaType\(stream,inputType,encodingParameters\)') { throw "Explicit encoder parameters missing." }
+          if ($highlightEncoder -notmatch 'CodecLowLatencyMode,true') { throw "H.264 low-latency mode missing." }
+          if ($highlightPcm -notmatch 'TimestampJitterTolerance100Ns=30\*TimeSpan\.TicksPerMillisecond') { throw "PCM timestamp jitter tolerance missing." }
+          if ($diedHandler -notmatch 'HighlightTriggerKind\.Abate' -or $diedHandler -notmatch 'value\.IsLethal') { throw "Marco 2 lethal personal abate hook missing." }
+          if ($diedHandler -match 'HighlightTriggerKind\.Death') { throw "Marco 2 must not autosave local-player deaths." }
+          if ($highlightRecorder -notmatch 'ConcurrentQueue<HighlightTrigger>') { throw "Marco 2 trigger path must remain non-blocking and queued." }
+          if ($highlightRecorder -notmatch 'MaxDetachedSnapshots=2' -or $highlightRecorder -notmatch 'MaxTriggerInbox=512') { throw "Marco 2 bounded pressure guards missing." }
+          if ($highlightSession -notmatch '_snapshotIdle\.Wait\(\)' -or $highlightSession -notmatch 'TryEnterSnapshotOperation') { throw "Snapshot lifetime pinning missing." }
+          if ($highlightSession -notmatch 'Os rings têm locks próprios' -or $highlightSession -notmatch '_activeSnapshotOperations\+\+') { throw "Snapshot copy is not lifetime-pinned outside the lifetime gate." }
+          if ($highlightStorage -notmatch 'DefaultQuotaBytes=10L\*1024\*1024\*1024') { throw "Marco 2 10 GiB quota missing." }
+          if ($highlightStorage -notmatch 'MinimumFreeBytes=1L\*1024\*1024\*1024') { throw "Marco 2 1 GiB free-space guard missing." }
+          if ($mainCode -notmatch 'IsImortaisAutoSaveAbatesEnabled' -or $main -notmatch 'Salvar meus abates') { throw "Marco 2 abate UI option missing." }
+          if ($main -match 'Salvar minhas mortes') { throw "Marco 2 must not expose personal-death autosave yet." }
+          if ($highlightWriter -notmatch 'MFStartup\(true\)' -or $highlightWriter -notmatch 'MFShutdown\(\)') { throw "MP4 writer must own an MFStartup/MFShutdown pair." }
           if ($mainCode -notmatch 'CopyImortaisDiagnostics_Click') { throw "Copy diagnostics action missing." }
           if ($settings -notmatch 'UpdateCheckStatusText') { throw "Settings update check status UI missing." }
           $imortaisFeed = 'https://raw.githubusercontent.com/cocoputiz-sudo/imortais-combat-client/main/upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/imortais-netsparkle-update-check.xml'
@@ -94,6 +133,45 @@ jobs:
             throw "publi-icc-v059.ps1 has PowerShell syntax errors."
           }
 
+      - name: Highlights logic
+        shell: pwsh
+        run: dotnet run --project .\tests\Highlights.LogicTests\Highlights.LogicTests.csproj -c Release
+
       - name: Build fork Release
         shell: pwsh
         run: dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release --no-incremental
+
+      - name: Publish highlights test ZIP
+        shell: pwsh
+        run: |
+          $project = ".\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj"
+          $out = Join-Path $env:RUNNER_TEMP "imortais-highlights-test"
+          $zip = Join-Path $env:RUNNER_TEMP "IMORTAIS-High-M2-Safe-x64.zip"
+          Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $zip -Force -ErrorAction SilentlyContinue
+          dotnet publish $project -c Release -r win-x64 --self-contained true -p:LocalInstallerBuild=true -o $out
+          Compress-Archive -Path "$out\*" -DestinationPath $zip -CompressionLevel Optimal
+          $size = (Get-Item $zip).Length
+          $baseline = 153024966
+          $delta = $size - $baseline
+          $pct = if ($baseline -gt 0) { [math]::Round(($delta / $baseline) * 100, 2) } else { 0 }
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "ZIP_PATH=$zip" >> $env:GITHUB_ENV
+          "HIGHLIGHTS_ZIP_BYTES=$size" >> $env:GITHUB_ENV
+          Write-Host "HIGHLIGHTS_ZIP_BYTES=$size"
+          Write-Host "HIGHLIGHTS_ZIP_DELTA_BYTES=$delta"
+          Write-Host "HIGHLIGHTS_ZIP_DELTA_PCT=$pct"
+          Write-Host "HIGHLIGHTS_ZIP_SHA256=$sha"
+          "### Highlights Marco 2 artifact" >> $env:GITHUB_STEP_SUMMARY
+          "- baseline v0.5.9 ZIP: **$baseline bytes**" >> $env:GITHUB_STEP_SUMMARY
+          "- Marco 2 ZIP: **$size bytes**" >> $env:GITHUB_STEP_SUMMARY
+          "- delta: **$delta bytes ($pct%)**" >> $env:GITHUB_STEP_SUMMARY
+          "- SHA-256: $sha" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload highlights test ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMORTAIS-High-M2-Safe-x64
+          path: ${{ env.ZIP_PATH }}
+          if-no-files-found: error
+          retention-days: 14
