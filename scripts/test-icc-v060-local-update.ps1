@@ -97,12 +97,13 @@ try {
                     $request = $reader.ReadLine()
                     Write-Output ("REQ " + $request)
                     while (($line=$reader.ReadLine()) -ne $null -and $line -ne "") {}
-                    if ($request -notmatch '^GET\s+/([^ ?]+)') {
+                    if ($request -notmatch '^(GET|HEAD)\s+/([^ ?]+)') {
                         $body=[Text.Encoding]::UTF8.GetBytes("method not allowed")
                         $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 405 Method Not Allowed`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
                         $stream.Write($head,0,$head.Length);$stream.Write($body,0,$body.Length);continue
                     }
-                    $name=[Uri]::UnescapeDataString($Matches[1])
+                    $method=$Matches[1]
+                    $name=[Uri]::UnescapeDataString($Matches[2])
                     if ($name -notin @("imortais-netsparkle-v060-rc.xml","imortais-netsparkle-v060-rc.xml.signature","IMORTAIS-Combat-Client-Setup-v0.6.0.exe","IMORTAIS-Combat-Client-Setup-v0.6.0.exe.sha256")) {
                         $body=[Text.Encoding]::UTF8.GetBytes("not found")
                         $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 404 Not Found`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
@@ -112,7 +113,9 @@ try {
                     $bytes=[IO.File]::ReadAllBytes($path)
                     $type=if($name.EndsWith(".xml")){"application/rss+xml"}else{"application/octet-stream"}
                     $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 200 OK`r`nContent-Type: $type`r`nContent-Length: $($bytes.Length)`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n")
-                    $stream.Write($head,0,$head.Length);$stream.Write($bytes,0,$bytes.Length);$stream.Flush()
+                    $stream.Write($head,0,$head.Length)
+                    if($method -eq "GET") { $stream.Write($bytes,0,$bytes.Length) }
+                    $stream.Flush()
                 } finally { $client.Dispose() }
             }
         } finally { $listener.Stop() }
@@ -130,9 +133,10 @@ try {
         throw "Self-test do feed localhost falhou."
     }
     $probeSetupUri = "http://127.0.0.1:$Port/IMORTAIS-Combat-Client-Setup-v0.6.0.exe"
-    $probeSetup = Invoke-WebRequest -UseBasicParsing -Uri $probeSetupUri -Method Get -TimeoutSec 10
-    if ($probeSetup.StatusCode -ne 200 -or $probeSetup.RawContentLength -ne (Get-Item $Setup).Length) {
-        throw "Self-test do instalador localhost falhou."
+    $probeSetup = Invoke-WebRequest -UseBasicParsing -Uri $probeSetupUri -Method Head -TimeoutSec 10
+    $probeLength = [long]$probeSetup.Headers["Content-Length"]
+    if ($probeSetup.StatusCode -ne 200 -or $probeLength -ne (Get-Item $Setup).Length) {
+        throw "Self-test HEAD do instalador localhost falhou."
     }
     Start-Sleep -Milliseconds 250
     if ($serverJob.State -ne "Running") {

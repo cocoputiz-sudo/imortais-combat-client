@@ -121,6 +121,7 @@ jobs:
           if ($rcPrepare -notmatch '#define AppSource' -or $rcPrepare -notmatch '#define InstallerOutput') { throw "RC helper must quote source/output paths through Inno preprocessor constants." }
           if ($rcTest -notmatch '\.signature' -or $rcTest -notmatch '--verify') { throw "RC helper must verify XML .signature before testing." }
           if ($rcTest -notmatch 'Invoke-WebRequest.*\$LocalFeed' -or $rcTest -notmatch 'self-test HTTP') { throw "RC helper must self-probe localhost before changing installed config." }
+          if ($rcTest -notmatch '\^\(GET\|HEAD\)' -or $rcTest -notmatch '-Method Head') { throw "RC localhost server/self-test must support HTTP HEAD." }
           if ($rcTest -match '\$stream\.Write\(\$head\);' -or $rcTest -match '\$stream\.Write\(\$bytes\)') { throw "RC localhost server must use explicit buffer offset/count writes." }
           if ($updater -notmatch 'ShouldKillParentProcessWhenStartingInstaller\s*=\s*true') { throw "Updater does not explicitly wait for client shutdown before installer handoff." }
           if ($installerIss -notmatch '#define MyAppExeName "IMORTAIS-Combat-Client\.exe"') { throw "Legacy installer still targets the upstream executable." }
