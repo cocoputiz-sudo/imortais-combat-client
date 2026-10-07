@@ -24,6 +24,7 @@ $SparkleTool = Join-Path $ToolRoot "netsparkle-generate-appcast.exe"
 $backups = @()
 $serverJob = $null
 $success = $false
+$installed = $false
 
 function Verify-File([string]$Path,[string]$Signature) {
     $out = & $SparkleTool --verify $Path --signature $Signature
@@ -56,10 +57,16 @@ Write-Host "✅ .signature do XML RC verificada." -ForegroundColor Green
 
 [xml]$feedXml = Get-Content -LiteralPath $Feed -Raw
 $enclosure = $feedXml.rss.channel.item.enclosure
-if ($enclosure.url -ne "http://127.0.0.1:$Port/IMORTAIS-Combat-Client-Setup-v0.6.0.exe") { throw "Feed RC não está preso ao loopback esperado." }
-if ($enclosure.version -ne "0.6.0") { throw "Feed RC não anuncia 0.6.0." }
-if ([long]$enclosure.length -ne (Get-Item $Setup).Length) { throw "Length do enclosure não confere." }
-Verify-File $Setup ([string]$enclosure.edSignature)
+$sparkleNs = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+$enclosureUrl = $enclosure.GetAttribute("url")
+$enclosureVersion = $enclosure.GetAttribute("version",$sparkleNs)
+$enclosureLength = $enclosure.GetAttribute("length")
+$installerSignature = $enclosure.GetAttribute("edSignature",$sparkleNs)
+if ($enclosureUrl -ne "http://127.0.0.1:$Port/IMORTAIS-Combat-Client-Setup-v0.6.0.exe") { throw "Feed RC não está preso ao loopback esperado." }
+if ($enclosureVersion -ne "0.6.0") { throw "Feed RC não anuncia 0.6.0." }
+if ([long]$enclosureLength -ne (Get-Item $Setup).Length) { throw "Length do enclosure não confere." }
+if ([string]::IsNullOrWhiteSpace($installerSignature)) { throw "Feed RC não contém sparkle:edSignature." }
+Verify-File $Setup $installerSignature
 Write-Host "✅ assinatura Ed25519 do instalador verificada." -ForegroundColor Green
 
 $expectedHash = (Get-Content -LiteralPath $SetupHashFile -Raw).Trim().ToLowerInvariant()
@@ -136,11 +143,11 @@ try {
         Start-Sleep -Seconds 2
         $v=Get-Version $InstalledExe
         if ($v -like "0.6.0*") {
-            $success=$true
+            $installed=$true
             break
         }
     }
-    if (-not $success) { throw "Timeout: v0.6.0 não foi instalada em $TimeoutMinutes minutos." }
+    if (-not $installed) { throw "Timeout: v0.6.0 não foi instalada em $TimeoutMinutes minutos." }
 
     Write-Host "✅ instalação atualizada para $(Get-Version $InstalledExe)." -ForegroundColor Green
     Start-Sleep -Seconds 2
@@ -150,13 +157,39 @@ try {
     }
     if ($localStillPresent) { throw "v0.6.0 foi instalada, mas algum config ainda aponta para localhost." }
     Write-Host "✅ v0.6.0 restaurou o feed normal; localhost não ficou persistido." -ForegroundColor Green
+
+    $relaunchDeadline=(Get-Date).AddSeconds(45)
+    $relaunched=$false
+    while((Get-Date)-lt $relaunchDeadline) {
+        $p=Get-Process "IMORTAIS-Combat-Client" -ErrorAction SilentlyContinue | Select-Object -First 1
+        if($p) {
+            try {
+                if($p.MainModule.FileVersionInfo.FileVersion -like "0.6.0*") { $relaunched=$true; break }
+            } catch {}
+        }
+        Start-Sleep -Seconds 1
+    }
+    if(-not $relaunched) { throw "v0.6.0 foi instalada, mas o relançamento automático não foi confirmado em 45 s." }
+    Write-Host "✅ relançamento automático confirmado em v0.6.0." -ForegroundColor Green
+    $success=$true
     Write-Host ""
     Write-Host "UPDATER RC PASSOU: detecção -> assinatura -> download -> fechamento -> instalação -> relançamento." -ForegroundColor Green
 }
 finally {
     if ($serverJob) { Stop-Job $serverJob -ErrorAction SilentlyContinue; Remove-Job $serverJob -Force -ErrorAction SilentlyContinue }
     if (-not $success) {
-        Restore-Configs
-        Write-Host "Configs v0.5.9 restaurados após teste interrompido/falho." -ForegroundColor Yellow
+        if(-not $installed) {
+            Restore-Configs
+            Write-Host "Configs v0.5.9 restaurados após teste interrompido/falho." -ForegroundColor Yellow
+        } else {
+            Get-ChildItem -LiteralPath $InstallDir -Filter "*.config" -File | ForEach-Object {
+                $txt=Get-Content -LiteralPath $_.FullName -Raw
+                if($txt -like "*127.0.0.1:$Port*") {
+                    $txt=$txt.Replace($LocalFeed,$ProductionFeed)
+                    [IO.File]::WriteAllText($_.FullName,$txt,(New-Object Text.UTF8Encoding($false)))
+                }
+            }
+            Write-Host "v0.6.0 já estava instalada; qualquer URL localhost remanescente foi substituída pelo feed de produção." -ForegroundColor Yellow
+        }
     }
 }

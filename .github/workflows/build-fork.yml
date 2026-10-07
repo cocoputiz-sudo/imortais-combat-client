@@ -189,6 +189,14 @@ jobs:
           $pct = if ($baseline -gt 0) { [math]::Round(($delta / $baseline) * 100, 2) } else { 0 }
           $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           "RC_ZIP_PATH=$zip" >> $env:GITHUB_ENV
+          $package = Join-Path $env:RUNNER_TEMP "v060-rc-package"
+          Remove-Item $package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          Copy-Item $zip (Join-Path $package (Split-Path $zip -Leaf))
+          Copy-Item ".\scripts\prepare-icc-v060-local-rc.ps1" (Join-Path $package "prepare-icc-v060-local-rc.ps1")
+          Copy-Item ".\scripts\test-icc-v060-local-update.ps1" (Join-Path $package "test-icc-v060-local-update.ps1")
+          Copy-Item ".\docs\RC-v0.6.0.md" (Join-Path $package "RC-v0.6.0.md")
+          "RC_PACKAGE_DIR=$package" >> $env:GITHUB_ENV
           "RC_ZIP_BYTES=$size" >> $env:GITHUB_ENV
           Write-Host "RC_ZIP_BYTES=$size"
           Write-Host "RC_ZIP_DELTA_BYTES=$delta"
@@ -204,10 +212,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: IMORTAIS-Combat-Client-v0.6.0-rc-win-x64
-          path: |
-            ${{ env.RC_ZIP_PATH }}
-            scripts/prepare-icc-v060-local-rc.ps1
-            scripts/test-icc-v060-local-update.ps1
-            docs/RC-v0.6.0.md
+          path: ${{ env.RC_PACKAGE_DIR }}\*
           if-no-files-found: error
           retention-days: 14
