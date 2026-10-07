@@ -83,17 +83,6 @@ $configFiles = Get-ChildItem -LiteralPath $InstallDir -Filter "*.config" -File |
 if (-not $configFiles) { throw "Nenhum config instalado contém o feed de produção; não vou alterar outro arquivo por aproximação." }
 
 try {
-    Get-Process "IMORTAIS-Combat-Client" -ErrorAction SilentlyContinue | Stop-Process -Force
-    foreach ($cfg in $configFiles) {
-        $backup = "$($cfg.FullName).v060-rc-backup"
-        Copy-Item -LiteralPath $cfg.FullName -Destination $backup -Force
-        $backups += [pscustomobject]@{Path=$cfg.FullName;Backup=$backup}
-        $txt = Get-Content -LiteralPath $cfg.FullName -Raw
-        $txt = $txt.Replace($ProductionFeed,$LocalFeed)
-        [IO.File]::WriteAllText($cfg.FullName,$txt,(New-Object Text.UTF8Encoding($false)))
-    }
-    Write-Host "✅ feed alterado SOMENTE na instalação local v0.5.9." -ForegroundColor Green
-
     $serverRoot = $Root
     $serverJob = Start-Job -ArgumentList $serverRoot,$Port -ScriptBlock {
         param($root,$port)
@@ -106,23 +95,24 @@ try {
                     $stream = $client.GetStream()
                     $reader = New-Object IO.StreamReader($stream,[Text.Encoding]::ASCII,$false,1024,$true)
                     $request = $reader.ReadLine()
+                    Write-Output ("REQ " + $request)
                     while (($line=$reader.ReadLine()) -ne $null -and $line -ne "") {}
                     if ($request -notmatch '^GET\s+/([^ ?]+)') {
                         $body=[Text.Encoding]::UTF8.GetBytes("method not allowed")
                         $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 405 Method Not Allowed`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
-                        $stream.Write($head);$stream.Write($body);continue
+                        $stream.Write($head,0,$head.Length);$stream.Write($body,0,$body.Length);continue
                     }
                     $name=[Uri]::UnescapeDataString($Matches[1])
                     if ($name -notin @("imortais-netsparkle-v060-rc.xml","imortais-netsparkle-v060-rc.xml.signature","IMORTAIS-Combat-Client-Setup-v0.6.0.exe","IMORTAIS-Combat-Client-Setup-v0.6.0.exe.sha256")) {
                         $body=[Text.Encoding]::UTF8.GetBytes("not found")
                         $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 404 Not Found`r`nContent-Length: $($body.Length)`r`nConnection: close`r`n`r`n")
-                        $stream.Write($head);$stream.Write($body);continue
+                        $stream.Write($head,0,$head.Length);$stream.Write($body,0,$body.Length);continue
                     }
                     $path=Join-Path $root $name
                     $bytes=[IO.File]::ReadAllBytes($path)
                     $type=if($name.EndsWith(".xml")){"application/rss+xml"}else{"application/octet-stream"}
                     $head=[Text.Encoding]::ASCII.GetBytes("HTTP/1.1 200 OK`r`nContent-Type: $type`r`nContent-Length: $($bytes.Length)`r`nCache-Control: no-store`r`nConnection: close`r`n`r`n")
-                    $stream.Write($head);$stream.Write($bytes)
+                    $stream.Write($head,0,$head.Length);$stream.Write($bytes,0,$bytes.Length);$stream.Flush()
                 } finally { $client.Dispose() }
             }
         } finally { $listener.Stop() }
@@ -133,6 +123,34 @@ try {
         Receive-Job $serverJob -Keep | Out-String | Write-Host
         throw "Servidor localhost não iniciou."
     }
+
+    # Não altere o cliente instalado até provar que o servidor responde de verdade.
+    $probeFeed = Invoke-WebRequest -UseBasicParsing -Uri $LocalFeed -TimeoutSec 5
+    if ($probeFeed.StatusCode -ne 200 -or $probeFeed.Content -notmatch '<rss') {
+        throw "Self-test do feed localhost falhou."
+    }
+    $probeSetupUri = "http://127.0.0.1:$Port/IMORTAIS-Combat-Client-Setup-v0.6.0.exe"
+    $probeSetup = Invoke-WebRequest -UseBasicParsing -Uri $probeSetupUri -Method Get -TimeoutSec 10
+    if ($probeSetup.StatusCode -ne 200 -or $probeSetup.RawContentLength -ne (Get-Item $Setup).Length) {
+        throw "Self-test do instalador localhost falhou."
+    }
+    Start-Sleep -Milliseconds 250
+    if ($serverJob.State -ne "Running") {
+        $serverOutput = Receive-Job $serverJob -Keep | Out-String
+        throw "Servidor localhost caiu durante o self-test. Saída: $serverOutput"
+    }
+    Write-Host "✅ self-test HTTP do feed e instalador localhost passou." -ForegroundColor Green
+
+    Get-Process "IMORTAIS-Combat-Client" -ErrorAction SilentlyContinue | Stop-Process -Force
+    foreach ($cfg in $configFiles) {
+        $backup = "$($cfg.FullName).v060-rc-backup"
+        Copy-Item -LiteralPath $cfg.FullName -Destination $backup -Force
+        $backups += [pscustomobject]@{Path=$cfg.FullName;Backup=$backup}
+        $txt = Get-Content -LiteralPath $cfg.FullName -Raw
+        $txt = $txt.Replace($ProductionFeed,$LocalFeed)
+        [IO.File]::WriteAllText($cfg.FullName,$txt,(New-Object Text.UTF8Encoding($false)))
+    }
+    Write-Host "✅ feed alterado SOMENTE na instalação local v0.5.9." -ForegroundColor Green
     Write-Host "✅ feed RC servido somente em 127.0.0.1:$Port." -ForegroundColor Green
     Write-Host ""
     Write-Host "Abrindo v0.5.9. No client, use VERIFICAR ATUALIZAÇÃO e aceite v0.6.0." -ForegroundColor Yellow
@@ -141,6 +159,10 @@ try {
     $deadline=(Get-Date).AddMinutes($TimeoutMinutes)
     while ((Get-Date) -lt $deadline) {
         Start-Sleep -Seconds 2
+        if ($serverJob.State -ne "Running") {
+            $serverOutput = Receive-Job $serverJob -Keep | Out-String
+            throw "Servidor localhost caiu durante o teste NetSparkle. Saída: $serverOutput"
+        }
         $v=Get-Version $InstalledExe
         if ($v -like "0.6.0*") {
             $installed=$true

@@ -120,6 +120,8 @@ jobs:
           if ($rcPrepare -match 'SetupIconFile=\$iconEsc' -or $rcPrepare -match 'Join-Path \$AppDir "imortais-icon\.ico"') { throw "RC helper must not depend on imortais-icon.ico from publish output." }
           if ($rcPrepare -notmatch '#define AppSource' -or $rcPrepare -notmatch '#define InstallerOutput') { throw "RC helper must quote source/output paths through Inno preprocessor constants." }
           if ($rcTest -notmatch '\.signature' -or $rcTest -notmatch '--verify') { throw "RC helper must verify XML .signature before testing." }
+          if ($rcTest -notmatch 'Invoke-WebRequest.*\$LocalFeed' -or $rcTest -notmatch 'self-test HTTP') { throw "RC helper must self-probe localhost before changing installed config." }
+          if ($rcTest -match '\$stream\.Write\(\$head\);' -or $rcTest -match '\$stream\.Write\(\$bytes\)') { throw "RC localhost server must use explicit buffer offset/count writes." }
           if ($updater -notmatch 'ShouldKillParentProcessWhenStartingInstaller\s*=\s*true') { throw "Updater does not explicitly wait for client shutdown before installer handoff." }
           if ($installerIss -notmatch '#define MyAppExeName "IMORTAIS-Combat-Client\.exe"') { throw "Legacy installer still targets the upstream executable." }
           if ($appCode -notmatch 'IMORTAISCombatClient_D842B07173EA42BFB36E3FD6C2F1A940') { throw "Application mutex for installer detection is missing." }
