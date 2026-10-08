@@ -629,7 +629,7 @@ public static class ImortaisEventBridge
         switch (value)
         {
             case string text:
-                return text.Length <= 512 ? text : text[..512];
+                return fullBinary || text.Length <= 512 ? text : text[..512];
             case bool:
             case byte:
             case sbyte:
@@ -696,7 +696,7 @@ public static class ImortaisEventBridge
             default:
             {
                 var text = value.ToString() ?? value.GetType().FullName ?? "unknown";
-                return text.Length <= 512 ? text : text[..512];
+                return fullBinary || text.Length <= 512 ? text : text[..512];
             }
         }
     }
