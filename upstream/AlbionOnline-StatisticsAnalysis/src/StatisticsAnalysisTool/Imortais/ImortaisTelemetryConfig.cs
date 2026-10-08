@@ -10,6 +10,8 @@ public sealed class ImortaisTelemetryConfig
     public const long DefaultMaxOutboxBytes = 50L * 1024 * 1024;
 
     public bool Enabled { get; set; } = false;
+    // Opt-in: write raw decoded Photon guild probes locally instead of sending those probes.
+    public bool GuildProbeLocalDiagnosticsEnabled { get; set; } = false;
     public string ServerUrl { get; set; } = "https://cta-imortais.up.railway.app";
     public string AgentKey { get; set; } = string.Empty;
     public string DeviceId { get; set; } = Environment.MachineName;
