@@ -403,17 +403,35 @@
                                                    Foreground="{StaticResource SolidColorBrush.Text.3}" />
                                     </StackPanel>
 
-                                    <StackPanel Grid.Row="12" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,14,0,0">
-                                        <Button x:Name="ImortaisCheckForUpdateButton"
-                                                Content="VERIFICAR ATUALIZAÇÃO"
-                                                Height="34"
-                                                MinWidth="180"
-                                                Margin="0,0,10,0"
-                                                Click="ImortaisCheckForUpdate_Click" />
-                                        <Button Content="COPIAR DIAGNÓSTICO"
-                                                Height="34"
-                                                MinWidth="170"
-                                                Click="CopyImortaisDiagnostics_Click" />
+                                    <StackPanel Grid.Row="12" Grid.ColumnSpan="2" Margin="0,14,0,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button x:Name="ImortaisCheckForUpdateButton"
+                                                    Content="VERIFICAR ATUALIZAÇÃO"
+                                                    Height="34"
+                                                    MinWidth="180"
+                                                    Margin="0,0,10,0"
+                                                    Click="ImortaisCheckForUpdate_Click" />
+                                            <Button Content="COPIAR DIAGNÓSTICO"
+                                                    Height="34"
+                                                    MinWidth="170"
+                                                    Click="CopyImortaisDiagnostics_Click" />
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                            <Button x:Name="ImortaisGuildDumpToggleButton"
+                                                    Content="GUILD DUMPS: DESLIGADO"
+                                                    Height="34"
+                                                    MinWidth="185"
+                                                    Margin="0,0,10,0"
+                                                    ToolTip="Captura local de Might e Guild Challenge, sem envio desses dados ao War Room"
+                                                    Click="ImortaisGuildDumpToggle_Click" />
+                                            <Button Content="ABRIR PASTA DE DUMPS"
+                                                    Height="34"
+                                                    MinWidth="170"
+                                                    Click="ImortaisOpenGuildDumps_Click" />
+                                        </StackPanel>
+                                        <TextBlock Text="Captura local dos rankings de Might e Challenge; desligado por padrão."
+                                                   Margin="0,8,0,0" FontSize="11"
+                                                   Foreground="{StaticResource SolidColorBrush.Text.3}" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
