@@ -126,6 +126,16 @@ jobs:
           if ($settingsObject -notmatch 'ImortaisSettingsSchemaVersion' -or $settingsController -notmatch 'MigrateImortaisSettingsIfNeededAsync') { throw "v0.6.0 one-shot settings migration missing." }
           if ($mightProbeHandler -notmatch 'GuildMightProbe' -or $mightRequestProbeHandler -notmatch 'GuildMightProbe' -or $networkManager -notmatch 'ImortaisGuildMightProbeRequestHandler' -or $networkManager -notmatch 'GetGuildMightCategoryOverview' -or $networkManager -notmatch 'GetGuildMightCategoryContribution') { throw "Might Probe request/response handlers missing." }
           if ($bridge -notmatch 'Type\s*=\s*"guild_might_probe"' -or $bridge -notmatch 'LastGuildMightProbePayloads' -or $bridge -notmatch '\["direction"\]') { throw "Might Probe bridge/dedup/direction missing." }
+          if ($config -notmatch 'GuildProbeLocalDiagnosticsEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*false') { throw "Guild probe local diagnostics must default to OFF." }
+          if ($bridge -notmatch 'WriteGuildProbeLocalDump' -or $bridge -notmatch 'GuildProbeLocalDumpLock') { throw "Local Guild probe writer missing." }
+          if ($bridge -notmatch 'if \(_config\.GuildProbeLocalDiagnosticsEnabled\)[\s\S]*?WriteGuildProbeLocalDump\([\s\S]*?return;') { throw "Guild diagnostic must bypass all network telemetry." }
+          foreach ($op in @('GetGuildChallengePoints','GetGuildMightCategoryOverview','GetGuildMightCategoryContribution')) {
+            if ($networkManager -notmatch ('ImortaisGuildMightProbeRequestHandler\(OperationCodes\.' + $op + '\)') -or
+                $networkManager -notmatch ('ImortaisGuildMightProbeResponseHandler\(OperationCodes\.' + $op + '\)')) {
+              throw "Missing request/response capture for $op."
+            }
+          }
+
           # Feed and README are expected to reflect the already-published stable release.
           # A pull request must never advance the public feed: this step only verifies consistency.
           if ($productionFeedText -notmatch ('sparkle:version="' + $versionRegex + '"')) { throw "Current stable feed does not match .csproj version." }
