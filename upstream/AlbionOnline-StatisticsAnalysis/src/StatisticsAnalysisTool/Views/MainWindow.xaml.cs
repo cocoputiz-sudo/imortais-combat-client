@@ -64,6 +64,7 @@ public partial class MainWindow
         ImortaisEventBridge.Start();
         UpdateImortaisStatus();
         UpdateImortaisBackgroundRecordingUi();
+        UpdateImortaisGuildDumpUi();
         _applicationUptimeTimer.Start();
         _imortaisStatusTimer.Start();
     }
@@ -598,6 +599,63 @@ public partial class MainWindow
         }
     }
 
+    private void UpdateImortaisGuildDumpUi()
+    {
+        if (ImortaisGuildDumpToggleButton == null) return;
+        var enabled = ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled;
+        ImortaisGuildDumpToggleButton.Content = enabled
+            ? "GUILD DUMPS: LIGADO"
+            : "GUILD DUMPS: DESLIGADO";
+        ImortaisGuildDumpToggleButton.Foreground = enabled ? Brushes.LightGreen : Brushes.Gold;
+    }
+
+    private void ImortaisGuildDumpToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var enable = !ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled;
+        if (enable)
+        {
+            var choice = MessageBox.Show(
+                "Ativar diagnóstico LOCAL dos rankings Guild Challenge e Guild Might?\n\n" +
+                "Esses três tipos de pacotes serão escritos somente no disco, sem envio ao War Room. " +
+                "Os arquivos podem conter nomes e identificadores de jogadores.\n\n" +
+                "Clique em ABRIR PASTA DE DUMPS para localizar os arquivos.",
+                "IMORTAIS - diagnóstico de Guilda",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (choice != MessageBoxResult.Yes) return;
+        }
+
+        try
+        {
+            ImortaisEventBridge.SetGuildProbeLocalDiagnosticsEnabled(enable);
+            UpdateImortaisGuildDumpUi();
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show("Não foi possível salvar a opção de diagnóstico: " + error.Message,
+                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void ImortaisOpenGuildDumps_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var directory = Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics");
+            Directory.CreateDirectory(directory);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = directory,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show("Não foi possível abrir a pasta de dumps: " + error.Message,
+                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void CopyImortaisDiagnostics_Click(object sender, RoutedEventArgs e)
     {
         var status = ImortaisEventBridge.GetStatus();
@@ -605,6 +663,7 @@ public partial class MainWindow
         var builder = new StringBuilder();
 
         builder.AppendLine("IMORTAIS COMBAT CLIENT - DIAGNÓSTICO");
+        builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
         builder.AppendLine($"Updater: {AutoUpdateController.LastUpdateCheckStatus}");
         builder.AppendLine($"Última checagem: {(AutoUpdateController.LastUpdateCheckUtc.HasValue ? AutoUpdateController.LastUpdateCheckUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "não realizada")}");
