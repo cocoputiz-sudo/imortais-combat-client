@@ -82,9 +82,23 @@ begin
     VerifyScript := ExpandConstant('{tmp}\verify-icc-owner.ps1');
     PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
     Args := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + VerifyScript + '"';
-    if (not Exec(PowerShellPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ExitCode)) or (ExitCode <> 0) then
+    if not Exec(PowerShellPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
     begin
-      MsgBox('Este teste e reservado ao Combat Client com telemetria pareada ao BadMack. Verifique o pareamento e a conexao com o War Room.', mbError, MB_OK);
+      MsgBox('Nao foi possivel iniciar a validacao do dispositivo no Windows. Nada foi instalado.', mbError, MB_OK);
+      Exit;
+    end;
+    if ExitCode <> 0 then
+    begin
+      case ExitCode of
+        21: MsgBox('Configuracao da telemetria nao encontrada no perfil Windows atual (codigo 21). Abra o Combat Client habitual neste usuario e confirme o pareamento.', mbError, MB_OK);
+        22: MsgBox('Dispositivo ou chave de telemetria ausente (codigo 22). O Combat Client precisa estar pareado com o War Room.', mbError, MB_OK);
+        24: MsgBox('O War Room autenticou o dispositivo, mas o registro nao esta vinculado ao jogador BadMack (codigo 24). A instalacao permanece bloqueada.', mbError, MB_OK);
+        25: MsgBox('Nao foi possivel consultar o War Room com seguranca (codigo 25). Verifique conexao e disponibilidade do servidor.', mbError, MB_OK);
+        26: MsgBox('O War Room recusou a autorizacao do dispositivo (codigo 26). O token pode estar expirado, revogado ou vinculado a outro computador.', mbError, MB_OK);
+        27: MsgBox('O War Room nao retornou a identidade vinculada ao token (codigo 27). O registro precisa ser validado pela staff.', mbError, MB_OK);
+      else
+        MsgBox('Falha de autorizacao do dispositivo (codigo ' + IntToStr(ExitCode) + '). Nada foi instalado.', mbError, MB_OK);
+      end;
       Exit;
     end;
     Result := True;
