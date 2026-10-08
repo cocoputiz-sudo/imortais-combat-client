@@ -39,6 +39,7 @@ public static class ImortaisEventBridge
     private static readonly CancellationTokenSource Cts = new();
     private static readonly object StartLock = new();
     private static readonly object StatusLock = new();
+    private static readonly object GuildProbeLocalDumpLock = new();
     private static readonly object PartySnapshotLock = new();
     private static readonly SemaphoreSlim OutboxLock = new(1, 1);
     private static readonly JsonSerializerOptions OutboxJsonOptions = new()
@@ -493,6 +494,20 @@ public static class ImortaisEventBridge
             return;
         }
 
+        // Diagnostic mode is a strict local-only path for these operations:
+        // no Enqueue, no outbox, no HTTP upload, even if disk I/O fails.
+        if (_config.GuildProbeLocalDiagnosticsEnabled)
+        {
+            WriteGuildProbeLocalDump(direction, operationName, operationCode, parameters);
+            return;
+        }
+
+        // Until real Photon fixtures are validated, Challenge must not be uploaded.
+        if (string.Equals(operationName, "GetGuildChallengePoints", StringComparison.Ordinal))
+        {
+            return;
+        }
+
         var normalizedParameters = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var pair in parameters.OrderBy(x => x.Key).Take(96))
         {
@@ -538,10 +553,78 @@ public static class ImortaisEventBridge
         }
     }
 
-    private static object? SanitizePhotonValue(object? value, int depth, int maxItems = 400)
+
+    private static void WriteGuildProbeLocalDump(
+        string direction,
+        string operationName,
+        int operationCode,
+        IReadOnlyDictionary<byte, object> parameters)
+    {
+        if (operationName != "GetGuildChallengePoints"
+            && operationName != "GetGuildMightCategoryOverview"
+            && operationName != "GetGuildMightCategoryContribution")
+        {
+            return;
+        }
+
+        try
+        {
+            // Decoded but otherwise unfiltered Photon parameters: preserve all parameter
+            // keys, nested dictionaries, parallel arrays, and full binary values locally.
+            var rawParameters = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var pair in parameters.OrderBy(pair => pair.Key))
+            {
+                rawParameters[pair.Key.ToString()] = SanitizePhotonValue(
+                    pair.Value, 0, maxItems: 10000, maxDepth: 16, fullBinary: true);
+            }
+
+            var record = new Dictionary<string, object?>
+            {
+                ["capturedAtUtc"] = DateTime.UtcNow.ToString("O"),
+                ["direction"] = direction,
+                ["operationName"] = operationName,
+                ["operationCode"] = operationCode,
+                ["parameters"] = rawParameters,
+                ["captureSource"] = "local-decoded-photon"
+            };
+            var line = JsonSerializer.Serialize(record) + Environment.NewLine;
+            var directory = Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics");
+            var day = DateTime.UtcNow.ToString("yyyyMMdd");
+            lock (GuildProbeLocalDumpLock)
+            {
+                Directory.CreateDirectory(directory);
+                // The local capture file is rotated at approximately 25 MiB.
+                const long maxFileBytes = 25L * 1024 * 1024;
+                string? filePath = null;
+                for (var index = 0; index < 100; index++)
+                {
+                    var candidate = Path.Combine(directory, $"guild-probes-{day}-{index:D2}.ndjson");
+                    if (!File.Exists(candidate) || new FileInfo(candidate).Length < maxFileBytes)
+                    {
+                        filePath = candidate;
+                        break;
+                    }
+                }
+                if (filePath == null)
+                {
+                    AddActivity("GUILD DIAGNÓSTICO: limite diário de arquivos atingido");
+                    return;
+                }
+                File.AppendAllText(filePath, line, Utf8NoBom);
+            }
+            AddActivity($"GUILD DIAGNÓSTICO LOCAL {direction.ToUpperInvariant()} {operationName}");
+        }
+        catch (Exception e)
+        {
+            // Disk errors never fall back to network telemetry.
+            AddActivity($"GUILD DIAGNÓSTICO: erro de escrita local ({e.GetType().Name})");
+        }
+    }
+
+    private static object? SanitizePhotonValue(object? value, int depth, int maxItems = 400, int maxDepth = 5, bool fullBinary = false)
     {
         if (value == null) return null;
-        if (depth >= 5) return "<max-depth>";
+        if (depth >= maxDepth) return "<max-depth>";
 
         switch (value)
         {
@@ -565,20 +648,17 @@ public static class ImortaisEventBridge
             case DateTime dateTime:
                 return dateTime.ToUniversalTime().ToString("O");
             case byte[] bytes:
-                return new Dictionary<string, object?>
-                {
-                    ["kind"] = "bytes",
-                    ["length"] = bytes.Length,
-                    ["previewBase64"] = Convert.ToBase64String(bytes.Take(64).ToArray())
-                };
+                return fullBinary
+                    ? new Dictionary<string, object?> { ["kind"] = "bytes", ["length"] = bytes.Length, ["base64"] = Convert.ToBase64String(bytes) }
+                    : new Dictionary<string, object?> { ["kind"] = "bytes", ["length"] = bytes.Length, ["previewBase64"] = Convert.ToBase64String(bytes.Take(64).ToArray()) };
             case IDictionary dictionary:
             {
                 var result = new Dictionary<string, object?>(StringComparer.Ordinal);
                 var count = 0;
                 foreach (DictionaryEntry entry in dictionary)
                 {
-                    if (count++ >= 256) break;
-                    result[entry.Key?.ToString() ?? "null"] = SanitizePhotonValue(entry.Value, depth + 1, maxItems);
+                    if (count++ >= (fullBinary ? maxItems : Math.Min(256, maxItems))) break;
+                    result[entry.Key?.ToString() ?? "null"] = SanitizePhotonValue(entry.Value, depth + 1, maxItems, maxDepth, fullBinary);
                 }
                 return result;
             }
@@ -588,7 +668,7 @@ public static class ImortaisEventBridge
                 var count = Math.Min(array.Length, maxItems);
                 for (var i = 0; i < count; i++)
                 {
-                    result.Add(SanitizePhotonValue(array.GetValue(i), depth + 1, maxItems));
+                    result.Add(SanitizePhotonValue(array.GetValue(i), depth + 1, maxItems, maxDepth, fullBinary));
                 }
 
                 if (array.Length > count)
@@ -609,7 +689,7 @@ public static class ImortaisEventBridge
                         result.Add("<truncated>");
                         break;
                     }
-                    result.Add(SanitizePhotonValue(item, depth + 1, maxItems));
+                    result.Add(SanitizePhotonValue(item, depth + 1, maxItems, maxDepth, fullBinary));
                 }
                 return result;
             }
