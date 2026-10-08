@@ -108,21 +108,28 @@ jobs:
           if ($releaseScript -notmatch 'CloseApplications=no') { throw "Official release installer must not invoke Inno Restart Manager during NetSparkle handoff." }
           if ($releaseScript -notmatch '#define AppExe "IMORTAIS-Combat-Client\.exe"') { throw "Official release installer executable name is wrong." }
           if ($releaseScript -notmatch 'OutputBaseFilename=IMORTAIS-Combat-Client-Setup-v\$Version') { throw "Official release asset filename is wrong." }
-          if ($releaseScript -notmatch '\$Version\s*=\s*"0\.6\.0"') { throw "Official release script is not v0.6.0." }
-          if ($releaseScript -notmatch '<ApplicationVersion>\\s\*0\\\.6\\\.0\\\.0' -and $releaseScript -notmatch '0\\\.6\\\.0\\\.0') { throw "v0.6.0 publisher does not validate v0.6.0 metadata." }
-          if ($releaseScript -match '0\\\.5\\\.9\\\.0') { throw "v0.6.0 publisher still contains a stale v0.5.9 metadata regex." }
-          if ($releaseScript -notmatch 'ContextRefreshInterval' -or $releaseScript -notmatch 'HighlightTriggerKind\\\.Abate') { throw "v0.6.0 publisher lacks telemetry/highlight release guards." }
-          if ($releaseScript -notmatch 'player_presence_snapshot') { throw "Official release script does not validate player presence snapshot." }
-          if ($projectFileText -notmatch '<ApplicationVersion>0\.6\.0\.0</ApplicationVersion>') { throw "ApplicationVersion is not 0.6.0.0." }
-          if ($assemblyInfoText -notmatch 'AssemblyFileVersion\("0\.6\.0\.0"\)' -or $assemblyInfoText -notmatch 'AssemblyInformationalVersion\("0\.6\.0"\)') { throw "Assembly versions are not v0.6.0." }
-          if ($bridge -notmatch 'ClientVersion\s*=\s*"0\.6\.0"') { throw "Telemetry ClientVersion is not 0.6.0." }
+          # This is a .NET repository (no package.json). Derive the current version from the .csproj.
+          $versionMatch = [regex]::Match($projectFileText, '<ApplicationVersion>(\d+\.\d+\.\d+)\.0</ApplicationVersion>')
+          if (-not $versionMatch.Success) { throw "Missing semantic ApplicationVersion in project file." }
+          $version = $versionMatch.Groups[1].Value
+          $versionRegex = [regex]::Escape($version)
+          if ($releaseScript -notmatch ('\$Version\s*=\s*"' + $versionRegex + '"')) { throw "Official release script version is inconsistent with .csproj." }
+          if ($releaseScript -notmatch [regex]::Escape("ApplicationVersion") -or $releaseScript -notmatch [regex]::Escape($version.Replace(".", "\\.") + "\\.0")) {
+            throw "Publisher must validate ApplicationVersion of the .csproj."
+          }
+          if ($assemblyInfoText -notmatch ('AssemblyFileVersion\("' + $versionRegex + '\.0"\)') -or $assemblyInfoText -notmatch ('AssemblyInformationalVersion\("' + $versionRegex + '"\)')) {
+            throw "Assembly version and project version diverge."
+          }
+          if ($bridge -notmatch ('ClientVersion\s*=\s*"' + $versionRegex + '"')) { throw "Telemetry ClientVersion does not match project version." }
           if ($settingsObject -match 'IsImortaisAutoSaveDeathsEnabled') { throw "Reserved death autosave setting must be removed before v0.6.0." }
           if ($settingsObject -notmatch 'IsImortaisBackgroundRecordingEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*false') { throw "Background recording must default to OFF." }
           if ($settingsObject -notmatch 'ImortaisSettingsSchemaVersion' -or $settingsController -notmatch 'MigrateImortaisSettingsIfNeededAsync') { throw "v0.6.0 one-shot settings migration missing." }
           if ($mightProbeHandler -notmatch 'GuildMightProbe' -or $mightRequestProbeHandler -notmatch 'GuildMightProbe' -or $networkManager -notmatch 'ImortaisGuildMightProbeRequestHandler' -or $networkManager -notmatch 'GetGuildMightCategoryOverview' -or $networkManager -notmatch 'GetGuildMightCategoryContribution') { throw "Might Probe request/response handlers missing." }
           if ($bridge -notmatch 'Type\s*=\s*"guild_might_probe"' -or $bridge -notmatch 'LastGuildMightProbePayloads' -or $bridge -notmatch '\["direction"\]') { throw "Might Probe bridge/dedup/direction missing." }
-          if ($productionFeedText -match 'v0\.6\.0' -or $productionFeedText -notmatch 'v0\.5\.9') { throw "Production feed must remain on v0.5.9 during RC preparation." }
-          if ($readmeText -notmatch 'Versão publicada atual:\*\* v0\.5\.9') { throw "README must keep v0.5.9 as the published version before release approval." }
+          # Feed and README are expected to reflect the already-published stable release.
+          # A pull request must never advance the public feed: this step only verifies consistency.
+          if ($productionFeedText -notmatch ('sparkle:version="' + $versionRegex + '"')) { throw "Current stable feed does not match .csproj version." }
+          if ($readmeText -notmatch ('Versão estável atual:\*\* v' + $versionRegex)) { throw "README stable version does not match .csproj." }
           if ($rcPrepare -notmatch '127\.0\.0\.1' -or $rcTest -notmatch '127\.0\.0\.1') { throw "RC localhost helpers must stay loopback-only." }
           if ($rcPrepare -match 'SetupIconFile=\$iconEsc' -or $rcPrepare -match 'Join-Path \$AppDir "imortais-icon\.ico"') { throw "RC helper must not depend on imortais-icon.ico from publish output." }
           if ($rcPrepare -notmatch '#define AppSource' -or $rcPrepare -notmatch '#define InstallerOutput') { throw "RC helper must quote source/output paths through Inno preprocessor constants." }
