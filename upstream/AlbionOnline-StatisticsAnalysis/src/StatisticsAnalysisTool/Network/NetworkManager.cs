@@ -140,12 +140,15 @@ public class NetworkManager
         // categoria pode existir apenas no request, enquanto nomes/Might vêm na response.
         builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGuildMightCategoryOverview));
         builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGuildMightCategoryContribution));
+        // Guild Challenge usa pontuação própria; observamos a operação sem transmitir nada ao jogo.
+        builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGuildChallengePoints));
 
         // Response
         // IMORTAIS experimental Might collector. Passivo: somente observa as respostas
         // que o jogo recebe quando o usuário abre Overview/Contribution de Might.
         builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGuildMightCategoryOverview));
         builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGuildMightCategoryContribution));
+        builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGuildChallengePoints));
 
         builder.AddResponseHandler(new ChangeClusterResponseHandler(trackingController));
         builder.AddResponseHandler(new PartyMakeLeaderResponseHandler(trackingController));
