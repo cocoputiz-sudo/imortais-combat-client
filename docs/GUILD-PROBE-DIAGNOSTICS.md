@@ -2,15 +2,22 @@
 
 Este recurso é **experimental** e está disponível no pacote de teste do PR #34. Ele é desativado por padrão.
 
-## Como ativar (Windows, sem linha de comando)
+## Como ativar no próprio Combat Client (novo)
 
-1. Feche o IMORTAIS Combat Client.
-2. Pressione **Win + R**, cole `%LOCALAPPDATA%\IMORTAIS Combat Client` e confirme.
-3. Abra `telemetry.json` no Bloco de Notas. Se não existir, abra o cliente uma vez e feche-o para criar o arquivo.
-4. Dentro do objeto JSON, adicione a propriedade `"GuildProbeLocalDiagnosticsEnabled": true`. Separe as propriedades com vírgulas e preserve as demais configurações e chaves.
-5. Salve o arquivo e abra novamente o **build de teste** do Combat Client. Entre no Albion Online (West) e abra o ranking de Guild Challenge e as categorias de Guild Might.
+1. Abra o Combat Client de teste e acesse a aba **IMORTAIS**.
+2. No painel **DIAGNÓSTICO**, clique em **GUILD DUMPS: DESLIGADO**.
+3. Confirme a operação. O botão exibirá **GUILD DUMPS: LIGADO**.
+4. Abra o Albion West, navegue pelos rankings e clique em **ABRIR PASTA DE DUMPS** para localizar os arquivos gerados.
+5. Clique em **GUILD DUMPS: LIGADO** para desativar a captura após o teste.
 
-Para desligar, feche o cliente, altere a propriedade para `false` e reinicie. Se a chave não existir, o padrão é **desligado**.
+A preferência é salva no arquivo `telemetry.json` automaticamente. Não é necessário editar arquivos de configuração ou reiniciar o Combat Client.
+
+### Alternativa manual
+
+Se a opção não aparecer em uma versão antiga, o modo ainda pode ser configurado manualmente:
+feche o Combat Client, edite `%LOCALAPPDATA%\\IMORTAIS Combat Client\\telemetry.json` e defina
+`"GuildProbeLocalDiagnosticsEnabled": true` dentro do objeto JSON, mantendo as vírgulas.
+Reabra o cliente. Para desligar, use `false`.
 
 ## Onde ficam os dumps?
 
