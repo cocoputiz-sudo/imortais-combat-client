@@ -114,7 +114,7 @@ jobs:
           $version = $versionMatch.Groups[1].Value
           $versionRegex = [regex]::Escape($version)
           if ($releaseScript -notmatch ('\$Version\s*=\s*"' + $versionRegex + '"')) { throw "Official release script version is inconsistent with .csproj." }
-          if ($releaseScript -notmatch [regex]::Escape("ApplicationVersion") -or $releaseScript -notmatch [regex]::Escape($version.Replace(".", "\\.") + "\\.0")) {
+          if ($releaseScript -notmatch [regex]::Escape("ApplicationVersion") -or $releaseScript -notmatch [regex]::Escape($version + ".0")) {
             throw "Publisher must validate ApplicationVersion of the .csproj."
           }
           if ($assemblyInfoText -notmatch ('AssemblyFileVersion\("' + $versionRegex + '\.0"\)') -or $assemblyInfoText -notmatch ('AssemblyInformationalVersion\("' + $versionRegex + '"\)')) {
