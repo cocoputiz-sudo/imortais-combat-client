@@ -189,6 +189,18 @@ jobs:
             }
           }
 
+      - name: Validate owner installer scripts
+        shell: pwsh
+        run: |
+          foreach ($script in @(".\scripts\verify-icc-owner.ps1", ".\scripts\build-icc-owner-test.ps1")) {
+            $errs = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $script), [ref]$null, [ref]$errs) | Out-Null
+            if ($errs.Count -gt 0) {
+              $errs | ForEach-Object { Write-Error $_.Message }
+              throw "Invalid test installer script: $script"
+            }
+          }
+
       - name: Highlights logic
         shell: pwsh
         run: dotnet run --project .\tests\Highlights.LogicTests\Highlights.LogicTests.csproj -c Release
@@ -237,6 +249,22 @@ jobs:
           "- RC ZIP: **$size bytes**" >> $env:GITHUB_STEP_SUMMARY
           "- delta: **$delta bytes ($pct%)**" >> $env:GITHUB_STEP_SUMMARY
           "- SHA-256: $sha" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Build private BadMack-gated test installer (no public release)
+        shell: pwsh
+        run: |
+          $app = Join-Path $env:RUNNER_TEMP "imortais-v060-rc"
+          $pkg = Join-Path $env:RUNNER_TEMP "imortais-owner-test"
+          .\scripts\build-icc-owner-test.ps1 -AppDir $app -OutDir $pkg
+          "OWNER_TEST_PACKAGE=$pkg" >> $env:GITHUB_ENV
+
+      - name: Upload BadMack test installer (GitHub Actions artifact only)
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMORTAIS-BadMack-Test-Installer
+          path: ${{ env.OWNER_TEST_PACKAGE }}\*
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Upload v0.6.0 RC package
         uses: actions/upload-artifact@v4
