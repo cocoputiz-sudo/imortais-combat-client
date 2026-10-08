@@ -497,7 +497,8 @@ public static class ImortaisEventBridge
         foreach (var pair in parameters.OrderBy(x => x.Key).Take(96))
         {
             if (pair.Key == 253) continue;
-            normalizedParameters[pair.Key.ToString()] = SanitizePhotonValue(pair.Value, 0);
+            // The guild can have more than 400 players; preserve complete parallel lists.
+            normalizedParameters[pair.Key.ToString()] = SanitizePhotonValue(pair.Value, 0, 1000);
         }
 
         var payload = new Dictionary<string, object?>
@@ -537,7 +538,7 @@ public static class ImortaisEventBridge
         }
     }
 
-    private static object? SanitizePhotonValue(object? value, int depth)
+    private static object? SanitizePhotonValue(object? value, int depth, int maxItems = 400)
     {
         if (value == null) return null;
         if (depth >= 5) return "<max-depth>";
@@ -577,17 +578,17 @@ public static class ImortaisEventBridge
                 foreach (DictionaryEntry entry in dictionary)
                 {
                     if (count++ >= 256) break;
-                    result[entry.Key?.ToString() ?? "null"] = SanitizePhotonValue(entry.Value, depth + 1);
+                    result[entry.Key?.ToString() ?? "null"] = SanitizePhotonValue(entry.Value, depth + 1, maxItems);
                 }
                 return result;
             }
             case Array array:
             {
                 var result = new List<object?>();
-                var count = Math.Min(array.Length, 400);
+                var count = Math.Min(array.Length, maxItems);
                 for (var i = 0; i < count; i++)
                 {
-                    result.Add(SanitizePhotonValue(array.GetValue(i), depth + 1));
+                    result.Add(SanitizePhotonValue(array.GetValue(i), depth + 1, maxItems));
                 }
 
                 if (array.Length > count)
@@ -603,12 +604,12 @@ public static class ImortaisEventBridge
                 var count = 0;
                 foreach (var item in enumerable)
                 {
-                    if (count++ >= 400)
+                    if (count++ >= maxItems)
                     {
                         result.Add("<truncated>");
                         break;
                     }
-                    result.Add(SanitizePhotonValue(item, depth + 1));
+                    result.Add(SanitizePhotonValue(item, depth + 1, maxItems));
                 }
                 return result;
             }
