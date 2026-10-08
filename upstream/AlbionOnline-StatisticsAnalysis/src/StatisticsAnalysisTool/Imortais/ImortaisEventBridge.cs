@@ -133,6 +133,33 @@ public static class ImortaisEventBridge
 
     public static void Start() => EnsureStarted();
 
+    public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
+
+    /// <summary>Opt-in switch; only these three guild probes are redirected to the local dump.</summary>
+    public static void SetGuildProbeLocalDiagnosticsEnabled(bool enabled)
+    {
+        lock (GuildProbeLocalDumpLock)
+        {
+            var current = _config;
+            if (current.GuildProbeLocalDiagnosticsEnabled == enabled) return;
+            current.GuildProbeLocalDiagnosticsEnabled = enabled;
+            try
+            {
+                ImortaisTelemetryConfig.Save(current);
+            }
+            catch
+            {
+                current.GuildProbeLocalDiagnosticsEnabled = !enabled;
+                throw;
+            }
+        }
+        AddActivity(enabled
+            ? "GUILD DIAGNÓSTICO LOCAL ATIVADO (sem upload de Guild Might)"
+            : "GUILD DIAGNÓSTICO LOCAL DESATIVADO");
+    }
+
+
+
     public static void ReloadConfig()
     {
         _config = ImortaisTelemetryConfig.Load();
