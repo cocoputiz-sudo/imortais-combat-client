@@ -10,6 +10,10 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      # Intentionally empty until the owner's exact DeviceId hash is confirmed.
+      # Do not publish a generally installable private-build artifact.
+      OWNER_DEVICE_HASH: ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -251,14 +255,16 @@ jobs:
           "- SHA-256: $sha" >> $env:GITHUB_STEP_SUMMARY
 
       - name: Build private BadMack-gated test installer (no public release)
+        if: env.OWNER_DEVICE_HASH != ''
         shell: pwsh
         run: |
           $app = Join-Path $env:RUNNER_TEMP "imortais-v060-rc"
           $pkg = Join-Path $env:RUNNER_TEMP "imortais-owner-test"
-          .\scripts\build-icc-owner-test.ps1 -AppDir $app -OutDir $pkg
+          .\scripts\build-icc-owner-test.ps1 -AppDir $app -OutDir $pkg -AllowedDeviceHash $env:OWNER_DEVICE_HASH
           "OWNER_TEST_PACKAGE=$pkg" >> $env:GITHUB_ENV
 
       - name: Upload BadMack test installer (GitHub Actions artifact only)
+        if: env.OWNER_DEVICE_HASH != ''
         uses: actions/upload-artifact@v4
         with:
           name: IMORTAIS-BadMack-Test-Installer
