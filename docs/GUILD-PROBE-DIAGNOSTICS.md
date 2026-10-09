@@ -45,3 +45,34 @@ O modo de diagnóstico é **local-only para essas três operações**: não cham
 **Privacidade:** os dumps podem conter identificadores de jogadores e valores arbitrários transmitidos pelo Albion. Revise os arquivos antes de compartilhar publicamente. Não envie `telemetry.json` (contém `AgentKey`), `outbox.ndjson` ou capturas de outros dados.
 
 Esta coleta não efetua requests adicionais ao servidor do Albion: observa apenas as operações solicitadas pelo próprio jogo.
+
+
+## Fase B — homologação isolada WORKSPACEIGOR (experimento)
+
+Este build de teste permanece fora do appcast estável. A URL de envio de Guilda é
+**fixa em código**, `https://war-room-might-homolog-homologacao.up.railway.app/api/telemetry/ingest`;
+ela não pode ser substituída por `ServerUrl` e a credencial usada é
+`HomologGuildToken`, **nunca** `AgentKey` (que continua apontado para produção).
+
+1. Acesse o painel privado de homologação e clique **Gerar chave temporária WORKSPACEIGOR**;
+   copie o token; ao gerar outro o anterior é revogado. Não publique o token.
+2. Instale o build experimental destinado somente ao `DeviceId=WORKSPACEIGOR`.
+3. Na aba IMORTAIS, ative **GUILD DUMPS: LIGADO** para gravar arquivos locais também.
+4. Clique **CONFIGURAR CHAVE DE TESTE**, cole o token no campo mascarado e salve.
+5. Clique **ENVIO HOMOLOGAÇÃO: DESLIGADO** e confirme a advertência. Deve mudar
+   para **ENVIO HOMOLOGAÇÃO: LIGADO**.
+6. Abra Guild Challenge, Might e telas de contribuição/ranking da temporada no Albion.
+7. **COPIAR DIAGNÓSTICO** mostra contagem HTTP de envios aceitos/erros, mas nunca exibe o token.
+   No site da homologação, recarregue e confira os eventos/rankings. O site oferece
+   os dados de Might e Challenge, e os pacotes adicionais ficam como telemetria bruta
+   para futura decodificação.
+8. Após conferir, clique novamente no botão de homologação para desligar.
+
+Novos observadores passivos: `GetGvgSeasonContributionByActivity` e
+`GetGvgSeasonRankings`, somente no dump local ou na homologação com opt-in.
+Eles jamais são enfileirados para produção. Capturas de Might/Challenge são
+também enviadas à homologação APENAS enquanto o botão de homologação estiver ligado.
+Se ambos os botões estiverem desligados, as operações novas não são enviadas.
+
+O link da homologação será removido, com o banco e credenciais, após os testes
+e a aprovação de encerramento. Não enviar arquivos ndjson brutos a repositórios públicos.
