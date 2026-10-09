@@ -134,6 +134,58 @@ public static class ImortaisEventBridge
     public static void Start() => EnsureStarted();
 
     public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
+    public static bool IsHomologGuildUploadEnabled => _config.HomologGuildUploadEnabled;
+    public static long HomologGuildAcceptedCount => Interlocked.Read(ref _homologGuildAcceptedCount);
+    public static long HomologGuildRejectedCount => Interlocked.Read(ref _homologGuildRejectedCount);
+    // Only this literal QA host is permitted; user-controlled production ServerUrl is never changed.
+    private const string HomologGuildIngestUrl =
+        "https://war-room-might-homolog-homologacao.up.railway.app/api/telemetry/ingest";
+    private static readonly SemaphoreSlim HomologGuildGate = new(2, 2);
+    private static long _homologGuildAcceptedCount, _homologGuildRejectedCount;
+
+    public static void SetHomologGuildUploadEnabled(bool enabled)
+    {
+        var cfg = _config;
+        if (enabled && string.IsNullOrWhiteSpace(cfg.HomologGuildToken))
+            throw new InvalidOperationException("Configure HomologGuildToken no telemetry.json antes de ativar.");
+        cfg.HomologGuildUploadEnabled = enabled;
+        try { ImortaisTelemetryConfig.Save(cfg); }
+        catch { cfg.HomologGuildUploadEnabled = !enabled; throw; }
+        AddActivity(enabled ? "HOMOLOG GUILD: ATIVADO (somente QA)" : "HOMOLOG GUILD: DESLIGADO");
+    }
+
+    private static async Task SendGuildProbeToHomologAsync(string direction, string operationName,
+        int operationCode, Dictionary<string, object?> parameters)
+    {
+        if (!await HomologGuildGate.WaitAsync(0)) { Interlocked.Increment(ref _homologGuildRejectedCount); return; }
+        try
+        {
+            var cfg = _config;
+            if (!cfg.HomologGuildUploadEnabled || string.IsNullOrWhiteSpace(cfg.HomologGuildToken)) return;
+            var evt = new ImortaisTelemetryEvent {
+                Type = "guild_might_probe", PlayerName = cfg.PlayerName,
+                Payload = new Dictionary<string, object?> {
+                    ["direction"]=direction, ["operationName"]=operationName,
+                    ["operationCode"]=operationCode, ["parameters"]=parameters, ["probeVersion"]=3 }
+            };
+            using var req = new HttpRequestMessage(HttpMethod.Post, HomologGuildIngestUrl);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", cfg.HomologGuildToken);
+            req.Content = JsonContent.Create(new {
+                device = new { deviceId=cfg.DeviceId, playerName=cfg.PlayerName, version=ClientVersion },
+                events=new[]{evt}
+            });
+            using var resp=await Http.SendAsync(req);
+            if (resp.IsSuccessStatusCode) Interlocked.Increment(ref _homologGuildAcceptedCount);
+            else { Interlocked.Increment(ref _homologGuildRejectedCount);
+                AddActivity($"HOMOLOG GUILD HTTP {(int)resp.StatusCode} {operationName}"); }
+        }
+        catch (Exception e) {
+            Interlocked.Increment(ref _homologGuildRejectedCount);
+            AddActivity($"HOMOLOG GUILD ERRO {e.GetType().Name}");
+        }
+        finally { HomologGuildGate.Release(); }
+    }
+
 
     /// <summary>Opt-in switch; only these three guild probes are redirected to the local dump.</summary>
     public static void SetGuildProbeLocalDiagnosticsEnabled(bool enabled)
@@ -521,8 +573,25 @@ public static class ImortaisEventBridge
             return;
         }
 
-        // Diagnostic mode is a strict local-only path for these operations:
-        // no Enqueue, no outbox, no HTTP upload, even if disk I/O fails.
+        // QA opt-in is a separate authenticated HTTPS path, never the production
+        // outbox or _config.ServerUrl; local raw dumps can remain enabled.
+        if (_config.HomologGuildUploadEnabled &&
+            (operationName=="GetGuildChallengePoints" ||
+             operationName=="GetGuildMightCategoryOverview" ||
+             operationName=="GetGuildMightCategoryContribution" ||
+             operationName=="GetGvgSeasonContributionByActivity" ||
+             operationName=="GetGvgSeasonRankings"))
+        {
+            if (_config.GuildProbeLocalDiagnosticsEnabled)
+                WriteGuildProbeLocalDump(direction, operationName, operationCode, parameters);
+            var raw = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var pair in parameters.OrderBy(p => p.Key))
+                raw[pair.Key.ToString()] = SanitizePhotonValue(pair.Value,0,10000,16,true);
+            _ = SendGuildProbeToHomologAsync(direction, operationName, operationCode, raw);
+            return;
+        }
+
+        // Default diagnostic mode remains strictly local: no enqueue/outbox/upload.
         if (_config.GuildProbeLocalDiagnosticsEnabled)
         {
             WriteGuildProbeLocalDump(direction, operationName, operationCode, parameters);
@@ -589,7 +658,9 @@ public static class ImortaisEventBridge
     {
         if (operationName != "GetGuildChallengePoints"
             && operationName != "GetGuildMightCategoryOverview"
-            && operationName != "GetGuildMightCategoryContribution")
+            && operationName != "GetGuildMightCategoryContribution"
+            && operationName != "GetGvgSeasonContributionByActivity"
+            && operationName != "GetGvgSeasonRankings")
         {
             return;
         }
