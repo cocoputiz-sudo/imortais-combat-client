@@ -613,8 +613,11 @@ public static class ImortaisEventBridge
             return;
         }
 
-        // Until real Photon fixtures are validated, Challenge must not be uploaded.
-        if (string.Equals(operationName, "GetGuildChallengePoints", StringComparison.Ordinal))
+        // New season operations and Challenge are strictly QA-only. Never send
+        // these to the production outbox, even if local diagnostics are off.
+        if (operationName == "GetGuildChallengePoints"
+            || operationName == "GetGvgSeasonContributionByActivity"
+            || operationName == "GetGvgSeasonRankings")
         {
             return;
         }
