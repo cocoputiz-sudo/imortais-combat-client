@@ -429,6 +429,14 @@
                                                     MinWidth="170"
                                                     Click="ImortaisOpenGuildDumps_Click" />
                                         </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
+                                            <Button x:Name="ImortaisHomologUploadToggleButton"
+                                                    Content="ENVIO HOMOLOGAÇÃO: DESLIGADO"
+                                                    Height="34" MinWidth="260"
+                                                    Click="ImortaisHomologUploadToggle_Click" />
+                                        </StackPanel>
+                                        <TextBlock Text="Teste privado: envio somente ao Railway de homologação, com token próprio. Não altera a produção."
+                                                   Foreground="LightGoldenrodYellow" TextWrapping="Wrap" Margin="0,4,0,0" />
                                         <TextBlock Text="Captura local dos rankings de Might e Challenge; desligado por padrão."
                                                    Margin="0,8,0,0" FontSize="11"
                                                    Foreground="{StaticResource SolidColorBrush.Text.3}" />
