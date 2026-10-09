@@ -254,13 +254,34 @@ public static class ImortaisEventBridge
                         using var response = await Http.SendAsync(request, token);
                         if (response.IsSuccessStatusCode)
                         {
-                            Interlocked.Increment(ref _homologGuildAcceptedCount);
-                            succeeded = true;
-                            break;
+                            // HTTP 200 alone is insufficient: the server can reply
+                            // {ok:true,inserted:0,duplicate:0,rejected:1}.
+                            // Confirm an actual insert or a duplicate of the SAME
+                            // stable EventId before acknowledging/dequeuing.
+                            using var stream = await response.Content.ReadAsStreamAsync(token);
+                            using var ack = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+                            var root = ack.RootElement;
+                            var ok = root.TryGetProperty("ok", out var okProp) && okProp.ValueKind == JsonValueKind.True;
+                            var inserted = root.TryGetProperty("inserted", out var insProp)
+                                ? insProp.GetInt32() : 0;
+                            var duplicate = root.TryGetProperty("duplicate", out var dupProp)
+                                ? dupProp.GetInt32() : 0;
+                            var rejected = root.TryGetProperty("rejected", out var rejProp)
+                                ? rejProp.GetInt32() : -1;
+                            if (ok && rejected == 0 && inserted + duplicate == 1)
+                            {
+                                Interlocked.Increment(ref _homologGuildAcceptedCount);
+                                succeeded = true;
+                                break;
+                            }
+                            Interlocked.Increment(ref _homologGuildRejectedCount);
+                            AddActivity($"HOMOLOG GUILD sem confirmação de gravação {evt.Payload["operationName"]}");
                         }
-
-                        Interlocked.Increment(ref _homologGuildRejectedCount);
-                        AddActivity($"HOMOLOG GUILD HTTP {(int)response.StatusCode} {evt.Payload["operationName"]}");
+                        else
+                        {
+                            Interlocked.Increment(ref _homologGuildRejectedCount);
+                            AddActivity($"HOMOLOG GUILD HTTP {(int)response.StatusCode} {evt.Payload["operationName"]}");
+                        }
                         // Unauthorized requests or invalid payloads cannot be fixed by
                         // a burst of retries. Keep the event pending and retry slowly
                         // after a credential/configuration change.
