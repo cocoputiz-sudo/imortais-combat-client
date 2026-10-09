@@ -66,6 +66,7 @@ public partial class MainWindow
         UpdateImortaisBackgroundRecordingUi();
         UpdateImortaisGuildDumpUi();
         UpdateImortaisHomologUi();
+        if (ImortaisBuildIdentityLabel != null) ImortaisBuildIdentityLabel.Text = "BUILD: " + ImortaisBuildIdentity.Display;
         _applicationUptimeTimer.Start();
         _imortaisStatusTimer.Start();
     }
@@ -726,6 +727,7 @@ public partial class MainWindow
         var builder = new StringBuilder();
 
         builder.AppendLine("IMORTAIS COMBAT CLIENT - DIAGNÓSTICO");
+        builder.AppendLine("Build: " + ImortaisBuildIdentity.Display);
         builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
         builder.AppendLine($"Envio homologação Guild: {(ImortaisEventBridge.IsHomologGuildUploadEnabled ? "LIGADO" : "DESLIGADO")} · aceitos: {ImortaisEventBridge.HomologGuildAcceptedCount} · rejeitados/erros: {ImortaisEventBridge.HomologGuildRejectedCount}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
