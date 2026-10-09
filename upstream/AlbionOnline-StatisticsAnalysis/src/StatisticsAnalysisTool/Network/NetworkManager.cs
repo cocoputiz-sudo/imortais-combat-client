@@ -142,6 +142,8 @@ public class NetworkManager
         builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGuildMightCategoryContribution));
         // Guild Challenge usa pontuação própria; observamos a operação sem transmitir nada ao jogo.
         builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGuildChallengePoints));
+        builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGvgSeasonContributionByActivity));
+        builder.AddHandler(new ImortaisGuildMightProbeRequestHandler(OperationCodes.GetGvgSeasonRankings));
 
         // Response
         // IMORTAIS experimental Might collector. Passivo: somente observa as respostas
@@ -149,6 +151,8 @@ public class NetworkManager
         builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGuildMightCategoryOverview));
         builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGuildMightCategoryContribution));
         builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGuildChallengePoints));
+        builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGvgSeasonContributionByActivity));
+        builder.AddHandler(new ImortaisGuildMightProbeResponseHandler(OperationCodes.GetGvgSeasonRankings));
 
         builder.AddResponseHandler(new ChangeClusterResponseHandler(trackingController));
         builder.AddResponseHandler(new PartyMakeLeaderResponseHandler(trackingController));
