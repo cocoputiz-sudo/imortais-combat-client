@@ -13,7 +13,7 @@ jobs:
     env:
       # Intentionally empty until the owner's exact DeviceId hash is confirmed.
       # Do not publish a generally installable private-build artifact.
-      OWNER_DEVICE_HASH: ''
+      OWNER_DEVICE_HASH: '50b49655414dbf7d06da53a7ee8e8bd2188976b0b138f284728a9aef389f8f8d'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
