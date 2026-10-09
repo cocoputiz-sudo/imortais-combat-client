@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory=$true)][string]$AppDir,
-    [Parameter(Mandatory=$true)][string]$OutDir
+    [Parameter(Mandatory=$true)][string]$OutDir,
+    [Parameter(Mandatory=$true)][ValidatePattern("^[a-fA-F0-9]{64}$")][string]$AllowedDeviceHash
 )
 $ErrorActionPreference = "Stop"
 $verifier = Join-Path $PSScriptRoot "verify-icc-owner.ps1"
@@ -42,6 +43,7 @@ $iss = @'
 #define AppSource "__APP_SOURCE__"
 #define InstallerOutput "__OUTPUT__"
 #define VerifierSource "__VERIFIER__"
+#define AllowedDeviceHash "__DEVICE_HASH__"
 [Setup]
 AppId={{D842B071-73EA-42BF-B36E-3FD6C2F1A940}
 AppName={#AppName}
@@ -81,7 +83,7 @@ begin
     ExtractTemporaryFile('verify-icc-owner.ps1');
     VerifyScript := ExpandConstant('{tmp}\verify-icc-owner.ps1');
     PowerShellPath := ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe');
-    Args := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + VerifyScript + '"';
+    Args := '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + VerifyScript + '" -ExpectedDeviceHash "{#AllowedDeviceHash}"';
     if not Exec(PowerShellPath, Args, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
     begin
       MsgBox('Nao foi possivel iniciar a validacao do dispositivo no Windows. Nada foi instalado.', mbError, MB_OK);
@@ -95,7 +97,9 @@ begin
         24: MsgBox('O War Room autenticou o dispositivo, mas o registro nao esta vinculado ao jogador BadMack (codigo 24). A instalacao permanece bloqueada.', mbError, MB_OK);
         25: MsgBox('Nao foi possivel consultar o War Room com seguranca (codigo 25). Verifique conexao e disponibilidade do servidor.', mbError, MB_OK);
         26: MsgBox('O War Room recusou a autorizacao do dispositivo (codigo 26). O token pode estar expirado, revogado ou vinculado a outro computador.', mbError, MB_OK);
-        27: MsgBox('O War Room nao retornou a identidade vinculada ao token (codigo 27). O registro precisa ser validado pela staff.', mbError, MB_OK);
+        27: MsgBox('O War Room nao retornou uma resposta valida (codigo 27). Nenhum arquivo foi instalado.', mbError, MB_OK);
+        28: MsgBox('O perfil local do Combat Client nao esta configurado como BadMack (codigo 28). Nenhum arquivo foi instalado.', mbError, MB_OK);
+        29: MsgBox('Este computador nao corresponde ao DeviceId autorizado para o teste (codigo 29). Nenhum arquivo foi instalado.', mbError, MB_OK);
       else
         MsgBox('Falha de autorizacao do dispositivo (codigo ' + IntToStr(ExitCode) + '). Nada foi instalado.', mbError, MB_OK);
       end;
@@ -107,7 +111,7 @@ begin
   end;
 end;
 '@
-$iss = $iss.Replace("__APP_SOURCE__", $appSource).Replace("__OUTPUT__", $installerOutput).Replace("__VERIFIER__", $verifierSource)
+$iss = $iss.Replace("__APP_SOURCE__", $appSource).Replace("__OUTPUT__", $installerOutput).Replace("__VERIFIER__", $verifierSource).Replace("__DEVICE_HASH__", $AllowedDeviceHash.ToLowerInvariant())
 [IO.File]::WriteAllText($scriptPath, $iss, (New-Object System.Text.UTF8Encoding($false)))
 & $iscc $scriptPath
 if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
