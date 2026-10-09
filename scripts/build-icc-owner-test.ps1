@@ -45,12 +45,12 @@ $iss = @'
 #define VerifierSource "__VERIFIER__"
 #define AllowedDeviceHash "__DEVICE_HASH__"
 [Setup]
-AppId={{D842B071-73EA-42BF-B36E-3FD6C2F1A940}
+AppId={{B6DCCB7B-5C5B-4DFB-AEA4-9D556B2BBEA3}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppPublisher=IMORTAIS
-DefaultDirName={localappdata}\Programs\IMORTAIS Combat Client
-DefaultGroupName=IMORTAIS Combat Client
+DefaultDirName={localappdata}\Programs\IMORTAIS Combat Client FASE B
+DefaultGroupName=IMORTAIS Combat Client FASE B
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
@@ -69,7 +69,8 @@ RestartApplications=no
 Source: "{#AppSource}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "{#VerifierSource}"; Flags: dontcopy
 [Icons]
-Name: "{autoprograms}\IMORTAIS Combat Client"; Filename: "{app}\{#AppExe}"
+Name: "{autoprograms}\IMORTAIS Combat Client FASE B TESTE"; Filename: "{app}\{#AppExe}"
+Name: "{autodesktop}\IMORTAIS Combat Client FASE B TESTE"; Filename: "{app}\{#AppExe}"
 [Run]
 Filename: "{app}\{#AppExe}"; WorkingDir: "{app}"; Flags: nowait skipifsilent
 [Code]
