@@ -134,6 +134,21 @@ public static class ImortaisEventBridge
     public static void Start() => EnsureStarted();
 
     public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
+    public static void SetHomologGuildToken(string token)
+    {
+        // The token is never printed in diagnostics or recent activity.
+        if (_config.HomologGuildUploadEnabled)
+            throw new InvalidOperationException("Desative o envio de homologação antes de trocar a chave.");
+        var value=(token??string.Empty).Trim();
+        if (!value.StartsWith("imt_", StringComparison.Ordinal) || value.Length < 20)
+            throw new ArgumentException("Token da homologação inválido.");
+        var previous=_config.HomologGuildToken;
+        _config.HomologGuildToken=value;
+        try { ImortaisTelemetryConfig.Save(_config); }
+        catch { _config.HomologGuildToken=previous; throw; }
+        AddActivity("HOMOLOG GUILD: token de teste configurado");
+    }
+
     public static bool IsHomologGuildUploadEnabled => _config.HomologGuildUploadEnabled;
     public static long HomologGuildAcceptedCount => Interlocked.Read(ref _homologGuildAcceptedCount);
     public static long HomologGuildRejectedCount => Interlocked.Read(ref _homologGuildRejectedCount);
