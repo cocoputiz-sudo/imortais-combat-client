@@ -214,10 +214,14 @@ jobs:
         run: |
           $target = "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisBuildIdentity.cs"
           $sha = $env:GITHUB_SHA.ToLowerInvariant()
-          if ($sha -notmatch '^[a-f0-9]{40}
+          if ($sha.Length -ne 40) { throw "Invalid GITHUB_SHA" }
+          $code = 'namespace StatisticsAnalysisTool.Imortais; public static class ImortaisBuildIdentity { public const string Version = "v0.6.0"; public const string Commit = "SHA_PLACEHOLDER"; public static string Display => Version + " commit " + Commit; }'
+          $code = $code.Replace("SHA_PLACEHOLDER", $sha)
+          [System.IO.File]::WriteAllText($target, $code, [System.Text.UTF8Encoding]::new($false))
+
+      - name: Build fork Release
         shell: pwsh
         run: dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release --no-incremental
-
       - name: Publish v0.6.0 RC ZIP
         shell: pwsh
         run: |
