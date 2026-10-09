@@ -619,6 +619,38 @@ public partial class MainWindow
         ImortaisHomologUploadToggleButton.Foreground = on ? Brushes.LightGreen : Brushes.Gold;
     }
 
+    private void ImortaisHomologToken_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Window {
+            Title = "IMORTAIS - chave privada de homologação",
+            Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Width = 520, Height = 190, ResizeMode = ResizeMode.NoResize
+        };
+        var panel = new System.Windows.Controls.StackPanel { Margin = new Thickness(16) };
+        panel.Children.Add(new System.Windows.Controls.TextBlock {
+            Text = "Cole a chave emitida pelo site privado de homologação (nunca a chave do War Room):",
+            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,10) });
+        var input = new System.Windows.Controls.PasswordBox {
+            MinHeight = 30, Margin = new Thickness(0,0,0,12) };
+        panel.Children.Add(input);
+        var accept = new System.Windows.Controls.Button {
+            Content = "SALVAR CHAVE DE TESTE", Height = 32 };
+        accept.Click += (_, _) => {
+            try {
+                ImortaisEventBridge.SetHomologGuildToken(input.Password);
+                input.Clear();
+                dialog.DialogResult = true;
+            }
+            catch(Exception error) {
+                MessageBox.Show(error.Message, "IMORTAIS - homologação",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        };
+        panel.Children.Add(accept);
+        dialog.Content = panel;
+        dialog.ShowDialog();
+    }
+
     private void ImortaisHomologUploadToggle_Click(object sender, RoutedEventArgs e)
     {
         bool enable = !ImortaisEventBridge.IsHomologGuildUploadEnabled;
