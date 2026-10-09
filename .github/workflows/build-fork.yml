@@ -209,6 +209,85 @@ jobs:
         shell: pwsh
         run: dotnet run --project .\tests\Highlights.LogicTests\Highlights.LogicTests.csproj -c Release
 
+      - name: Stamp exact commit identity into Windows executable
+        shell: pwsh
+        run: |
+          $target = "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisBuildIdentity.cs"
+          $sha = $env:GITHUB_SHA.ToLowerInvariant()
+          if ($sha -notmatch '^[a-f0-9]{40}
+        shell: pwsh
+        run: dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release --no-incremental
+
+      - name: Publish v0.6.0 RC ZIP
+        shell: pwsh
+        run: |
+          $project = ".\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj"
+          $out = Join-Path $env:RUNNER_TEMP "imortais-v060-rc"
+          $zip = Join-Path $env:RUNNER_TEMP "IMORTAIS-Combat-Client-v0.6.0-rc-win-x64.zip"
+          Remove-Item $out -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item $zip -Force -ErrorAction SilentlyContinue
+          dotnet publish $project -c Release -r win-x64 --self-contained true -p:LocalInstallerBuild=true -o $out
+          $exe = Join-Path $out "IMORTAIS-Combat-Client.exe"
+          if (-not (Test-Path $exe)) { throw "RC executable missing." }
+          $vi = (Get-Item $exe).VersionInfo
+          if ($vi.FileVersion -notlike "0.6.0*") { throw "RC executable FileVersion is not 0.6.0: $($vi.FileVersion)" }
+          Write-Host "RC_FILE_VERSION=$($vi.FileVersion)"
+          Write-Host "RC_PRODUCT_VERSION=$($vi.ProductVersion)"
+          Compress-Archive -Path "$out\*" -DestinationPath $zip -CompressionLevel Optimal
+          $size = (Get-Item $zip).Length
+          $baseline = 153024966
+          $delta = $size - $baseline
+          $pct = if ($baseline -gt 0) { [math]::Round(($delta / $baseline) * 100, 2) } else { 0 }
+          $sha = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          "RC_ZIP_PATH=$zip" >> $env:GITHUB_ENV
+          $package = Join-Path $env:RUNNER_TEMP "v060-rc-package"
+          Remove-Item $package -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $package | Out-Null
+          Copy-Item $zip (Join-Path $package (Split-Path $zip -Leaf))
+          Copy-Item ".\scripts\prepare-icc-v060-local-rc.ps1" (Join-Path $package "prepare-icc-v060-local-rc.ps1")
+          Copy-Item ".\scripts\test-icc-v060-local-update.ps1" (Join-Path $package "test-icc-v060-local-update.ps1")
+          Copy-Item ".\docs\RC-v0.6.0.md" (Join-Path $package "RC-v0.6.0.md")
+          "RC_PACKAGE_DIR=$package" >> $env:GITHUB_ENV
+          "RC_ZIP_BYTES=$size" >> $env:GITHUB_ENV
+          Write-Host "RC_ZIP_BYTES=$size"
+          Write-Host "RC_ZIP_DELTA_BYTES=$delta"
+          Write-Host "RC_ZIP_DELTA_PCT=$pct"
+          Write-Host "RC_ZIP_SHA256=$sha"
+          "### IMORTAIS Combat Client v0.6.0 RC artifact" >> $env:GITHUB_STEP_SUMMARY
+          "- baseline v0.5.9 ZIP: **$baseline bytes**" >> $env:GITHUB_STEP_SUMMARY
+          "- RC ZIP: **$size bytes**" >> $env:GITHUB_STEP_SUMMARY
+          "- delta: **$delta bytes ($pct%)**" >> $env:GITHUB_STEP_SUMMARY
+          "- SHA-256: $sha" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Build private BadMack-gated test installer (no public release)
+        if: env.OWNER_DEVICE_HASH != ''
+        shell: pwsh
+        run: |
+          $app = Join-Path $env:RUNNER_TEMP "imortais-v060-rc"
+          $pkg = Join-Path $env:RUNNER_TEMP "imortais-owner-test"
+          .\scripts\build-icc-owner-test.ps1 -AppDir $app -OutDir $pkg -AllowedDeviceHash $env:OWNER_DEVICE_HASH
+          "OWNER_TEST_PACKAGE=$pkg" >> $env:GITHUB_ENV
+
+      - name: Upload BadMack test installer (GitHub Actions artifact only)
+        if: env.OWNER_DEVICE_HASH != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMORTAIS-BadMack-Test-Installer
+          path: ${{ env.OWNER_TEST_PACKAGE }}\*
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Upload v0.6.0 RC package
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMORTAIS-Combat-Client-v0.6.0-rc-win-x64
+          path: ${{ env.RC_PACKAGE_DIR }}\*
+          if-no-files-found: error
+          retention-days: 14
+) { throw "Expected a 40-digit commit SHA" }
+          $code = "namespace StatisticsAnalysisTool.Imortais; public static class ImortaisBuildIdentity { public const string Version = `"v0.6.0`"; public const string Commit = `"$sha`"; public static string Display => Version + `" · commit `" + Commit; }"
+          [System.IO.File]::WriteAllText($target, $code, [System.Text.UTF8Encoding]::new($false))
+
       - name: Build fork Release
         shell: pwsh
         run: dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release --no-incremental
