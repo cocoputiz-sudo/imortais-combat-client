@@ -601,7 +601,7 @@ public static class ImortaisEventBridge
                 WriteGuildProbeLocalDump(direction, operationName, operationCode, parameters);
             var raw = new Dictionary<string, object?>(StringComparer.Ordinal);
             foreach (var pair in parameters.OrderBy(p => p.Key))
-                raw[pair.Key.ToString()] = SanitizePhotonValue(pair.Value,0,10000,16,true);
+                raw[pair.Key.ToString()] = LosslessGuildField(operationName,pair.Key,pair.Value,0,10000,16,true);
             _ = SendGuildProbeToHomologAsync(direction, operationName, operationCode, raw);
             return;
         }
@@ -627,7 +627,7 @@ public static class ImortaisEventBridge
         {
             if (pair.Key == 253) continue;
             // The guild can have more than 400 players; preserve complete parallel lists.
-            normalizedParameters[pair.Key.ToString()] = SanitizePhotonValue(pair.Value, 0, 1000);
+            normalizedParameters[pair.Key.ToString()] = LosslessGuildField(operationName,pair.Key,pair.Value,0,1000,5);
         }
 
         var payload = new Dictionary<string, object?>
@@ -668,6 +668,21 @@ public static class ImortaisEventBridge
     }
 
 
+    private static object? LosslessGuildField(string operation, byte key, object? value,
+        int depth, int maxItems, int maxDepth, bool fullBinary = false)
+    {
+        // Photon server snapshot IDs are 64-bit .NET ticks and exceed the exact
+        // integer range of JavaScript. Encode only the identity fields as text.
+        bool isMarker = (operation == "GetGuildMightCategoryOverview" && key == 1)
+            || (operation == "GetGuildMightCategoryContribution" && key == 2)
+            || (operation == "GetGuildChallengePoints" && key == 1);
+        if (isMarker && value is long ticks)
+            return ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (isMarker && value is ulong unsignedTicks)
+            return unsignedTicks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return SanitizePhotonValue(value, depth, maxItems, maxDepth, fullBinary);
+    }
+
     private static void WriteGuildProbeLocalDump(
         string direction,
         string operationName,
@@ -690,8 +705,8 @@ public static class ImortaisEventBridge
             var rawParameters = new Dictionary<string, object?>(StringComparer.Ordinal);
             foreach (var pair in parameters.OrderBy(pair => pair.Key))
             {
-                rawParameters[pair.Key.ToString()] = SanitizePhotonValue(
-                    pair.Value, 0, maxItems: 10000, maxDepth: 16, fullBinary: true);
+                rawParameters[pair.Key.ToString()] = LosslessGuildField(
+                    operationName,pair.Key,pair.Value,0,10000,16,true);
             }
 
             var record = new Dictionary<string, object?>
