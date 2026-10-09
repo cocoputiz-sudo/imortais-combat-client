@@ -12,6 +12,10 @@ public sealed class ImortaisTelemetryConfig
     public bool Enabled { get; set; } = false;
     // Opt-in: write raw decoded Photon guild probes locally instead of sending those probes.
     public bool GuildProbeLocalDiagnosticsEnabled { get; set; } = false;
+    // Experimental private QA, deliberately separate from production ServerUrl/AgentKey.
+    public bool HomologGuildUploadEnabled { get; set; } = false;
+    public string HomologGuildToken { get; set; } = string.Empty;
+
     public string ServerUrl { get; set; } = "https://cta-imortais.up.railway.app";
     public string AgentKey { get; set; } = string.Empty;
     public string DeviceId { get; set; } = Environment.MachineName;
