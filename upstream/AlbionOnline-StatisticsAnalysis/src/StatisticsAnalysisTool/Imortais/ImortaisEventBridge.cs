@@ -155,8 +155,25 @@ public static class ImortaisEventBridge
     // Only this literal QA host is permitted; user-controlled production ServerUrl is never changed.
     private const string HomologGuildIngestUrl =
         "https://war-room-might-homolog-homologacao.up.railway.app/api/telemetry/ingest";
-    private static readonly SemaphoreSlim HomologGuildGate = new(2, 2);
+    // The capture thread never awaits HTTP. All captured probes enter this bounded
+    // queue first; the single background reader retries the SAME EventId until ack.
+    // Queue saturation is reported rather than silently ignored.
+    private const int HomologGuildQueueCapacity = 2048;
+    private static readonly Channel<ImortaisTelemetryEvent> HomologGuildQueue =
+        Channel.CreateBounded<ImortaisTelemetryEvent>(new BoundedChannelOptions(HomologGuildQueueCapacity)
+        {
+            SingleReader = true,
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait,
+            AllowSynchronousContinuations = false
+        });
+    private static readonly object HomologGuildWorkerLock = new();
+    private static Task? _homologGuildWorker;
     private static long _homologGuildAcceptedCount, _homologGuildRejectedCount;
+    private static long _homologGuildPendingCount, _homologGuildRetryCount, _homologGuildOverflowCount;
+    public static long HomologGuildPendingCount => Interlocked.Read(ref _homologGuildPendingCount);
+    public static long HomologGuildRetryCount => Interlocked.Read(ref _homologGuildRetryCount);
+    public static long HomologGuildOverflowCount => Interlocked.Read(ref _homologGuildOverflowCount);
 
     public static void SetHomologGuildUploadEnabled(bool enabled)
     {
@@ -169,38 +186,113 @@ public static class ImortaisEventBridge
         AddActivity(enabled ? "HOMOLOG GUILD: ATIVADO (somente QA)" : "HOMOLOG GUILD: DESLIGADO");
     }
 
-    private static async Task SendGuildProbeToHomologAsync(string direction, string operationName,
+    private static void EnqueueGuildProbeForHomolog(string direction, string operationName,
         int operationCode, Dictionary<string, object?> parameters)
     {
-        if (!await HomologGuildGate.WaitAsync(0)) { Interlocked.Increment(ref _homologGuildRejectedCount); return; }
-        try
+        // EventId and OccurredAt are frozen at capture, and retained on every retry.
+        var evt = new ImortaisTelemetryEvent
         {
-            var cfg = _config;
-            if (!cfg.HomologGuildUploadEnabled || string.IsNullOrWhiteSpace(cfg.HomologGuildToken)) return;
-            var evt = new ImortaisTelemetryEvent {
-                Type = "guild_might_probe", PlayerName = cfg.PlayerName,
-                Payload = new Dictionary<string, object?> {
-                    ["direction"]=direction, ["operationName"]=operationName,
-                    ["operationCode"]=operationCode, ["parameters"]=parameters, ["probeVersion"]=3 }
-            };
-            using var req = new HttpRequestMessage(HttpMethod.Post, HomologGuildIngestUrl);
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", cfg.HomologGuildToken);
-            req.Content = JsonContent.Create(new {
-                device = new { deviceId=cfg.DeviceId, playerName=cfg.PlayerName, version=ClientVersion },
-                events=new[]{evt}
-            });
-            using var resp=await Http.SendAsync(req);
-            if (resp.IsSuccessStatusCode) Interlocked.Increment(ref _homologGuildAcceptedCount);
-            else { Interlocked.Increment(ref _homologGuildRejectedCount);
-                AddActivity($"HOMOLOG GUILD HTTP {(int)resp.StatusCode} {operationName}"); }
-        }
-        catch (Exception e) {
+            Type = "guild_might_probe",
+            PlayerName = _config.PlayerName,
+            Payload = new Dictionary<string, object?>
+            {
+                ["direction"] = direction,
+                ["operationName"] = operationName,
+                ["operationCode"] = operationCode,
+                ["parameters"] = parameters,
+                ["probeVersion"] = 4
+            }
+        };
+        if (!HomologGuildQueue.Writer.TryWrite(evt))
+        {
+            Interlocked.Increment(ref _homologGuildOverflowCount);
             Interlocked.Increment(ref _homologGuildRejectedCount);
-            AddActivity($"HOMOLOG GUILD ERRO {e.GetType().Name}");
+            AddActivity("HOMOLOG GUILD FILA CHEIA: evento preservado apenas no dump local");
+            return;
         }
-        finally { HomologGuildGate.Release(); }
+        Interlocked.Increment(ref _homologGuildPendingCount);
+        lock (HomologGuildWorkerLock)
+        {
+            if (_homologGuildWorker == null || _homologGuildWorker.IsCompleted)
+                _homologGuildWorker = Task.Run(() => HomologGuildWorkerAsync(Cts.Token));
+        }
     }
 
+    private static async Task HomologGuildWorkerAsync(CancellationToken token)
+    {
+        try
+        {
+            await foreach (var evt in HomologGuildQueue.Reader.ReadAllAsync(token))
+            {
+                var retryDelay = TimeSpan.FromSeconds(2);
+                bool succeeded = false;
+                while (!token.IsCancellationRequested && !succeeded)
+                {
+                    var cfg = _config;
+                    if (!cfg.HomologGuildUploadEnabled || string.IsNullOrWhiteSpace(cfg.HomologGuildToken))
+                    {
+                        // Turning QA off suspends sending rather than destroying queued probes.
+                        await Task.Delay(500, token);
+                        continue;
+                    }
+
+                    try
+                    {
+                        using var request = new HttpRequestMessage(HttpMethod.Post, HomologGuildIngestUrl);
+                        request.Headers.Authorization =
+                            new AuthenticationHeaderValue("Bearer", cfg.HomologGuildToken);
+                        request.Content = JsonContent.Create(new
+                        {
+                            device = new
+                            {
+                                deviceId = cfg.DeviceId,
+                                playerName = cfg.PlayerName,
+                                version = ClientVersion
+                            },
+                            events = new[] { evt }
+                        });
+                        using var response = await Http.SendAsync(request, token);
+                        if (response.IsSuccessStatusCode)
+                        {
+                            Interlocked.Increment(ref _homologGuildAcceptedCount);
+                            succeeded = true;
+                            break;
+                        }
+
+                        Interlocked.Increment(ref _homologGuildRejectedCount);
+                        AddActivity($"HOMOLOG GUILD HTTP {(int)response.StatusCode} {evt.Payload["operationName"]}");
+                        // Unauthorized requests or invalid payloads cannot be fixed by
+                        // a burst of retries. Keep the event pending and retry slowly
+                        // after a credential/configuration change.
+                        retryDelay = (int)response.StatusCode is 400 or 401 or 403
+                            ? TimeSpan.FromSeconds(60) : retryDelay;
+                    }
+                    catch (OperationCanceledException) when (token.IsCancellationRequested)
+                    {
+                        break;
+                    }
+                    catch (Exception error)
+                    {
+                        Interlocked.Increment(ref _homologGuildRejectedCount);
+                        AddActivity($"HOMOLOG GUILD RETENTATIVA {error.GetType().Name}");
+                    }
+
+                    Interlocked.Increment(ref _homologGuildRetryCount);
+                    await Task.Delay(retryDelay, token);
+                    retryDelay = TimeSpan.FromSeconds(Math.Min(60, retryDelay.TotalSeconds * 2));
+                }
+                if (succeeded)
+                    Interlocked.Decrement(ref _homologGuildPendingCount);
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { }
+        catch (Exception error)
+        {
+            AddActivity($"HOMOLOG GUILD WORKER: {error.GetType().Name}");
+            // Explicitly restartable on the next captured event; backlog stays in
+            // the bounded channel when possible, never silently acknowledged.
+        }
+    }
 
     /// <summary>Opt-in switch; only these three guild probes are redirected to the local dump.</summary>
     public static void SetGuildProbeLocalDiagnosticsEnabled(bool enabled)
@@ -602,7 +694,7 @@ public static class ImortaisEventBridge
             var raw = new Dictionary<string, object?>(StringComparer.Ordinal);
             foreach (var pair in parameters.OrderBy(p => p.Key))
                 raw[pair.Key.ToString()] = LosslessGuildField(operationName,pair.Key,pair.Value,0,10000,16,true);
-            _ = SendGuildProbeToHomologAsync(direction, operationName, operationCode, raw);
+            EnqueueGuildProbeForHomolog(direction, operationName, operationCode, raw);
             return;
         }
 
