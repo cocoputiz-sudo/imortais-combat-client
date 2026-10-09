@@ -730,6 +730,7 @@ public partial class MainWindow
         builder.AppendLine("Build: " + ImortaisBuildIdentity.Display);
         builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
         builder.AppendLine($"Envio homologação Guild: {(ImortaisEventBridge.IsHomologGuildUploadEnabled ? "LIGADO" : "DESLIGADO")} · aceitos: {ImortaisEventBridge.HomologGuildAcceptedCount} · rejeitados/erros: {ImortaisEventBridge.HomologGuildRejectedCount}");
+        builder.AppendLine($"Fila homologação Guild: pendentes: {ImortaisEventBridge.HomologGuildPendingCount} · retentativas: {ImortaisEventBridge.HomologGuildRetryCount} · fila cheia/perdidos: {ImortaisEventBridge.HomologGuildOverflowCount}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
         builder.AppendLine($"Updater: {AutoUpdateController.LastUpdateCheckStatus}");
         builder.AppendLine($"Última checagem: {(AutoUpdateController.LastUpdateCheckUtc.HasValue ? AutoUpdateController.LastUpdateCheckUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "não realizada")}");
