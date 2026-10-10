@@ -190,7 +190,7 @@ internal sealed class HighlightRecorderService : IDisposable
     public void UpdateTriggerOptions(bool saveAbates,bool saveDeaths)
     {
         lock(_gate){_saveAbates=saveAbates;_saveDeaths=saveDeaths;}
-        HighlightTriggerService.UpdateOptions(saveAbates);
+        HighlightTriggerService.UpdateOptions(saveAbates,saveDeaths);
         RaiseChanged();
     }
 
