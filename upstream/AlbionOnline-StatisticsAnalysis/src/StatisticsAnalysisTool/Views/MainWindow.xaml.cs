@@ -318,7 +318,7 @@ public partial class MainWindow
 
         if (ImortaisDiagnosticsMightText != null)
             ImortaisDiagnosticsMightText.Text =
-                $"Enviados: {status.GuildMightSentAttempts} · Aceitos: {status.GuildMightServerAccepted} · Erros/retentativas: {status.GuildMightRejectedAttempts} · Pendentes: {status.GuildMightPending}";
+                $"Might + Challenge + Temporada: enviados {status.GuildMightSentAttempts} · aceitos {status.GuildMightServerAccepted} · erros/retentativas {status.GuildMightRejectedAttempts} · pendentes {status.GuildMightPending} · chavinhas {status.GuildChallengeProbeCount} · temporada {status.GuildSeasonProbeCount}";
 
         ImortaisDiagnosticsGuildText.Text = status.LastGuildPresenceProbeAtUtc.HasValue
             ? $"{status.GuildPresenceDistinctPlayers} jogador{(status.GuildPresenceDistinctPlayers == 1 ? string.Empty : "es")} distintos · {status.GuildPresenceProbeCount} eventos · último {FormatRelativeTime(status.LastGuildPresenceProbeAtUtc.Value)}"
@@ -621,7 +621,7 @@ public partial class MainWindow
         {
             var choice = MessageBox.Show(
                 "Ativar diagnóstico LOCAL dos rankings Guild Challenge e Guild Might?\n\n" +
-                "Might continua sendo enviado ao War Room enquanto um dump é salvo localmente. Challenge e temporada continuam só locais. " +
+                "Might continua sendo enviado ao War Room enquanto um dump é salvo localmente. Challenge e temporada também seguem na telemetria normal. " +
                 "Os arquivos podem conter nomes e identificadores de jogadores.\n\n" +
                 "Clique em ABRIR PASTA DE DUMPS para localizar os arquivos.",
                 "IMORTAIS - diagnóstico de Guilda",
@@ -703,6 +703,8 @@ public partial class MainWindow
         builder.AppendLine($"Último erro highlights: {(highlight.LastCaptureError is null ? "nenhum" : $"[{highlight.LastCaptureErrorStage ?? "FRAME"}] {highlight.LastCaptureError}")}");
         builder.AppendLine($"Guild Presence: {status.GuildPresenceProbeCount} eventos / {status.GuildPresenceDistinctPlayers} jogadores distintos / último {(status.LastGuildPresenceProbeAtUtc.HasValue ? status.LastGuildPresenceProbeAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Guild Might Probe: {status.GuildMightProbeCount} eventos / {status.GuildMightOperationCount} operações / último {(status.LastGuildMightProbeAtUtc.HasValue ? status.LastGuildMightProbeAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
+        builder.AppendLine($"Guild Challenge (GetGuildChallengePoints): {status.GuildChallengeProbeCount} eventos enfileirados");
+        builder.AppendLine($"Guild Season (GetGvgSeasonContributionByActivity / GetGvgSeasonRankings): {status.GuildSeasonProbeCount} eventos enfileirados");
         builder.AppendLine($"Último contato: {(status.LastSuccessfulContactUtc.HasValue ? status.LastSuccessfulContactUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Outbox: {status.PendingEvents} eventos / {FormatByteCount(status.PendingBytes)}");
         builder.AppendLine($"Último erro: {(string.IsNullOrWhiteSpace(status.LastError) ? "nenhum" : status.LastError)}");
