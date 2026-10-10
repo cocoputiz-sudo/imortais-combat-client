@@ -838,6 +838,10 @@ public static class ImortaisEventBridge
 
             if (!response.IsSuccessStatusCode)
             {
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    lock (StatusLock) { _credentialMode = "unknown"; _rankingEligible = false; }
+                }
                 SetConnectionState(
                     false,
                     response.StatusCode == System.Net.HttpStatusCode.Unauthorized
@@ -1066,6 +1070,7 @@ public static class ImortaisEventBridge
                     {
                         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                         {
+                            lock (StatusLock) { _credentialMode = "unknown"; _rankingEligible = false; }
                             blockedAgentKey = _config.AgentKey;
                             SetConnectionState(false, "Ingest HTTP 401 · reative o client");
                             continue;
