@@ -46,6 +46,26 @@ jobs:
           if ($feed -notmatch 'sparkle:version="[^"]+"') { throw "Invalid public appcast" }
           Write-Host "Candidate appcast identical to main; no release"
 
+      - name: Validar PowerShell do publicador oficial e opt-ins desligados
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $errors = $null
+          $script = (Resolve-Path ".\\scripts\\publi-icc-v061.ps1").Path
+          [void][System.Management.Automation.Language.Parser]::ParseFile($script,[ref]$tokens,[ref]$errors)
+          if ($errors.Count -gt 0) { $errors | Format-List | Out-String | Write-Host; throw "PowerShell publicador v0.6.1 com erros de sintaxe" }
+          $root = ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool"
+          $settings = Get-Content "$root\\Common\\UserSettings\\SettingsObject.cs" -Raw
+          $storage = Get-Content "$root\\Imortais\\Highlights\\HighlightStorageManager.cs" -Raw
+          $ui = Get-Content "$root\\Views\\MainWindow.xaml" -Raw
+          $bridge = Get-Content "$root\\Imortais\\ImortaisEventBridge.cs" -Raw
+          if ($settings -notmatch 'IsImortaisAutoSaveDeathsEnabled.*false' -or $settings -notmatch 'IsImortaisAutoSaveMassAbatesEnabled.*false') { throw "Morte/massa devem iniciar desmarcados" }
+          if ($settings -notmatch 'IsImortaisAutoSaveAbatesEnabled.*true') { throw "Salvar meus abates não foi preservado" }
+          if ($storage -notmatch 'CalculateUsedBytes[\\s\\S]+SearchOption.AllDirectories') { throw "Quota não inclui subpastas" }
+          if ($ui -notmatch 'ImortaisAutoSaveMassAbatesCheckBox' -or $ui -notmatch 'ImortaisAutoSaveDeathsCheckBox') { throw "Caixas opt-in ausentes" }
+          if ($bridge -notmatch 'credentialMode' -or $bridge -notmatch 'rankingEligible') { throw "Estado de pareamento não integrado" }
+          Write-Host "PASS: publicador PowerShell, defaults, quota recursiva e pareamento"
+
       - name: Carimbar commit Git real no cliente
         shell: pwsh
         env:
