@@ -500,8 +500,15 @@
                                                   Click="ImortaisAutoSaveOption_Click" />
                                         <CheckBox x:Name="ImortaisAutoSaveDeathsCheckBox"
                                                   Margin="0,6,0,0"
-                                                  Content="Salvar quando eu MORRER"
+                                                  IsChecked="False"
+                                                   Content="Salvar quando eu MORRER"
                                                   ToolTip="Gatilho em DiedEvent letal do próprio personagem; morte tem prioridade sobre abates no mesmo replay."
+                                                  Click="ImortaisAutoSaveOption_Click" />
+                                        <CheckBox x:Name="ImortaisAutoSaveMassAbatesCheckBox"
+                                                  Margin="0,6,0,0"
+                                                  IsChecked="False"
+                                                  Content="Salvar abates em massa"
+                                                  ToolTip="Desativado por padrão: múltiplos abates ainda podem ser salvos por Salvar meus abates."
                                                   Click="ImortaisAutoSaveOption_Click" />
                                         <Button x:Name="ImortaisSaveTestReplayButton"
                                                 Margin="0,8,0,0"
