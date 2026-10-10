@@ -1,78 +1,42 @@
-# IMORTAIS Combat Client — diagnóstico local de Guild Might e Guild Challenge
+# IMORTAIS Combat Client v0.6.1 — Guild Might de produção
 
-Este recurso é **experimental** e está disponível no pacote de teste do PR #34. Ele é desativado por padrão.
+## Telemetria
+- Guild Might, via operações Photon GetGuildMightCategoryOverview e
+  GetGuildMightCategoryContribution, utiliza exclusivamente o envio normal de
+  `guild_might_probe` para `ServerUrl`, autenticado por `AgentKey`.
+- O marker Photon de 64 bits é serializado como texto decimal; arrays completos
+  (até 10.000 entradas) e valores bytes são preservados.
+- Guild Challenge e operações de temporada
+  `GetGuildChallengePoints`, `GetGvgSeasonContributionByActivity` e
+  `GetGvgSeasonRankings` **não são enviadas à produção** nesta versão.
+- O envio privado de homologação foi **retirado do código**. O client não contém
+  URL, token, botão, fila nem worker de homologação.
 
-## Como ativar no próprio Combat Client (novo)
+## Dumps locais opcionais
+Abra IMORTAIS → DIAGNÓSTICO → **GUILD DUMPS: DESLIGADO** para
+ativar a cópia local de pacotes Photon Guild em:
+`%LOCALAPPDATA%\IMORTAIS Combat Client\Diagnostics\guild-probes-YYYYMMDD-00.ndjson`.
+A cópia é local e não transmite dados extras. **Might continua sendo enviado
+à produção**, inclusive com dumps ligados. Challenge e Season ficam locais.
+Desative após os testes. Não compartilhe `telemetry.json` ou chaves.
 
-1. Abra o Combat Client de teste e acesse a aba **IMORTAIS**.
-2. No painel **DIAGNÓSTICO**, clique em **GUILD DUMPS: DESLIGADO**.
-3. Confirme a operação. O botão exibirá **GUILD DUMPS: LIGADO**.
-4. Abra o Albion West, navegue pelos rankings e clique em **ABRIR PASTA DE DUMPS** para localizar os arquivos gerados.
-5. Clique em **GUILD DUMPS: LIGADO** para desativar a captura após o teste.
+## Diagnóstico Might
+- **Enviados**: número de eventos Might presentes em tentativas HTTPS
+  (retentativas podem aumentar esse valor).
+- **Aceitos pelo servidor**: eventos de Might cujos lotes receberam ACK completo
+  (inseridos ou reconhecidos como duplicados pelo mesmo EventId).
+- **Rejeitados/erros**: tentativas com HTTP de erro ou sem ACK completo. As
+  tentativas continuam na fila para nova tentativa; não significa perda.
+- **Pendentes**: eventos Might ainda não confirmados, incluindo outbox local.
+- Os demais eventos, CTAs, party, combat e highlights continuam normais.
 
-A preferência é salva no arquivo `telemetry.json` automaticamente. Não é necessário editar arquivos de configuração ou reiniciar o Combat Client.
+## Pacote candidato
+A `v0.6.1` é compilada pelo workflow "Build v0.6.1 Candidate (sem publicacao)".
+O arquivo de instalação aparece como **artifact privado da execução**, não
+como Release nem atualização automática. O appcast público permanece idêntico
+ao da main, e nenhuma publicação deve ocorrer sem autorização explícita.
 
-### Alternativa manual
-
-Se a opção não aparecer em uma versão antiga, o modo ainda pode ser configurado manualmente:
-feche o Combat Client, edite `%LOCALAPPDATA%\\IMORTAIS Combat Client\\telemetry.json` e defina
-`"GuildProbeLocalDiagnosticsEnabled": true` dentro do objeto JSON, mantendo as vírgulas.
-Reabra o cliente. Para desligar, use `false`.
-
-## Onde ficam os dumps?
-
-`%LOCALAPPDATA%\IMORTAIS Combat Client\Diagnostics\guild-probes-YYYYMMDD-00.ndjson`
-
-Arquivos sequenciais `-01`, `-02` etc. são usados para rotação, a aproximadamente 25 MiB por arquivo (até 100 partes por dia). Cada linha é um objeto JSON com `capturedAtUtc`, `direction`, `operationName`, `operationCode` e `parameters`.
-
-O campo `parameters` preserva os parâmetros Photon **já decodificados pelo cliente**, com a estrutura e os valores brutos (incluindo arrays e bytes em base64). Isto **não** é o tráfego UDP criptografado, nem uma captura de pacote PCAP.
-
-## Quais operações são capturadas?
-
-- `GetGuildChallengePoints` (ranking de chavinhas)
-- `GetGuildMightCategoryOverview`
-- `GetGuildMightCategoryContribution`
-
-O modo de diagnóstico é **local-only para essas três operações**: não chama o envio por telemetria, não utiliza outbox e não envia seus payloads ao servidor, inclusive em caso de erro no disco. Outras funções de telemetria do cliente **continuam funcionando**. Antes da validação de dumps reais, `GetGuildChallengePoints` permanece bloqueado para upload mesmo com o diagnóstico desativado.
-
-## Instruções para o teste
-
-1. Com o diagnóstico habilitado, abra o **Guild Challenge** e visualize o ranking completo.
-2. Anote ou capture o nível da guilda e os três primeiros jogadores. A referência dos prints de 08/10/2026 é: nível 62; GiganteCarorra 5.817.978; ESTHER9950 5.072.517; JnK1 4.890.194.
-3. Abra **todas as 14 categorias** de Guild Might e, quando disponíveis, seus rankings de contribuição, percorrendo possíveis páginas/scroll.
-4. Feche o cliente e envie **apenas os arquivos `guild-probes-*.ndjson`** referentes ao período do teste.
-
-**Privacidade:** os dumps podem conter identificadores de jogadores e valores arbitrários transmitidos pelo Albion. Revise os arquivos antes de compartilhar publicamente. Não envie `telemetry.json` (contém `AgentKey`), `outbox.ndjson` ou capturas de outros dados.
-
-Esta coleta não efetua requests adicionais ao servidor do Albion: observa apenas as operações solicitadas pelo próprio jogo.
-
-
-## Fase B — homologação isolada WORKSPACEIGOR (experimento)
-
-Este build de teste permanece fora do appcast estável. A URL de envio de Guilda é
-**fixa em código**, `https://war-room-might-homolog-homologacao.up.railway.app/api/telemetry/ingest`;
-ela não pode ser substituída por `ServerUrl` e a credencial usada é
-`HomologGuildToken`, **nunca** `AgentKey` (que continua apontado para produção).
-
-1. Acesse o painel privado de homologação e clique **Gerar chave temporária WORKSPACEIGOR**;
-   copie o token; ao gerar outro o anterior é revogado. Não publique o token.
-2. Instale o build experimental destinado somente ao `DeviceId=WORKSPACEIGOR`.
-3. Na aba IMORTAIS, ative **GUILD DUMPS: LIGADO** para gravar arquivos locais também.
-4. Clique **CONFIGURAR CHAVE DE TESTE**, cole o token no campo mascarado e salve.
-5. Clique **ENVIO HOMOLOGAÇÃO: DESLIGADO** e confirme a advertência. Deve mudar
-   para **ENVIO HOMOLOGAÇÃO: LIGADO**.
-6. Abra Guild Challenge, Might e telas de contribuição/ranking da temporada no Albion.
-7. **COPIAR DIAGNÓSTICO** mostra contagem HTTP de envios aceitos/erros, mas nunca exibe o token.
-   No site da homologação, recarregue e confira os eventos/rankings. O site oferece
-   os dados de Might e Challenge, e os pacotes adicionais ficam como telemetria bruta
-   para futura decodificação.
-8. Após conferir, clique novamente no botão de homologação para desligar.
-
-Novos observadores passivos: `GetGvgSeasonContributionByActivity` e
-`GetGvgSeasonRankings`, somente no dump local ou na homologação com opt-in.
-Eles jamais são enfileirados para produção. Capturas de Might/Challenge são
-também enviadas à homologação APENAS enquanto o botão de homologação estiver ligado.
-Se ambos os botões estiverem desligados, as operações novas não são enviadas.
-
-O link da homologação será removido, com o banco e credenciais, após os testes
-e a aprovação de encerramento. Não enviar arquivos ndjson brutos a repositórios públicos.
+## Antes de disponibilizar
+Validar atualização Inno Setup a partir da v0.6.0, conservação de `AgentKey`
+e preferências, transmissão do ranking das 14 categorias, operação dos demais
+módulos e integridade do instalador SHA-256.
