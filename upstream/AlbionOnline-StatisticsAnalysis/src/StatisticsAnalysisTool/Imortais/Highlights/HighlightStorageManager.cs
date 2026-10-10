@@ -119,7 +119,7 @@ internal sealed class HighlightStorageManager
     {
         long total=0;
         if(!Directory.Exists(_folder))return 0;
-        foreach(var path in Directory.EnumerateFiles(_folder,"*.mp4",SearchOption.TopDirectoryOnly))
+        foreach(var path in Directory.EnumerateFiles(_folder,"*.mp4",SearchOption.AllDirectories))
         {
             if(path.EndsWith(".partial.mp4",StringComparison.OrdinalIgnoreCase))continue;
             try{total=checked(total+new FileInfo(path).Length);}catch{}
