@@ -1,0 +1,19 @@
+name: Pairing display logic tests
+
+on:
+  pull_request:
+    paths:
+      - 'tests/Highlights.LogicTests/**'
+      - 'upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisCredentialPresentation.cs'
+  workflow_dispatch:
+
+jobs:
+  credential-display-tests:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Run isolated credential and highlights logic tests
+        run: dotnet run --project .\tests\Highlights.LogicTests\Highlights.LogicTests.csproj -c Release
