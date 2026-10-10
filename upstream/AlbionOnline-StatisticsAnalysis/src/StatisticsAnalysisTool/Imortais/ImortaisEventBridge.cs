@@ -1223,8 +1223,6 @@ public static class ImortaisEventBridge
                         continue;
                     }
 
-                    ingestRetryDelay = InitialIngestRetryDelay;
-
                     bool guildBatchAcknowledged=guildBatch.Length==0;
                     try
                     {
@@ -1266,6 +1264,7 @@ public static class ImortaisEventBridge
                 await AcknowledgeOutboxAsync(batch.Select(x => x.EventId), token);
                 foreach (var evt in guildBatch)GuildMightPendingIds.TryRemove(evt.EventId,out _);
                 Interlocked.Add(ref _guildMightServerAccepted,guildBatch.Length);
+                ingestRetryDelay = InitialIngestRetryDelay;
                 SetConnectionState(true);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
