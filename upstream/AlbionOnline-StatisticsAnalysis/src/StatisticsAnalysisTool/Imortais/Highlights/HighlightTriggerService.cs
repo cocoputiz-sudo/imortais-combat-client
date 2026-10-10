@@ -10,6 +10,7 @@ internal static class HighlightTriggerService
     private static Action<HighlightTrigger>? _sink;
     private static int _enabled;
     private static int _saveAbates=1;
+    private static int _saveDeaths=1;
     private static int _publishers;
 
     public static long QpcNow100Ns()
@@ -18,16 +19,19 @@ internal static class HighlightTriggerService
     public static void Configure(
         Action<HighlightTrigger> sink,
         bool enabled,
-        bool saveAbates)
+        bool saveAbates,
+        bool saveDeaths)
     {
         Volatile.Write(ref _saveAbates,saveAbates?1:0);
+        Volatile.Write(ref _saveDeaths,saveDeaths?1:0);
         Volatile.Write(ref _sink,sink);
         Volatile.Write(ref _enabled,enabled?1:0);
     }
 
-    public static void UpdateOptions(bool saveAbates)
+    public static void UpdateOptions(bool saveAbates,bool saveDeaths)
     {
         Volatile.Write(ref _saveAbates,saveAbates?1:0);
+        Volatile.Write(ref _saveDeaths,saveDeaths?1:0);
     }
 
     public static void Publish(
@@ -37,8 +41,9 @@ internal static class HighlightTriggerService
         long qpc100Ns)
     {
         if(Volatile.Read(ref _enabled)==0)return;
-        if(kind!=HighlightTriggerKind.Abate)return;
-        if(Volatile.Read(ref _saveAbates)==0)return;
+        if(kind!=HighlightTriggerKind.Abate && kind!=HighlightTriggerKind.Death)return;
+        if(kind==HighlightTriggerKind.Abate && Volatile.Read(ref _saveAbates)==0)return;
+        if(kind==HighlightTriggerKind.Death && Volatile.Read(ref _saveDeaths)==0)return;
 
         Interlocked.Increment(ref _publishers);
         try
