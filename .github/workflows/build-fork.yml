@@ -61,7 +61,7 @@ jobs:
           $bridge = Get-Content "$root\\Imortais\\ImortaisEventBridge.cs" -Raw
           if ($settings -notmatch 'IsImortaisAutoSaveDeathsEnabled.*false' -or $settings -notmatch 'IsImortaisAutoSaveMassAbatesEnabled.*false') { throw "Morte/massa devem iniciar desmarcados" }
           if ($settings -notmatch 'IsImortaisAutoSaveAbatesEnabled.*true') { throw "Salvar meus abates não foi preservado" }
-          if ($storage -notmatch 'CalculateUsedBytes[\\s\\S]+SearchOption.AllDirectories') { throw "Quota não inclui subpastas" }
+          if (($storage.Split("private long CalculateUsedBytes()").Count -ne 2) -or (-not $storage.Split("private long CalculateUsedBytes()")[1].Contains("SearchOption.AllDirectories"))) { throw "Quota não inclui subpastas" }
           if ($ui -notmatch 'ImortaisAutoSaveMassAbatesCheckBox' -or $ui -notmatch 'ImortaisAutoSaveDeathsCheckBox') { throw "Caixas opt-in ausentes" }
           if ($bridge -notmatch 'credentialMode' -or $bridge -notmatch 'rankingEligible') { throw "Estado de pareamento não integrado" }
           Write-Host "PASS: publicador PowerShell, defaults, quota recursiva e pareamento"
