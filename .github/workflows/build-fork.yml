@@ -93,6 +93,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Inno setup failed" }
           "PACKAGE_DIR=$package" >> $env:GITHUB_ENV
 
+      - name: Testar atualização real v0.6.0 -> v0.6.1 e preservar pareamento
+        shell: pwsh
+        run: |
+          $setup = Join-Path $env:PACKAGE_DIR "IMORTAIS-Combat-Client-Setup-v0.6.1.exe"
+          .\scripts\test-icc-v061-upgrade.ps1 -CandidateSetup $setup
+          if ($LASTEXITCODE -ne 0) { throw "Upgrade smoke test failed" }
+
       - name: Anexar instalador v0.6.1 para conferência, sem Release
         uses: actions/upload-artifact@v4
         with:
