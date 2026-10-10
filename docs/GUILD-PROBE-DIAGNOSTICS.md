@@ -32,36 +32,34 @@ Desative após os testes. Não compartilhe `telemetry.json` ou chaves.
 - **Pendentes**: eventos Might ainda não confirmados, incluindo outbox local.
 - Os demais eventos, CTAs, party, combat e highlights continuam normais.
 
-## Pacote candidato
-A `v0.6.1` é compilada pelo workflow "Build v0.6.1 Candidate (sem publicacao)".
-O arquivo de instalação aparece como **artifact privado da execução**, não
-como Release nem atualização automática. O appcast público permanece idêntico
-ao da main, e nenhuma publicação deve ocorrer sem autorização explícita.
+## Publicação v0.6.1 e atualização assinada
+A versão oficial será publicada pelo script `scripts/publi-icc-v061.ps1`
+após o merge do PR #34. O script compila a partir da `main`, utiliza
+a chave Ed25519 já empregada nas versões anteriores, publica a Release
+e atualiza o feed NetSparkle em `main`. O instalador gerado no CI serve
+somente para testes, pois desativa a verificação de updates no build local.
+A nova Release só está disponível quando **o script do proprietário concluir**
+e o feed apontar explicitamente para a v0.6.1.
 
-## Antes de disponibilizar
-Validar atualização Inno Setup a partir da v0.6.0, conservação de `AgentKey`
-e preferências, transmissão do ranking das 14 categorias, operação dos demais
-módulos e integridade do instalador SHA-256.
+## Highlights de morte e abates em massa
+O salvamento automático da morte do jogador e a categoria de abates em massa
+ficam **desmarcados por padrão**. É necessário ativar a gravação em segundo plano
+e marcar voluntariamente a caixa **Salvar quando eu MORRER** ou
+**Salvar abates em massa**. A opção anterior **Salvar meus abates** permanece
+independente e com o mesmo valor inicial da v0.6.0. Quando a opção de massa
+estiver desligada, abates pessoais próximos podem continuar gerando um
+replay de abates comuns, se a opção anterior estiver ativa. A quota de 10 GiB
+inclui `Mortes/`, `Abates/` e `Abates em Massa/`.
 
-## Pré-requisito da Parte 2 — captura real de DiedEvent
-
-O botão **GUILD DUMPS: LIGADO** também ativa temporariamente uma cópia
-**local, passiva** de cada evento letal `DiedEvent` recebido pelo client.
-O arquivo separado fica em
+O botão **GUILD DUMPS: LIGADO** também ativa uma cópia **local, passiva** de
+cada `DiedEvent` letal recebido pelo client, gravada em
 `%LOCALAPPDATA%\IMORTAIS Combat Client\Diagnostics\died-events-YYYYMMDD.ndjson`.
+Essa cópia pode ajudar a diagnosticar falsos negativos, mas não é requisito
+para instalar nem para usar o cliente com as novas opções desmarcadas.
 
-Antes de implementar o trigger de morte própria e abate em massa, conferir
-duas ocorrências reais em Albion West, com o cliente de teste ligado:
-
-1. **Morte própria** — morrer no jogo, localizar uma linha com
-   `ownDeath:true` e `lethal:true`.
-2. **Morte causada por aliado fora da party** — no mesmo cluster/alcance
-   observado, testemunhar um abate de aliado fora da party e confirmar
-   `killerInParty:false`, `lethal:true` e `killerGuild` coerente.
-   O evento deve corresponder ao ocorrido; ausência de evento não pode ser
-   mascarada por contagem de killings de party.
-
-Se faltar qualquer cenário, **não ativar nem implementar o novo gatilho
-baseado exclusivamente em DiedEvent**. Desligar os dumps após coletar.
-Os arquivos podem conter nomes e IDs de jogo; verificar antes de compartilhar.
-Isso não prova posição espacial exata, apenas que o evento chegou ao cliente.
+A primeira homologação de morte própria será realizada pelo proprietário
+em seu computador, com a opção marcada. A presença de `ownDeath:true` e
+`lethal:true` confirma a observação do evento; também é necessário verificar
+que o MP4 foi salvo e reproduz corretamente. Se falhar, manter a caixa
+desativada e corrigir na versão posterior. Desative dumps após os testes
+e proteja nomes e IDs dos jogadores antes de compartilhá-los.
