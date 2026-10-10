@@ -40,3 +40,26 @@ ao da main, e nenhuma publicação deve ocorrer sem autorização explícita.
 Validar atualização Inno Setup a partir da v0.6.0, conservação de `AgentKey`
 e preferências, transmissão do ranking das 14 categorias, operação dos demais
 módulos e integridade do instalador SHA-256.
+
+## Pré-requisito da Parte 2 — captura real de DiedEvent
+
+O botão **GUILD DUMPS: LIGADO** também ativa temporariamente uma cópia
+**local, passiva** de cada evento letal `DiedEvent` recebido pelo client.
+O arquivo separado fica em
+`%LOCALAPPDATA%\IMORTAIS Combat Client\Diagnostics\died-events-YYYYMMDD.ndjson`.
+
+Antes de implementar o trigger de morte própria e abate em massa, conferir
+duas ocorrências reais em Albion West, com o cliente de teste ligado:
+
+1. **Morte própria** — morrer no jogo, localizar uma linha com
+   `ownDeath:true` e `lethal:true`.
+2. **Morte causada por aliado fora da party** — no mesmo cluster/alcance
+   observado, testemunhar um abate de aliado fora da party e confirmar
+   `killerInParty:false`, `lethal:true` e `killerGuild` coerente.
+   O evento deve corresponder ao ocorrido; ausência de evento não pode ser
+   mascarada por contagem de killings de party.
+
+Se faltar qualquer cenário, **não ativar nem implementar o novo gatilho
+baseado exclusivamente em DiedEvent**. Desligar os dumps após coletar.
+Os arquivos podem conter nomes e IDs de jogo; verificar antes de compartilhar.
+Isso não prova posição espacial exata, apenas que o evento chegou ao cliente.
