@@ -25,11 +25,24 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
             var personalAbate=
                 (!string.IsNullOrWhiteSpace(localName)&&string.Equals(value.KilledBy,localName,StringComparison.OrdinalIgnoreCase))
                 || (localObjectId.HasValue&&localObjectId.Value!=0&&value.KillerObjectId==localObjectId.Value);
+            var ownDeath=
+                (!string.IsNullOrWhiteSpace(localName)&&string.Equals(value.Died,localName,StringComparison.OrdinalIgnoreCase))
+                || (localObjectId.HasValue&&localObjectId.Value!=0&&value.DiedObjectId==localObjectId.Value);
+            ImortaisEventBridge.DiedEventLocalDiagnostic(
+                value.Died,value.DiedPlayerGuild,value.DiedObjectId,
+                value.KilledBy,value.KilledByGuild,value.KillerObjectId,
+                ownDeath,personalAbate,
+                trackingController.EntityController.IsEntityInParty(value.KillerObjectId)
+                    || trackingController.EntityController.IsEntityInParty(value.KilledBy),
+                trackingController.EntityController.IsEntityInParty(value.DiedObjectId)
+                    || trackingController.EntityController.IsEntityInParty(value.Died),
+                ClusterController.GetCurrentClusterDisplayName());
 
-            if(personalAbate)
+            // Death outranks a personal kill: never emit both for the same lethal event.
+            if(ownDeath || personalAbate)
             {
                 HighlightTriggerService.Publish(
-                    HighlightTriggerKind.Abate,
+                    ownDeath ? HighlightTriggerKind.Death : HighlightTriggerKind.Abate,
                     value.Died,
                     value.KilledBy,
                     HighlightTriggerService.QpcNow100Ns());

@@ -32,7 +32,7 @@ internal sealed class HighlightStorageManager
         lock(_gate)
         {
             Directory.CreateDirectory(_folder);
-            foreach(var partial in Directory.EnumerateFiles(_folder,"*.partial.mp4",SearchOption.TopDirectoryOnly))
+            foreach(var partial in Directory.EnumerateFiles(_folder,"*.partial.mp4",SearchOption.AllDirectories))
             {
                 try{File.Delete(partial);}catch{}
             }
@@ -61,7 +61,11 @@ internal sealed class HighlightStorageManager
         lock(_gate)
         {
             EnsureInitialized();
-            return EnsureUniquePath(HighlightFileNaming.BuildFileName(plan.FirstTrigger,plan.TriggerCount,firstEventLocalTime));
+            var destination=plan.SelectedTrigger.Kind==HighlightTriggerKind.Death
+                ?Path.Combine(_folder,"Mortes")
+                :Path.Combine(_folder,plan.MassAbate?"Abates em Massa":"Abates");
+            Directory.CreateDirectory(destination);
+            return EnsureUniquePath(HighlightFileNaming.BuildFileName(plan.SelectedTrigger,plan.TriggerCount,firstEventLocalTime),destination);
         }
     }
 
@@ -95,7 +99,7 @@ internal sealed class HighlightStorageManager
 
     private void EnforceQuota(long reserveBytes,string? protectedPath)
     {
-        var files=Directory.EnumerateFiles(_folder,"*.mp4",SearchOption.TopDirectoryOnly)
+        var files=Directory.EnumerateFiles(_folder,"*.mp4",SearchOption.AllDirectories)
             .Where(path=>!path.EndsWith(".partial.mp4",StringComparison.OrdinalIgnoreCase))
             .Select(path=>
             {
@@ -123,15 +127,16 @@ internal sealed class HighlightStorageManager
         return total;
     }
 
-    private string EnsureUniquePath(string fileName)
+    private string EnsureUniquePath(string fileName,string? directory=null)
     {
-        var path=Path.Combine(_folder,fileName);
+        var folder=directory??_folder;
+        var path=Path.Combine(folder,fileName);
         if(!File.Exists(path)&&!File.Exists(path+".partial.mp4"))return path;
 
         var stem=Path.GetFileNameWithoutExtension(fileName);
         for(var i=2;i<10_000;i++)
         {
-            path=Path.Combine(_folder,$"{stem}_{i}.mp4");
+            path=Path.Combine(folder,$"{stem}_{i}.mp4");
             if(!File.Exists(path)&&!File.Exists(path+".partial.mp4"))return path;
         }
         throw new IOException("Não foi possível gerar um nome único para o highlight.");

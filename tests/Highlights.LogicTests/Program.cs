@@ -366,10 +366,32 @@ static void TestHighlightFileNaming()
         new HighlightTrigger(HighlightTriggerKind.Abate,"Enemy/Name","BadMack",1),
         3,
         new DateTime(2026,10,7,1,2,3));
-    Eq(name,"2026-10-07_01-02-03_ABATE_Enemy_Name_x3.mp4","nome coalescido deve usar primeiro abate e contagem");
+    Eq(name,"2026-10-07_01-02-03_ABATES_EM_MASSA_x3.mp4","múltiplos abates geram categoria de massa");
     Console.WriteLine("✅ nomes de highlight são saneados e incluem contagem coalescida");
 }
 
+static void TestDeathPriorityAndFilename()
+{
+    var clips=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    clips.Add(Trigger(HighlightTriggerKind.Abate,100,"Enemy1","BadMack"));
+    clips.Add(Trigger(HighlightTriggerKind.Abate,103,"Enemy2","BadMack"));
+    clips.Add(Trigger(HighlightTriggerKind.Death,107,"BadMack","Killer"));
+    True(clips.TryDequeueReady(TimeSpan.FromSeconds(122).Ticks,out var clip),"clipe pronto depois do pós-roll da morte");
+    Eq(clip!.TriggerCount,3,"morte não deve criar duplicata na mesma janela");
+    Eq(clip.SelectedTrigger.Kind,HighlightTriggerKind.Death,"morte tem prioridade sobre massa e abate");
+    True(HighlightFileNaming.BuildFileName(clip.SelectedTrigger,clip.TriggerCount,new DateTime(2026,10,10)).Contains("_MORTE_por_Killer_x3"),"deve nomear pela morte real");
+    var single=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    single.Add(Trigger(HighlightTriggerKind.Death,100,"BadMack","Enemy"));
+    True(single.TryDequeueReady(TimeSpan.FromSeconds(115).Ticks,out var lone),"morte única salva");
+    Eq(lone!.SelectedTrigger.Kind,HighlightTriggerKind.Death,"morte única identifica jogador");
+    var reversed=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    reversed.Add(Trigger(HighlightTriggerKind.Death,100,"BadMack","Enemy"));
+    reversed.Add(Trigger(HighlightTriggerKind.Abate,103,"Enemy2","BadMack"));
+    True(reversed.TryDequeueReady(TimeSpan.FromSeconds(118).Ticks,out var third),"clipe reverso");
+    Eq(third!.SelectedTrigger.Kind,HighlightTriggerKind.Death,"abate posterior não rebaixa a prioridade da morte");
+    Console.WriteLine("✅ morte > abates em massa > abate: coalescência e arquivo");
+}
+TestDeathPriorityAndFilename();
 TestHighlightCoalescence();
 TestPersonalMassKillBurstCoalescence();
 TestBoundedAdmissionCounter();

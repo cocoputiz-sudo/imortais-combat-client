@@ -39,6 +39,7 @@ public static class ImortaisEventBridge
     private static readonly CancellationTokenSource Cts = new();
     private static readonly object StartLock = new();
     private static readonly object StatusLock = new();
+    private static readonly object GuildProbeLocalDumpLock = new();
     private static readonly object PartySnapshotLock = new();
     private static readonly SemaphoreSlim OutboxLock = new(1, 1);
     private static readonly JsonSerializerOptions OutboxJsonOptions = new()
@@ -51,7 +52,7 @@ public static class ImortaisEventBridge
     private static readonly TimeSpan ContextRefreshInterval = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan InitialIngestRetryDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan MaxIngestRetryDelay = TimeSpan.FromSeconds(60);
-    private const string ClientVersion = "0.6.0";
+    private const string ClientVersion = "0.6.1";
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
@@ -78,6 +79,10 @@ public static class ImortaisEventBridge
     private static long _guildPresenceProbeCount;
     private static DateTime? _lastGuildPresenceProbeAtUtc;
     private static long _guildMightProbeCount;
+    private static long _guildChallengeProbeCount;
+    private static long _guildSeasonProbeCount;
+    private static long _guildMightSentAttempts, _guildMightServerAccepted, _guildMightRejectedAttempts;
+    private static readonly ConcurrentDictionary<string,byte> GuildMightPendingIds = new(StringComparer.Ordinal);
     private static DateTime? _lastGuildMightProbeAtUtc;
 
     public sealed record BridgeStatus(
@@ -100,6 +105,12 @@ public static class ImortaisEventBridge
         int GuildPresenceDistinctPlayers,
         DateTime? LastGuildPresenceProbeAtUtc,
         long GuildMightProbeCount,
+        long GuildChallengeProbeCount,
+        long GuildSeasonProbeCount,
+        long GuildMightSentAttempts,
+        long GuildMightServerAccepted,
+        long GuildMightRejectedAttempts,
+        int GuildMightPending,
         int GuildMightOperationCount,
         DateTime? LastGuildMightProbeAtUtc,
         IReadOnlyList<string> RecentActivity);
@@ -131,6 +142,68 @@ public static class ImortaisEventBridge
         PartyEquipmentSnapshot Equipment);
 
     public static void Start() => EnsureStarted();
+
+    public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
+    // Passive evidence collection for DiedEvent coverage. This does NOT
+    // publish highlights, send telemetry or alter gameplay behavior.
+    public static void DiedEventLocalDiagnostic(
+        string victim,string victimGuild,long victimObjectId,
+        string killer,string killerGuild,long killerObjectId,
+        bool ownDeath,bool ownKill,bool killerInParty,bool victimInParty,
+        string? cluster)
+    {
+        if(!_config.GuildProbeLocalDiagnosticsEnabled)return;
+        var record=new
+        {
+            capturedAtUtc=DateTime.UtcNow.ToString("O"),
+            eventName="DiedEvent",
+            lethal=true, victim, victimGuild,victimObjectId,
+            killer,killerGuild,killerObjectId,
+            ownDeath,ownKill,killerInParty,victimInParty,cluster
+        };
+        try
+        {
+            var folder=Path.Combine(ImortaisTelemetryConfig.DirectoryPath,"Diagnostics");
+            Directory.CreateDirectory(folder);
+            var path=Path.Combine(folder,$"died-events-{DateTime.UtcNow:yyyyMMdd}.ndjson");
+            // Passive small diagnostics; never records AgentKey or raw UDP data.
+            lock(GuildProbeLocalDumpLock)
+            {
+                if(File.Exists(path)&&new FileInfo(path).Length>16*1024*1024)return;
+                File.AppendAllText(path,JsonSerializer.Serialize(record)+"\n",Utf8NoBom);
+            }
+        }
+        catch(Exception)
+        {
+            AddActivity("DiedEvent: falha ao gravar diagnóstico local");
+        }
+    }
+
+
+    /// <summary>Opt-in switch; only these three guild probes are redirected to the local dump.</summary>
+    public static void SetGuildProbeLocalDiagnosticsEnabled(bool enabled)
+    {
+        lock (GuildProbeLocalDumpLock)
+        {
+            var current = _config;
+            if (current.GuildProbeLocalDiagnosticsEnabled == enabled) return;
+            current.GuildProbeLocalDiagnosticsEnabled = enabled;
+            try
+            {
+                ImortaisTelemetryConfig.Save(current);
+            }
+            catch
+            {
+                current.GuildProbeLocalDiagnosticsEnabled = !enabled;
+                throw;
+            }
+        }
+        AddActivity(enabled
+            ? "GUILD DIAGNÓSTICO LOCAL ATIVADO"
+            : "GUILD DIAGNÓSTICO LOCAL DESATIVADO");
+    }
+
+
 
     public static void ReloadConfig()
     {
@@ -219,6 +292,12 @@ public static class ImortaisEventBridge
                 GuildPresencePlayersSeen.Count,
                 _lastGuildPresenceProbeAtUtc,
                 Interlocked.Read(ref _guildMightProbeCount),
+                Interlocked.Read(ref _guildChallengeProbeCount),
+                Interlocked.Read(ref _guildSeasonProbeCount),
+                Interlocked.Read(ref _guildMightSentAttempts),
+                Interlocked.Read(ref _guildMightServerAccepted),
+                Interlocked.Read(ref _guildMightRejectedAttempts),
+                GuildMightPendingIds.Count,
                 GuildMightOperationsSeen.Count,
                 _lastGuildMightProbeAtUtc,
                 RecentActivity.ToArray());
@@ -493,11 +572,19 @@ public static class ImortaisEventBridge
             return;
         }
 
+        // Local dumps are diagnostic only; they never divert production Might.
+        if (_config.GuildProbeLocalDiagnosticsEnabled)
+            WriteGuildProbeLocalDump(direction, operationName, operationCode, parameters);
+
+        // All observed guild operations follow the same authenticated outbox.
+        // Passive receive only: never send any request to Albion here.
+
         var normalizedParameters = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var pair in parameters.OrderBy(x => x.Key).Take(96))
         {
             if (pair.Key == 253) continue;
-            normalizedParameters[pair.Key.ToString()] = SanitizePhotonValue(pair.Value, 0);
+            // The guild can have more than 400 players; preserve complete parallel lists.
+            normalizedParameters[pair.Key.ToString()] = LosslessGuildField(operationName,pair.Key,pair.Value,0,10000,16,true);
         }
 
         var payload = new Dictionary<string, object?>
@@ -506,7 +593,7 @@ public static class ImortaisEventBridge
             ["operationName"] = operationName,
             ["operationCode"] = operationCode,
             ["parameters"] = normalizedParameters,
-            ["probeVersion"] = 2
+            ["probeVersion"] = 4
         };
 
         var fingerprintKey = direction + ":" + operationName;
@@ -519,33 +606,124 @@ public static class ImortaisEventBridge
 
         LastGuildMightProbePayloads[fingerprintKey] = fingerprint;
 
-        if (Enqueue(new ImortaisTelemetryEvent
-            {
-                Type = "guild_might_probe",
-                PlayerName = _config.PlayerName,
-                Payload = payload
-            }))
+        var guildEvent = new ImortaisTelemetryEvent
         {
+            Type = "guild_might_probe",
+            PlayerName = _config.PlayerName,
+            Payload = payload
+        };
+        if (Enqueue(guildEvent))
+        {
+            GuildMightPendingIds.TryAdd(guildEvent.EventId,0);
             GuildMightOperationsSeen.TryAdd(operationName, 0);
             Interlocked.Increment(ref _guildMightProbeCount);
+            if (operationName == "GetGuildChallengePoints")
+                Interlocked.Increment(ref _guildChallengeProbeCount);
+            else if (operationName == "GetGvgSeasonContributionByActivity" || operationName == "GetGvgSeasonRankings")
+                Interlocked.Increment(ref _guildSeasonProbeCount);
             lock (StatusLock)
             {
                 _lastGuildMightProbeAtUtc = DateTime.UtcNow;
             }
 
-            AddActivity($"MIGHT {direction.ToUpperInvariant()} {operationName} · {normalizedParameters.Count} params");
+            AddActivity($"GUILD {direction.ToUpperInvariant()} {operationName} · {normalizedParameters.Count} params");
         }
     }
 
-    private static object? SanitizePhotonValue(object? value, int depth)
+
+    private static object? LosslessGuildField(string operation, byte key, object? value,
+        int depth, int maxItems, int maxDepth, bool fullBinary = false)
+    {
+        // Photon server snapshot IDs are 64-bit .NET ticks and exceed the exact
+        // integer range of JavaScript. Encode only the identity fields as text.
+        bool isMarker = (operation == "GetGuildMightCategoryOverview" && key == 1)
+            || (operation == "GetGuildMightCategoryContribution" && key == 2)
+            || (operation == "GetGuildChallengePoints" && key == 1);
+        if (isMarker && value is long ticks)
+            return ticks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (isMarker && value is ulong unsignedTicks)
+            return unsignedTicks.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return SanitizePhotonValue(value, depth, maxItems, maxDepth, fullBinary);
+    }
+
+    private static void WriteGuildProbeLocalDump(
+        string direction,
+        string operationName,
+        int operationCode,
+        IReadOnlyDictionary<byte, object> parameters)
+    {
+        if (operationName != "GetGuildChallengePoints"
+            && operationName != "GetGuildMightCategoryOverview"
+            && operationName != "GetGuildMightCategoryContribution"
+            && operationName != "GetGvgSeasonContributionByActivity"
+            && operationName != "GetGvgSeasonRankings")
+        {
+            return;
+        }
+
+        try
+        {
+            // Decoded but otherwise unfiltered Photon parameters: preserve all parameter
+            // keys, nested dictionaries, parallel arrays, and full binary values locally.
+            var rawParameters = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var pair in parameters.OrderBy(pair => pair.Key))
+            {
+                rawParameters[pair.Key.ToString()] = LosslessGuildField(
+                    operationName,pair.Key,pair.Value,0,10000,16,true);
+            }
+
+            var record = new Dictionary<string, object?>
+            {
+                ["capturedAtUtc"] = DateTime.UtcNow.ToString("O"),
+                ["direction"] = direction,
+                ["operationName"] = operationName,
+                ["operationCode"] = operationCode,
+                ["parameters"] = rawParameters,
+                ["captureSource"] = "local-decoded-photon"
+            };
+            var line = JsonSerializer.Serialize(record) + Environment.NewLine;
+            var directory = Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics");
+            var day = DateTime.UtcNow.ToString("yyyyMMdd");
+            lock (GuildProbeLocalDumpLock)
+            {
+                Directory.CreateDirectory(directory);
+                // The local capture file is rotated at approximately 25 MiB.
+                const long maxFileBytes = 25L * 1024 * 1024;
+                string? filePath = null;
+                for (var index = 0; index < 100; index++)
+                {
+                    var candidate = Path.Combine(directory, $"guild-probes-{day}-{index:D2}.ndjson");
+                    if (!File.Exists(candidate) || new FileInfo(candidate).Length < maxFileBytes)
+                    {
+                        filePath = candidate;
+                        break;
+                    }
+                }
+                if (filePath == null)
+                {
+                    AddActivity("GUILD DIAGNÓSTICO: limite diário de arquivos atingido");
+                    return;
+                }
+                File.AppendAllText(filePath, line, Utf8NoBom);
+            }
+            AddActivity($"GUILD DIAGNÓSTICO LOCAL {direction.ToUpperInvariant()} {operationName}");
+        }
+        catch (Exception e)
+        {
+            // Disk errors never fall back to network telemetry.
+            AddActivity($"GUILD DIAGNÓSTICO: erro de escrita local ({e.GetType().Name})");
+        }
+    }
+
+    private static object? SanitizePhotonValue(object? value, int depth, int maxItems = 400, int maxDepth = 5, bool fullBinary = false)
     {
         if (value == null) return null;
-        if (depth >= 5) return "<max-depth>";
+        if (depth >= maxDepth) return "<max-depth>";
 
         switch (value)
         {
             case string text:
-                return text.Length <= 512 ? text : text[..512];
+                return fullBinary || text.Length <= 512 ? text : text[..512];
             case bool:
             case byte:
             case sbyte:
@@ -564,30 +742,27 @@ public static class ImortaisEventBridge
             case DateTime dateTime:
                 return dateTime.ToUniversalTime().ToString("O");
             case byte[] bytes:
-                return new Dictionary<string, object?>
-                {
-                    ["kind"] = "bytes",
-                    ["length"] = bytes.Length,
-                    ["previewBase64"] = Convert.ToBase64String(bytes.Take(64).ToArray())
-                };
+                return fullBinary
+                    ? new Dictionary<string, object?> { ["kind"] = "bytes", ["length"] = bytes.Length, ["base64"] = Convert.ToBase64String(bytes) }
+                    : new Dictionary<string, object?> { ["kind"] = "bytes", ["length"] = bytes.Length, ["previewBase64"] = Convert.ToBase64String(bytes.Take(64).ToArray()) };
             case IDictionary dictionary:
             {
                 var result = new Dictionary<string, object?>(StringComparer.Ordinal);
                 var count = 0;
                 foreach (DictionaryEntry entry in dictionary)
                 {
-                    if (count++ >= 256) break;
-                    result[entry.Key?.ToString() ?? "null"] = SanitizePhotonValue(entry.Value, depth + 1);
+                    if (count++ >= (fullBinary ? maxItems : Math.Min(256, maxItems))) break;
+                    result[entry.Key?.ToString() ?? "null"] = SanitizePhotonValue(entry.Value, depth + 1, maxItems, maxDepth, fullBinary);
                 }
                 return result;
             }
             case Array array:
             {
                 var result = new List<object?>();
-                var count = Math.Min(array.Length, 400);
+                var count = Math.Min(array.Length, maxItems);
                 for (var i = 0; i < count; i++)
                 {
-                    result.Add(SanitizePhotonValue(array.GetValue(i), depth + 1));
+                    result.Add(SanitizePhotonValue(array.GetValue(i), depth + 1, maxItems, maxDepth, fullBinary));
                 }
 
                 if (array.Length > count)
@@ -603,19 +778,19 @@ public static class ImortaisEventBridge
                 var count = 0;
                 foreach (var item in enumerable)
                 {
-                    if (count++ >= 400)
+                    if (count++ >= maxItems)
                     {
                         result.Add("<truncated>");
                         break;
                     }
-                    result.Add(SanitizePhotonValue(item, depth + 1));
+                    result.Add(SanitizePhotonValue(item, depth + 1, maxItems, maxDepth, fullBinary));
                 }
                 return result;
             }
             default:
             {
                 var text = value.ToString() ?? value.GetType().FullName ?? "unknown";
-                return text.Length <= 512 ? text : text[..512];
+                return fullBinary || text.Length <= 512 ? text : text[..512];
             }
         }
     }
@@ -1000,6 +1175,8 @@ public static class ImortaisEventBridge
                 var batch = await ReadOutboxHeadAsync(Math.Max(1, _config.MaxBatchSize), token);
                 if (batch.Count == 0) continue;
 
+                var guildBatch = batch.Where(x=>x.Type=="guild_might_probe").ToArray();
+                Interlocked.Add(ref _guildMightSentAttempts,guildBatch.Length);
                 var url = _config.ServerUrl.TrimEnd('/') + "/api/telemetry/ingest";
                 using var req = new HttpRequestMessage(HttpMethod.Post, url);
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.AgentKey);
@@ -1028,6 +1205,7 @@ public static class ImortaisEventBridge
                 }
                 catch (Exception e)
                 {
+                    if(guildBatch.Length>0)Interlocked.Add(ref _guildMightRejectedAttempts,guildBatch.Length);
                     SetConnectionState(false, $"Ingest: {e.Message}");
                     await Task.Delay(ingestRetryDelay, token);
                     ingestRetryDelay = NextIngestRetryDelay(ingestRetryDelay);
@@ -1038,6 +1216,7 @@ public static class ImortaisEventBridge
                 {
                     if (!response.IsSuccessStatusCode)
                     {
+                        if(guildBatch.Length>0)Interlocked.Add(ref _guildMightRejectedAttempts,guildBatch.Length);
                         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                         {
                             blockedAgentKey = _config.AgentKey;
@@ -1051,13 +1230,21 @@ public static class ImortaisEventBridge
                         continue;
                     }
 
-                    ingestRetryDelay = InitialIngestRetryDelay;
-
+                    bool guildBatchAcknowledged=guildBatch.Length==0;
                     try
                     {
                         var responseJson = await response.Content.ReadAsStringAsync(token);
                         using var responseDoc = JsonDocument.Parse(responseJson);
-                        if (responseDoc.RootElement.TryGetProperty("ctaEventId", out var ctaProp))
+                        var root=responseDoc.RootElement;
+                        if(guildBatch.Length>0)
+                        {
+                            var ok=root.TryGetProperty("ok",out var yes) && yes.ValueKind==JsonValueKind.True;
+                            var inserted=root.TryGetProperty("inserted",out var ins) && ins.TryGetInt32(out var ic)?ic:0;
+                            var duplicate=root.TryGetProperty("duplicate",out var dup) && dup.TryGetInt32(out var dc)?dc:0;
+                            var rejected=root.TryGetProperty("rejected",out var rej) && rej.TryGetInt32(out var rc)?rc:-1;
+                            guildBatchAcknowledged=ok && rejected==0 && inserted+duplicate==batch.Count;
+                        }
+                        if (root.TryGetProperty("ctaEventId", out var ctaProp))
                         {
                             var resolvedId = ctaProp.ValueKind == JsonValueKind.String
                                 ? ctaProp.GetString()
@@ -1068,11 +1255,23 @@ public static class ImortaisEventBridge
                     }
                     catch
                     {
-                        // O envio foi aceito; falha ao ler o corpo não invalida a conexão.
+                        // If the ACK is not parseable, do NOT claim Guild acceptance.
+                        guildBatchAcknowledged=guildBatch.Length==0;
+                    }
+                    if (!guildBatchAcknowledged)
+                    {
+                        Interlocked.Add(ref _guildMightRejectedAttempts,guildBatch.Length);
+                        SetConnectionState(false,"Guild Might: lote sem confirmação integral do servidor");
+                        await Task.Delay(ingestRetryDelay,token);
+                        ingestRetryDelay=NextIngestRetryDelay(ingestRetryDelay);
+                        continue;
                     }
                 }
 
                 await AcknowledgeOutboxAsync(batch.Select(x => x.EventId), token);
+                foreach (var evt in guildBatch)GuildMightPendingIds.TryRemove(evt.EventId,out _);
+                Interlocked.Add(ref _guildMightServerAccepted,guildBatch.Length);
+                ingestRetryDelay = InitialIngestRetryDelay;
                 SetConnectionState(true);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -1329,6 +1528,15 @@ public static class ImortaisEventBridge
             return;
         }
 
+        foreach(var dropped in lines.Take(removeCount))
+        {
+            try
+            {
+                var evt=JsonSerializer.Deserialize<ImortaisTelemetryEvent>(dropped,OutboxJsonOptions);
+                if(evt?.Type=="guild_might_probe")GuildMightPendingIds.TryRemove(evt.EventId,out _);
+            }
+            catch(JsonException) {}
+        }
         var survivors = lines.Skip(removeCount).ToList();
         await AtomicRewriteLinesLockedAsync(path, survivors, token);
 
@@ -1453,7 +1661,17 @@ public static class ImortaisEventBridge
         {
             while (await reader.ReadLineAsync(token) is { } line)
             {
-                if (!string.IsNullOrWhiteSpace(line)) count++;
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    count++;
+                    try
+                    {
+                        var evt=JsonSerializer.Deserialize<ImortaisTelemetryEvent>(line,OutboxJsonOptions);
+                        if(evt?.Type=="guild_might_probe" && !string.IsNullOrWhiteSpace(evt.EventId))
+                            GuildMightPendingIds.TryAdd(evt.EventId,0);
+                    }
+                    catch(JsonException) { /* existing outbox recovery handles invalid lines */ }
+                }
             }
         }
 

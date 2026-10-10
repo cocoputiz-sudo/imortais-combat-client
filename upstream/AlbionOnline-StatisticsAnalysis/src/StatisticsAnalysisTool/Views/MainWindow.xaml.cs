@@ -64,6 +64,8 @@ public partial class MainWindow
         ImortaisEventBridge.Start();
         UpdateImortaisStatus();
         UpdateImortaisBackgroundRecordingUi();
+        UpdateImortaisGuildDumpUi();
+        if (ImortaisBuildIdentityLabel != null) ImortaisBuildIdentityLabel.Text = "BUILD: " + ImortaisBuildIdentity.Display;
         _applicationUptimeTimer.Start();
         _imortaisStatusTimer.Start();
     }
@@ -123,7 +125,8 @@ public partial class MainWindow
         {
             _highlightRecorder.Enable(
                 NormalizeHighlightFps(settings.ImortaisHighlightFps),
-                settings.IsImortaisAutoSaveAbatesEnabled);
+                settings.IsImortaisAutoSaveAbatesEnabled,
+                settings.IsImortaisAutoSaveDeathsEnabled);
         }
         UpdateImortaisBackgroundRecordingUi();
 
@@ -142,7 +145,8 @@ public partial class MainWindow
         {
             _highlightRecorder.OnAlbionStarted(
                 NormalizeHighlightFps(settings.ImortaisHighlightFps),
-                settings.IsImortaisAutoSaveAbatesEnabled);
+                settings.IsImortaisAutoSaveAbatesEnabled,
+                settings.IsImortaisAutoSaveDeathsEnabled);
         }
         if (settings.IsOpenWithGameActive)
         {
@@ -314,6 +318,10 @@ public partial class MainWindow
             ? $"{status.LastPartyMemberCount} membro{(status.LastPartyMemberCount == 1 ? string.Empty : "s")} · {FormatRelativeTime(status.LastPartySnapshotAtUtc.Value)} · {status.PartySnapshotDeduplicatedCount} repetido{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")} ignorado{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")}"
             : $"nenhum snapshot · {status.PartySnapshotDeduplicatedCount} repetido{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")} ignorado{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")}";
 
+        if (ImortaisDiagnosticsMightText != null)
+            ImortaisDiagnosticsMightText.Text =
+                $"Might + Challenge + Temporada: enviados {status.GuildMightSentAttempts} · aceitos {status.GuildMightServerAccepted} · erros/retentativas {status.GuildMightRejectedAttempts} · pendentes {status.GuildMightPending} · chavinhas {status.GuildChallengeProbeCount} · temporada {status.GuildSeasonProbeCount}";
+
         ImortaisDiagnosticsGuildText.Text = status.LastGuildPresenceProbeAtUtc.HasValue
             ? $"{status.GuildPresenceDistinctPlayers} jogador{(status.GuildPresenceDistinctPlayers == 1 ? string.Empty : "es")} distintos · {status.GuildPresenceProbeCount} eventos · último {FormatRelativeTime(status.LastGuildPresenceProbeAtUtc.Value)}"
             : "aguardando Guild Presence";
@@ -384,6 +392,11 @@ public partial class MainWindow
             ImortaisAutoSaveAbatesCheckBox.IsChecked=SettingsController.CurrentSettings.IsImortaisAutoSaveAbatesEnabled;
             ImortaisAutoSaveAbatesCheckBox.IsEnabled=requested;
         }
+        if(ImortaisAutoSaveDeathsCheckBox!=null)
+        {
+            ImortaisAutoSaveDeathsCheckBox.IsChecked=SettingsController.CurrentSettings.IsImortaisAutoSaveDeathsEnabled;
+            ImortaisAutoSaveDeathsCheckBox.IsEnabled=requested;
+        }
 
         if (ImortaisHighlightStatusText != null)
         {
@@ -435,7 +448,7 @@ public partial class MainWindow
         if(ImortaisHighlightMetricsText!=null)
         {
             ImortaisHighlightMetricsText.Text +=
-                $" · auto gatilhos {status.AutoTriggersReceived} / salvos {status.AutoClipsSaved} / fila {status.AutoQueueCurrent}";
+                $" · gatilhos morte {status.AutoDeathTriggers} / abates {status.AutoAbateTriggers} · salvos morte {status.AutoDeathClipsSaved} / massa {status.AutoMassClipsSaved} / abate {status.AutoAbateClipsSaved} · fila {status.AutoQueueCurrent}";
         }
 
         if (ImortaisSaveTestReplayButton != null)
@@ -460,7 +473,8 @@ public partial class MainWindow
                 _albionGameProcessMonitor.SetMonitoringEnabled(true);
                 _highlightRecorder.Enable(
                     NormalizeHighlightFps(settings.ImortaisHighlightFps),
-                    settings.IsImortaisAutoSaveAbatesEnabled);
+                    settings.IsImortaisAutoSaveAbatesEnabled,
+                settings.IsImortaisAutoSaveDeathsEnabled);
             }
             else
             {
@@ -481,7 +495,8 @@ public partial class MainWindow
     {
         var settings=SettingsController.CurrentSettings;
         settings.IsImortaisAutoSaveAbatesEnabled=ImortaisAutoSaveAbatesCheckBox?.IsChecked!=false;
-        _highlightRecorder.UpdateTriggerOptions(settings.IsImortaisAutoSaveAbatesEnabled);
+        settings.IsImortaisAutoSaveDeathsEnabled=ImortaisAutoSaveDeathsCheckBox?.IsChecked!=false;
+        _highlightRecorder.UpdateTriggerOptions(settings.IsImortaisAutoSaveAbatesEnabled,settings.IsImortaisAutoSaveDeathsEnabled);
         await SettingsController.SaveSettingsAsync();
         UpdateImortaisBackgroundRecordingUi();
     }
@@ -506,7 +521,8 @@ public partial class MainWindow
             _highlightRecorder.Disable();
             _highlightRecorder.Enable(
                 fps,
-                settings.IsImortaisAutoSaveAbatesEnabled);
+                settings.IsImortaisAutoSaveAbatesEnabled,
+                settings.IsImortaisAutoSaveDeathsEnabled);
         }
         UpdateImortaisBackgroundRecordingUi();
     }
@@ -598,6 +614,63 @@ public partial class MainWindow
         }
     }
 
+    private void UpdateImortaisGuildDumpUi()
+    {
+        if (ImortaisGuildDumpToggleButton == null) return;
+        var enabled = ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled;
+        ImortaisGuildDumpToggleButton.Content = enabled
+            ? "GUILD DUMPS: LIGADO"
+            : "GUILD DUMPS: DESLIGADO";
+        ImortaisGuildDumpToggleButton.Foreground = enabled ? Brushes.LightGreen : Brushes.Gold;
+    }
+
+    private void ImortaisGuildDumpToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var enable = !ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled;
+        if (enable)
+        {
+            var choice = MessageBox.Show(
+                "Ativar diagnóstico LOCAL dos rankings Guild Challenge e Guild Might?\n\n" +
+                "Might continua sendo enviado ao War Room enquanto um dump é salvo localmente. Challenge e temporada também seguem na telemetria normal. " +
+                "Os arquivos podem conter nomes e identificadores de jogadores.\n\n" +
+                "Clique em ABRIR PASTA DE DUMPS para localizar os arquivos.",
+                "IMORTAIS - diagnóstico de Guilda",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (choice != MessageBoxResult.Yes) return;
+        }
+
+        try
+        {
+            ImortaisEventBridge.SetGuildProbeLocalDiagnosticsEnabled(enable);
+            UpdateImortaisGuildDumpUi();
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show("Não foi possível salvar a opção de diagnóstico: " + error.Message,
+                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void ImortaisOpenGuildDumps_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var directory = Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics");
+            Directory.CreateDirectory(directory);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = directory,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show("Não foi possível abrir a pasta de dumps: " + error.Message,
+                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void CopyImortaisDiagnostics_Click(object sender, RoutedEventArgs e)
     {
         var status = ImortaisEventBridge.GetStatus();
@@ -605,6 +678,9 @@ public partial class MainWindow
         var builder = new StringBuilder();
 
         builder.AppendLine("IMORTAIS COMBAT CLIENT - DIAGNÓSTICO");
+        builder.AppendLine("Build: " + ImortaisBuildIdentity.Display);
+        builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
+        builder.AppendLine($"Guild Might: enviados {status.GuildMightSentAttempts} · aceitos pelo servidor {status.GuildMightServerAccepted} · rejeitados/erros {status.GuildMightRejectedAttempts} · pendentes {status.GuildMightPending}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
         builder.AppendLine($"Updater: {AutoUpdateController.LastUpdateCheckStatus}");
         builder.AppendLine($"Última checagem: {(AutoUpdateController.LastUpdateCheckUtc.HasValue ? AutoUpdateController.LastUpdateCheckUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "não realizada")}");
@@ -627,6 +703,8 @@ public partial class MainWindow
         builder.AppendLine($"Intervalo WGC (10s): mín {highlight.WgcIntervalMinMs:0.00} ms · médio {highlight.WgcIntervalAverageMs:0.00} ms · máx {highlight.WgcIntervalMaxMs:0.00} ms");
         builder.AppendLine($"Erros pipeline: WGC_SURFACE {highlight.WgcSurfaceErrors} · BGRA_TO_NV12 {highlight.BgraToNv12Errors} · H264_WRITE_SAMPLE {highlight.H264WriteErrors} · FRAME_PIPELINE {highlight.FramePipelineErrors}");
         builder.AppendLine($"Auto highlights: gatilhos {highlight.AutoTriggersReceived} · coalescidos {highlight.AutoTriggersCoalesced} · dedup {highlight.AutoTriggersDeduplicated} · pressão desc {highlight.AutoTriggersDroppedPressure} · salvos {highlight.AutoClipsSaved} · falhos {highlight.AutoClipsFailed} · fila atual {highlight.AutoQueueCurrent}");
+        builder.AppendLine($"Gatilhos por tipo: morte própria {highlight.AutoDeathTriggers} · abates próprios {highlight.AutoAbateTriggers}");
+        builder.AppendLine($"Clipes salvos: mortes {highlight.AutoDeathClipsSaved} · abates em massa {highlight.AutoMassClipsSaved} · abates próprios {highlight.AutoAbateClipsSaved}");
         builder.AppendLine($"Pressão highlights: inbox {highlight.TriggerInboxCurrent}/{MaxTriggerInboxForDiagnostics()} (pico {highlight.TriggerInboxPeak}) · snapshots ativos sessão {highlight.ActiveSnapshotOperations} · adiados {highlight.SnapshotPressureDeferrals} · memória snapshots {highlight.DetachedSnapshotBytes/1024d/1024d:0.0} MiB (pico {highlight.DetachedSnapshotPeakBytes/1024d/1024d:0.0} MiB)");
         builder.AppendLine($"Disco highlights: {highlight.HighlightFolderBytes/1024d/1024d/1024d:0.00} GiB / {highlight.HighlightQuotaBytes/1024d/1024d/1024d:0.00} GiB · tempos saves {highlight.RecentSaveDurations}");
         builder.AppendLine($"Impacto último save: snapshot {highlight.LastSnapshotMilliseconds:0.0} ms · FrameBusy Δ{highlight.LastSaveFrameBusyDelta} · WGC máx antes {highlight.LastSaveWgcMaxBeforeMs:0.00} ms / depois {highlight.LastSaveWgcMaxAfterMs:0.00} ms");
@@ -637,6 +715,8 @@ public partial class MainWindow
         builder.AppendLine($"Último erro highlights: {(highlight.LastCaptureError is null ? "nenhum" : $"[{highlight.LastCaptureErrorStage ?? "FRAME"}] {highlight.LastCaptureError}")}");
         builder.AppendLine($"Guild Presence: {status.GuildPresenceProbeCount} eventos / {status.GuildPresenceDistinctPlayers} jogadores distintos / último {(status.LastGuildPresenceProbeAtUtc.HasValue ? status.LastGuildPresenceProbeAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Guild Might Probe: {status.GuildMightProbeCount} eventos / {status.GuildMightOperationCount} operações / último {(status.LastGuildMightProbeAtUtc.HasValue ? status.LastGuildMightProbeAtUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
+        builder.AppendLine($"Guild Challenge (GetGuildChallengePoints): {status.GuildChallengeProbeCount} eventos enfileirados");
+        builder.AppendLine($"Guild Season (GetGvgSeasonContributionByActivity / GetGvgSeasonRankings): {status.GuildSeasonProbeCount} eventos enfileirados");
         builder.AppendLine($"Último contato: {(status.LastSuccessfulContactUtc.HasValue ? status.LastSuccessfulContactUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Outbox: {status.PendingEvents} eventos / {FormatByteCount(status.PendingBytes)}");
         builder.AppendLine($"Último erro: {(string.IsNullOrWhiteSpace(status.LastError) ? "nenhum" : status.LastError)}");
