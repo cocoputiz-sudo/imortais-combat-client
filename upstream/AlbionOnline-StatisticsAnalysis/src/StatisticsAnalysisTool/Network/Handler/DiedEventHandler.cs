@@ -38,10 +38,11 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
                     || trackingController.EntityController.IsEntityInParty(value.Died),
                 ClusterController.GetCurrentClusterDisplayName());
 
-            if(personalAbate)
+            // Death outranks a personal kill: never emit both for the same lethal event.
+            if(ownDeath || personalAbate)
             {
                 HighlightTriggerService.Publish(
-                    HighlightTriggerKind.Abate,
+                    ownDeath ? HighlightTriggerKind.Death : HighlightTriggerKind.Abate,
                     value.Died,
                     value.KilledBy,
                     HighlightTriggerService.QpcNow100Ns());
