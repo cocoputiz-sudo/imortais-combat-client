@@ -65,7 +65,6 @@ public partial class MainWindow
         UpdateImortaisStatus();
         UpdateImortaisBackgroundRecordingUi();
         UpdateImortaisGuildDumpUi();
-        UpdateImortaisHomologUi();
         if (ImortaisBuildIdentityLabel != null) ImortaisBuildIdentityLabel.Text = "BUILD: " + ImortaisBuildIdentity.Display;
         _applicationUptimeTimer.Start();
         _imortaisStatusTimer.Start();
@@ -316,6 +315,10 @@ public partial class MainWindow
         ImortaisDiagnosticsPartyText.Text = status.LastPartySnapshotAtUtc.HasValue
             ? $"{status.LastPartyMemberCount} membro{(status.LastPartyMemberCount == 1 ? string.Empty : "s")} · {FormatRelativeTime(status.LastPartySnapshotAtUtc.Value)} · {status.PartySnapshotDeduplicatedCount} repetido{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")} ignorado{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")}"
             : $"nenhum snapshot · {status.PartySnapshotDeduplicatedCount} repetido{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")} ignorado{(status.PartySnapshotDeduplicatedCount == 1 ? string.Empty : "s")}";
+
+        if (ImortaisDiagnosticsMightText != null)
+            ImortaisDiagnosticsMightText.Text =
+                $"Enviados: {status.GuildMightSentAttempts} · Aceitos: {status.GuildMightServerAccepted} · Erros/retentativas: {status.GuildMightRejectedAttempts} · Pendentes: {status.GuildMightPending}";
 
         ImortaisDiagnosticsGuildText.Text = status.LastGuildPresenceProbeAtUtc.HasValue
             ? $"{status.GuildPresenceDistinctPlayers} jogador{(status.GuildPresenceDistinctPlayers == 1 ? string.Empty : "es")} distintos · {status.GuildPresenceProbeCount} eventos · último {FormatRelativeTime(status.LastGuildPresenceProbeAtUtc.Value)}"
@@ -611,68 +614,6 @@ public partial class MainWindow
         ImortaisGuildDumpToggleButton.Foreground = enabled ? Brushes.LightGreen : Brushes.Gold;
     }
 
-    private void UpdateImortaisHomologUi()
-    {
-        if (ImortaisHomologUploadToggleButton == null) return;
-        bool on = ImortaisEventBridge.IsHomologGuildUploadEnabled;
-        ImortaisHomologUploadToggleButton.Content = on
-            ? "ENVIO HOMOLOGAÇÃO: LIGADO" : "ENVIO HOMOLOGAÇÃO: DESLIGADO";
-        ImortaisHomologUploadToggleButton.Foreground = on ? Brushes.LightGreen : Brushes.Gold;
-    }
-
-    private void ImortaisHomologToken_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new Window {
-            Title = "IMORTAIS - chave privada de homologação",
-            Owner = this, WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Width = 520, Height = 190, ResizeMode = ResizeMode.NoResize
-        };
-        var panel = new System.Windows.Controls.StackPanel { Margin = new Thickness(16) };
-        panel.Children.Add(new System.Windows.Controls.TextBlock {
-            Text = "Cole a chave emitida pelo site privado de homologação (nunca a chave do War Room):",
-            TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0,0,0,10) });
-        var input = new System.Windows.Controls.PasswordBox {
-            MinHeight = 30, Margin = new Thickness(0,0,0,12) };
-        panel.Children.Add(input);
-        var accept = new System.Windows.Controls.Button {
-            Content = "SALVAR CHAVE DE TESTE", Height = 32 };
-        accept.Click += (_, _) => {
-            try {
-                ImortaisEventBridge.SetHomologGuildToken(input.Password);
-                input.Clear();
-                dialog.DialogResult = true;
-            }
-            catch(Exception error) {
-                MessageBox.Show(error.Message, "IMORTAIS - homologação",
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-            }
-        };
-        panel.Children.Add(accept);
-        dialog.Content = panel;
-        dialog.ShowDialog();
-    }
-
-    private void ImortaisHomologUploadToggle_Click(object sender, RoutedEventArgs e)
-    {
-        bool enable = !ImortaisEventBridge.IsHomologGuildUploadEnabled;
-        if (enable)
-        {
-            var choice = MessageBox.Show(
-                "Enviar pacotes de Guilda/Season SOMENTE para homologação?\n\n" +
-                "Configure HomologGuildToken de testes. ServerUrl e AgentKey de produção ficam intactos.\n" +
-                "Nomes, pontos e identificadores da guilda serão transmitidos ao ambiente privado.",
-                "IMORTAIS - HOMOLOGAÇÃO", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-            if (choice != MessageBoxResult.Yes) return;
-        }
-        try {
-            ImortaisEventBridge.SetHomologGuildUploadEnabled(enable);
-            UpdateImortaisHomologUi();
-        } catch(Exception error) {
-            MessageBox.Show(error.Message,"IMORTAIS - homologação",
-                MessageBoxButton.OK,MessageBoxImage.Warning);
-        }
-    }
-
     private void ImortaisGuildDumpToggle_Click(object sender, RoutedEventArgs e)
     {
         var enable = !ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled;
@@ -680,7 +621,7 @@ public partial class MainWindow
         {
             var choice = MessageBox.Show(
                 "Ativar diagnóstico LOCAL dos rankings Guild Challenge e Guild Might?\n\n" +
-                "Esses três tipos de pacotes serão escritos somente no disco, sem envio ao War Room. " +
+                "Might continua sendo enviado ao War Room enquanto um dump é salvo localmente. Challenge e temporada continuam só locais. " +
                 "Os arquivos podem conter nomes e identificadores de jogadores.\n\n" +
                 "Clique em ABRIR PASTA DE DUMPS para localizar os arquivos.",
                 "IMORTAIS - diagnóstico de Guilda",
@@ -729,8 +670,7 @@ public partial class MainWindow
         builder.AppendLine("IMORTAIS COMBAT CLIENT - DIAGNÓSTICO");
         builder.AppendLine("Build: " + ImortaisBuildIdentity.Display);
         builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
-        builder.AppendLine($"Envio homologação Guild: {(ImortaisEventBridge.IsHomologGuildUploadEnabled ? "LIGADO" : "DESLIGADO")} · aceitos: {ImortaisEventBridge.HomologGuildAcceptedCount} · rejeitados/erros: {ImortaisEventBridge.HomologGuildRejectedCount}");
-        builder.AppendLine($"Fila homologação Guild: pendentes: {ImortaisEventBridge.HomologGuildPendingCount} · retentativas: {ImortaisEventBridge.HomologGuildRetryCount} · fila cheia/perdidos: {ImortaisEventBridge.HomologGuildOverflowCount}");
+        builder.AppendLine($"Guild Might: enviados {status.GuildMightSentAttempts} · aceitos pelo servidor {status.GuildMightServerAccepted} · rejeitados/erros {status.GuildMightRejectedAttempts} · pendentes {status.GuildMightPending}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
         builder.AppendLine($"Updater: {AutoUpdateController.LastUpdateCheckStatus}");
         builder.AppendLine($"Última checagem: {(AutoUpdateController.LastUpdateCheckUtc.HasValue ? AutoUpdateController.LastUpdateCheckUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "não realizada")}");
