@@ -6,9 +6,10 @@
   `guild_might_probe` para `ServerUrl`, autenticado por `AgentKey`.
 - O marker Photon de 64 bits é serializado como texto decimal; arrays completos
   (até 10.000 entradas) e valores bytes são preservados.
-- Guild Challenge e operações de temporada
-  `GetGuildChallengePoints`, `GetGvgSeasonContributionByActivity` e
-  `GetGvgSeasonRankings` **não são enviadas à produção** nesta versão.
+- Guild Challenge e operações de temporada (`GetGuildChallengePoints`,
+  `GetGvgSeasonContributionByActivity` e `GetGvgSeasonRankings`) **são enviadas
+  à produção** como `guild_might_probe` pela outbox autenticada, apenas quando
+  observadas passivamente. O cliente não consulta Albion ativamente.
 - O envio privado de homologação foi **retirado do código**. O client não contém
   URL, token, botão, fila nem worker de homologação.
 
@@ -16,8 +17,9 @@
 Abra IMORTAIS → DIAGNÓSTICO → **GUILD DUMPS: DESLIGADO** para
 ativar a cópia local de pacotes Photon Guild em:
 `%LOCALAPPDATA%\IMORTAIS Combat Client\Diagnostics\guild-probes-YYYYMMDD-00.ndjson`.
-A cópia é local e não transmite dados extras. **Might continua sendo enviado
-à produção**, inclusive com dumps ligados. Challenge e Season ficam locais.
+A cópia é local e não transmite dados extras. **Might, Challenge e operações de temporada continuam sendo enviados
+à produção** pela outbox autenticada, inclusive com dumps locais ligados.
+O arquivo NDJSON é uma cópia de diagnóstico, não substitui a transmissão.
 Desative após os testes. Não compartilhe `telemetry.json` ou chaves.
 
 ## Diagnóstico Might
