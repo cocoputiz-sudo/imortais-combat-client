@@ -498,6 +498,11 @@
                                                   Margin="0,9,0,0"
                                                   Content="Salvar meus abates"
                                                   Click="ImortaisAutoSaveOption_Click" />
+                                        <CheckBox x:Name="ImortaisAutoSaveDeathsCheckBox"
+                                                  Margin="0,6,0,0"
+                                                  Content="Salvar quando eu MORRER"
+                                                  ToolTip="Gatilho em DiedEvent letal do próprio personagem; morte tem prioridade sobre abates no mesmo replay."
+                                                  Click="ImortaisAutoSaveOption_Click" />
                                         <Button x:Name="ImortaisSaveTestReplayButton"
                                                 Margin="0,8,0,0"
                                                 MinWidth="205"
