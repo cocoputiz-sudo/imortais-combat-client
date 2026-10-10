@@ -49,7 +49,10 @@ public sealed class ImortaisTelemetryConfig
             // telemetry.json at upgrade, without touching pairing AgentKey.
             if (json.Contains("\"HomologGuildToken\"",StringComparison.Ordinal)
                 || json.Contains("\"HomologGuildUploadEnabled\"",StringComparison.Ordinal))
-                Save(config);
+            {
+                try { Save(config); }
+                catch { /* Preserve the already loaded real AgentKey even if migration cannot write. */ }
+            }
             return config;
         }
         catch
