@@ -17,3 +17,5 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Run isolated credential and highlights logic tests
         run: dotnet run --project .\tests\Highlights.LogicTests\Highlights.LogicTests.csproj -c Release
+      - name: Build Combat Client without the obsolete release guard
+        run: dotnet build .\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj -c Release --no-incremental
