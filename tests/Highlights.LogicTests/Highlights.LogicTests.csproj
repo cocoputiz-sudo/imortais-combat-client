@@ -11,5 +11,6 @@
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/Highlights/FramePacer.cs" Link="FramePacer.cs" />
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/Highlights/PcmAudioRing.cs" Link="PcmAudioRing.cs" />
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/Highlights/HighlightLogic.cs" Link="HighlightLogic.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisCredentialPresentation.cs" Link="ImortaisCredentialPresentation.cs" />
   </ItemGroup>
 </Project>
