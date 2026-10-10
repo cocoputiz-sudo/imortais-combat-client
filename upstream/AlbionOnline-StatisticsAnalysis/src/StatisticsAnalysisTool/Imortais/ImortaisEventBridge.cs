@@ -79,6 +79,8 @@ public static class ImortaisEventBridge
     private static long _guildPresenceProbeCount;
     private static DateTime? _lastGuildPresenceProbeAtUtc;
     private static long _guildMightProbeCount;
+    private static long _guildChallengeProbeCount;
+    private static long _guildSeasonProbeCount;
     private static long _guildMightSentAttempts, _guildMightServerAccepted, _guildMightRejectedAttempts;
     private static readonly ConcurrentDictionary<string,byte> GuildMightPendingIds = new(StringComparer.Ordinal);
     private static DateTime? _lastGuildMightProbeAtUtc;
@@ -103,6 +105,8 @@ public static class ImortaisEventBridge
         int GuildPresenceDistinctPlayers,
         DateTime? LastGuildPresenceProbeAtUtc,
         long GuildMightProbeCount,
+        long GuildChallengeProbeCount,
+        long GuildSeasonProbeCount,
         long GuildMightSentAttempts,
         long GuildMightServerAccepted,
         long GuildMightRejectedAttempts,
@@ -288,6 +292,8 @@ public static class ImortaisEventBridge
                 GuildPresencePlayersSeen.Count,
                 _lastGuildPresenceProbeAtUtc,
                 Interlocked.Read(ref _guildMightProbeCount),
+                Interlocked.Read(ref _guildChallengeProbeCount),
+                Interlocked.Read(ref _guildSeasonProbeCount),
                 Interlocked.Read(ref _guildMightSentAttempts),
                 Interlocked.Read(ref _guildMightServerAccepted),
                 Interlocked.Read(ref _guildMightRejectedAttempts),
@@ -570,11 +576,8 @@ public static class ImortaisEventBridge
         if (_config.GuildProbeLocalDiagnosticsEnabled)
             WriteGuildProbeLocalDump(direction, operationName, operationCode, parameters);
 
-        // Challenge and season operations stay out of production in v0.6.1.
-        if (operationName == "GetGuildChallengePoints"
-            || operationName == "GetGvgSeasonContributionByActivity"
-            || operationName == "GetGvgSeasonRankings")
-            return;
+        // All observed guild operations follow the same authenticated outbox.
+        // Passive receive only: never send any request to Albion here.
 
         var normalizedParameters = new Dictionary<string, object?>(StringComparer.Ordinal);
         foreach (var pair in parameters.OrderBy(x => x.Key).Take(96))
@@ -614,12 +617,16 @@ public static class ImortaisEventBridge
             GuildMightPendingIds.TryAdd(guildEvent.EventId,0);
             GuildMightOperationsSeen.TryAdd(operationName, 0);
             Interlocked.Increment(ref _guildMightProbeCount);
+            if (operationName == "GetGuildChallengePoints")
+                Interlocked.Increment(ref _guildChallengeProbeCount);
+            else if (operationName == "GetGvgSeasonContributionByActivity" || operationName == "GetGvgSeasonRankings")
+                Interlocked.Increment(ref _guildSeasonProbeCount);
             lock (StatusLock)
             {
                 _lastGuildMightProbeAtUtc = DateTime.UtcNow;
             }
 
-            AddActivity($"MIGHT {direction.ToUpperInvariant()} {operationName} · {normalizedParameters.Count} params");
+            AddActivity($"GUILD {direction.ToUpperInvariant()} {operationName} · {normalizedParameters.Count} params");
         }
     }
 
