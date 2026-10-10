@@ -166,7 +166,7 @@ public static class ImortaisEventBridge
             lock(GuildProbeLocalDumpLock)
             {
                 if(File.Exists(path)&&new FileInfo(path).Length>16*1024*1024)return;
-                File.AppendAllText(path,JsonSerializer.Serialize(record)+"\\n",Utf8NoBom);
+                File.AppendAllText(path,JsonSerializer.Serialize(record)+"\n",Utf8NoBom);
             }
         }
         catch(Exception)
