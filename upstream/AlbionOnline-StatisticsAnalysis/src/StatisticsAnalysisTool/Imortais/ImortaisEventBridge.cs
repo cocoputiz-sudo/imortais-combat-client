@@ -1486,6 +1486,15 @@ public static class ImortaisEventBridge
             return;
         }
 
+        foreach(var dropped in lines.Take(removeCount))
+        {
+            try
+            {
+                var evt=JsonSerializer.Deserialize<ImortaisTelemetryEvent>(dropped,OutboxJsonOptions);
+                if(evt?.Type=="guild_might_probe")GuildMightPendingIds.TryRemove(evt.EventId,out _);
+            }
+            catch(JsonException) {}
+        }
         var survivors = lines.Skip(removeCount).ToList();
         await AtomicRewriteLinesLockedAsync(path, survivors, token);
 
@@ -1610,7 +1619,17 @@ public static class ImortaisEventBridge
         {
             while (await reader.ReadLineAsync(token) is { } line)
             {
-                if (!string.IsNullOrWhiteSpace(line)) count++;
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    count++;
+                    try
+                    {
+                        var evt=JsonSerializer.Deserialize<ImortaisTelemetryEvent>(line,OutboxJsonOptions);
+                        if(evt?.Type=="guild_might_probe" && !string.IsNullOrWhiteSpace(evt.EventId))
+                            GuildMightPendingIds.TryAdd(evt.EventId,0);
+                    }
+                    catch(JsonException) { /* existing outbox recovery handles invalid lines */ }
+                }
             }
         }
 
