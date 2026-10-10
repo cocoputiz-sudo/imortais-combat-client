@@ -44,7 +44,13 @@ public sealed class ImortaisTelemetryConfig
             }
 
             var json = File.ReadAllText(FilePath);
-            return JsonSerializer.Deserialize<ImortaisTelemetryConfig>(json) ?? new ImortaisTelemetryConfig();
+            var config=JsonSerializer.Deserialize<ImortaisTelemetryConfig>(json) ?? new ImortaisTelemetryConfig();
+            // Remove obsolete private-QA secrets and switches from existing
+            // telemetry.json at upgrade, without touching pairing AgentKey.
+            if (json.Contains("\"HomologGuildToken\"",StringComparison.Ordinal)
+                || json.Contains("\"HomologGuildUploadEnabled\"",StringComparison.Ordinal))
+                Save(config);
+            return config;
         }
         catch
         {
