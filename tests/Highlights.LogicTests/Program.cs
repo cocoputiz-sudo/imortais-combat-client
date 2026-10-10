@@ -1,4 +1,5 @@
 using StatisticsAnalysisTool.Imortais.Highlights;
+using StatisticsAnalysisTool.Imortais;
 
 static void Eq<T>(T actual,T expected,string message)
 {
@@ -388,3 +389,20 @@ TestAudioBoundsFromVideoEpoch();
 TestNv12PoolStallWatchdog();
 TestTextureLeasePool();
 Console.WriteLine("\n✅ Highlights logic suite: TODOS OS TESTES PASSARAM");
+
+static void TestCredentialPresentation()
+{
+    Eq(ImortaisCredentialPresentation.Describe(true,false,"none",false).Text,
+       "SEM CHAVE · PAREIE O CLIENT","client sem chave");
+    Eq(ImortaisCredentialPresentation.Describe(true,true,"master",false).Text,
+       "CHAVE GERAL · PAREIE PARA O RANKING","chave geral não autoriza ranking");
+    var paired=ImortaisCredentialPresentation.Describe(true,true,"paired",true);
+    Eq(paired.Text,"PAREADO · RANKING HABILITADO","token validado pelo servidor");
+    True(paired.Healthy,"pareado deve ser saudável");
+    True(!ImortaisCredentialPresentation.Describe(true,true,"paired",false).Healthy,
+       "pareado mas fora da allowlist não é elegível");
+    True(!ImortaisCredentialPresentation.Describe(true,true,"unknown",false).Healthy,
+       "chave com tipo desconhecido nunca deve parecer pareada");
+    Console.WriteLine("✅ estado de pareamento validado pelo War Room");
+}
+TestCredentialPresentation();
