@@ -271,6 +271,18 @@ public partial class MainWindow
             $"{partyCount} detectado{(partyCount == 1 ? string.Empty : "s")}",
             partyCount > 0 ? Brushes.LightGreen : Brushes.LightSlateGray);
 
+        // Keep transient pairing errors/progress visible while the pair request runs.
+        // Once idle, show the last credential state verified by the War Room.
+        if (ImortaisPairingStatusText != null && ImortaisPairingButton?.IsEnabled == true)
+        {
+            var credential = ImortaisCredentialPresentation.Describe(
+                status.Enabled, status.Configured, status.CredentialMode, status.RankingEligible);
+            ImortaisPairingStatusText.Text = credential.Text;
+            ImortaisPairingStatusText.Foreground = credential.Healthy
+                ? Brushes.LimeGreen
+                : status.CredentialMode == "none" ? Brushes.IndianRed : Brushes.Gold;
+        }
+
         UpdateImortaisDiagnostics(status);
     }
 

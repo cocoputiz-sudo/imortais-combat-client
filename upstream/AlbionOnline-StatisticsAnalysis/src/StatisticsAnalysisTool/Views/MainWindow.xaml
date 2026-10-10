@@ -323,7 +323,7 @@
                                                 Click="ImortaisPairing_Click" />
                                     </StackPanel>
                                     <TextBlock x:Name="ImortaisPairingStatusText" Margin="0,8,0,0"
-                                               Text="Aguardando ativação" Foreground="{StaticResource SolidColorBrush.Text.4}" />
+                                               Text="Verificando estado do pareamento..." Foreground="{StaticResource SolidColorBrush.Text.4}" />
                                 </StackPanel>
                             </Border>
 

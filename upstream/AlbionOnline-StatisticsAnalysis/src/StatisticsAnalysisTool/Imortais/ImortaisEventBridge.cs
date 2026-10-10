@@ -59,6 +59,8 @@ public static class ImortaisEventBridge
     private static bool _warRoomConnected;
     private static DateTime? _lastSuccessfulContactUtc;
     private static string _lastError = string.Empty;
+    private static string _credentialMode = "unknown";
+    private static bool _rankingEligible;
     private static string _persistenceWarning = string.Empty;
     private static string? _activeCtaTime;
     private static string? _outboxStatePath;
@@ -102,6 +104,8 @@ public static class ImortaisEventBridge
         long GuildMightProbeCount,
         int GuildMightOperationCount,
         DateTime? LastGuildMightProbeAtUtc,
+        string CredentialMode,
+        bool RankingEligible,
         IReadOnlyList<string> RecentActivity);
 
     private sealed record NearbyPlayerPresence(
@@ -136,6 +140,11 @@ public static class ImortaisEventBridge
     {
         _config = ImortaisTelemetryConfig.Load();
         _lastContextRefreshAttemptUtc = DateTime.MinValue;
+        lock (StatusLock)
+        {
+            _credentialMode = "unknown";
+            _rankingEligible = false;
+        }
         ResetOutboxState();
         EnsureStarted();
     }
@@ -221,6 +230,8 @@ public static class ImortaisEventBridge
                 Interlocked.Read(ref _guildMightProbeCount),
                 GuildMightOperationsSeen.Count,
                 _lastGuildMightProbeAtUtc,
+                string.IsNullOrWhiteSpace(_config.AgentKey) ? "none" : _credentialMode,
+                _rankingEligible,
                 RecentActivity.ToArray());
         }
     }
@@ -827,6 +838,10 @@ public static class ImortaisEventBridge
 
             if (!response.IsSuccessStatusCode)
             {
+                if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                {
+                    lock (StatusLock) { _credentialMode = "unknown"; _rankingEligible = false; }
+                }
                 SetConnectionState(
                     false,
                     response.StatusCode == System.Net.HttpStatusCode.Unauthorized
@@ -845,6 +860,21 @@ public static class ImortaisEventBridge
             {
                 if (cta.TryGetProperty("id", out var idProp)) ctaId = idProp.GetString();
                 if (cta.TryGetProperty("time", out var timeProp)) ctaTime = timeProp.GetString();
+            }
+
+            // This mode is confirmed by the authenticated War Room context.
+            // A master ingest key can send events but does not grant ranking access.
+            if (doc.RootElement.TryGetProperty("credentialMode", out var modeProp)
+                && modeProp.ValueKind == JsonValueKind.String)
+            {
+                var mode = modeProp.GetString();
+                var eligible = doc.RootElement.TryGetProperty("rankingEligible", out var eligibleProp)
+                    && eligibleProp.ValueKind == JsonValueKind.True;
+                lock (StatusLock)
+                {
+                    _credentialMode = mode is "paired" or "master" ? mode : "unknown";
+                    _rankingEligible = _credentialMode == "paired" && eligible;
+                }
             }
 
             SetCtaContext(ctaId, ctaTime);
@@ -1040,6 +1070,7 @@ public static class ImortaisEventBridge
                     {
                         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                         {
+                            lock (StatusLock) { _credentialMode = "unknown"; _rankingEligible = false; }
                             blockedAgentKey = _config.AgentKey;
                             SetConnectionState(false, "Ingest HTTP 401 · reative o client");
                             continue;
