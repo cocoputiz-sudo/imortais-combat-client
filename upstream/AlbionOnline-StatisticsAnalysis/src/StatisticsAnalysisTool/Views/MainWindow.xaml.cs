@@ -126,7 +126,8 @@ public partial class MainWindow
             _highlightRecorder.Enable(
                 NormalizeHighlightFps(settings.ImortaisHighlightFps),
                 settings.IsImortaisAutoSaveAbatesEnabled,
-                settings.IsImortaisAutoSaveDeathsEnabled);
+                settings.IsImortaisAutoSaveDeathsEnabled,
+                settings.IsImortaisAutoSaveMassAbatesEnabled);
         }
         UpdateImortaisBackgroundRecordingUi();
 
@@ -146,7 +147,8 @@ public partial class MainWindow
             _highlightRecorder.OnAlbionStarted(
                 NormalizeHighlightFps(settings.ImortaisHighlightFps),
                 settings.IsImortaisAutoSaveAbatesEnabled,
-                settings.IsImortaisAutoSaveDeathsEnabled);
+                settings.IsImortaisAutoSaveDeathsEnabled,
+                settings.IsImortaisAutoSaveMassAbatesEnabled);
         }
         if (settings.IsOpenWithGameActive)
         {
@@ -275,6 +277,15 @@ public partial class MainWindow
             $"{partyCount} detectado{(partyCount == 1 ? string.Empty : "s")}",
             partyCount > 0 ? Brushes.LightGreen : Brushes.LightSlateGray);
 
+        if(ImortaisPairingStatusText!=null&&ImortaisPairingButton?.IsEnabled==true)
+        {
+            var credential=ImortaisCredentialPresentation.Describe(
+                status.Enabled,status.Configured,status.CredentialMode,status.RankingEligible);
+            ImortaisPairingStatusText.Text=credential.Text;
+            ImortaisPairingStatusText.Foreground=credential.Healthy
+                ?Brushes.LimeGreen
+                :status.CredentialMode=="none"?Brushes.IndianRed:Brushes.Gold;
+        }
         UpdateImortaisDiagnostics(status);
     }
 
@@ -398,6 +409,11 @@ public partial class MainWindow
             ImortaisAutoSaveDeathsCheckBox.IsEnabled=requested;
         }
 
+        if(ImortaisAutoSaveMassAbatesCheckBox!=null)
+        {
+            ImortaisAutoSaveMassAbatesCheckBox.IsChecked=SettingsController.CurrentSettings.IsImortaisAutoSaveMassAbatesEnabled;
+            ImortaisAutoSaveMassAbatesCheckBox.IsEnabled=requested;
+        }
         if (ImortaisHighlightStatusText != null)
         {
             var border = status.State == HighlightRecorderService.RecorderState.Running
@@ -474,7 +490,8 @@ public partial class MainWindow
                 _highlightRecorder.Enable(
                     NormalizeHighlightFps(settings.ImortaisHighlightFps),
                     settings.IsImortaisAutoSaveAbatesEnabled,
-                settings.IsImortaisAutoSaveDeathsEnabled);
+                settings.IsImortaisAutoSaveDeathsEnabled,
+                settings.IsImortaisAutoSaveMassAbatesEnabled);
             }
             else
             {
@@ -495,8 +512,9 @@ public partial class MainWindow
     {
         var settings=SettingsController.CurrentSettings;
         settings.IsImortaisAutoSaveAbatesEnabled=ImortaisAutoSaveAbatesCheckBox?.IsChecked!=false;
-        settings.IsImortaisAutoSaveDeathsEnabled=ImortaisAutoSaveDeathsCheckBox?.IsChecked!=false;
-        _highlightRecorder.UpdateTriggerOptions(settings.IsImortaisAutoSaveAbatesEnabled,settings.IsImortaisAutoSaveDeathsEnabled);
+        settings.IsImortaisAutoSaveDeathsEnabled=ImortaisAutoSaveDeathsCheckBox?.IsChecked==true;
+        settings.IsImortaisAutoSaveMassAbatesEnabled=ImortaisAutoSaveMassAbatesCheckBox?.IsChecked==true;
+        _highlightRecorder.UpdateTriggerOptions(settings.IsImortaisAutoSaveAbatesEnabled,settings.IsImortaisAutoSaveDeathsEnabled,settings.IsImortaisAutoSaveMassAbatesEnabled);
         await SettingsController.SaveSettingsAsync();
         UpdateImortaisBackgroundRecordingUi();
     }
@@ -522,7 +540,8 @@ public partial class MainWindow
             _highlightRecorder.Enable(
                 fps,
                 settings.IsImortaisAutoSaveAbatesEnabled,
-                settings.IsImortaisAutoSaveDeathsEnabled);
+                settings.IsImortaisAutoSaveDeathsEnabled,
+                settings.IsImortaisAutoSaveMassAbatesEnabled);
         }
         UpdateImortaisBackgroundRecordingUi();
     }
