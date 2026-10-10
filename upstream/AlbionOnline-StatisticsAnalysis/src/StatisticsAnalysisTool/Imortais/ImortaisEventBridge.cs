@@ -79,6 +79,8 @@ public static class ImortaisEventBridge
     private static long _guildPresenceProbeCount;
     private static DateTime? _lastGuildPresenceProbeAtUtc;
     private static long _guildMightProbeCount;
+    private static long _guildMightSentAttempts, _guildMightServerAccepted, _guildMightRejectedAttempts;
+    private static readonly ConcurrentDictionary<string,byte> GuildMightPendingIds = new(StringComparer.Ordinal);
     private static DateTime? _lastGuildMightProbeAtUtc;
 
     public sealed record BridgeStatus(
@@ -101,6 +103,10 @@ public static class ImortaisEventBridge
         int GuildPresenceDistinctPlayers,
         DateTime? LastGuildPresenceProbeAtUtc,
         long GuildMightProbeCount,
+        long GuildMightSentAttempts,
+        long GuildMightServerAccepted,
+        long GuildMightRejectedAttempts,
+        int GuildMightPending,
         int GuildMightOperationCount,
         DateTime? LastGuildMightProbeAtUtc,
         IReadOnlyList<string> RecentActivity);
@@ -246,6 +252,10 @@ public static class ImortaisEventBridge
                 GuildPresencePlayersSeen.Count,
                 _lastGuildPresenceProbeAtUtc,
                 Interlocked.Read(ref _guildMightProbeCount),
+                Interlocked.Read(ref _guildMightSentAttempts),
+                Interlocked.Read(ref _guildMightServerAccepted),
+                Interlocked.Read(ref _guildMightRejectedAttempts),
+                GuildMightPendingIds.Count,
                 GuildMightOperationsSeen.Count,
                 _lastGuildMightProbeAtUtc,
                 RecentActivity.ToArray());
@@ -557,13 +567,15 @@ public static class ImortaisEventBridge
 
         LastGuildMightProbePayloads[fingerprintKey] = fingerprint;
 
-        if (Enqueue(new ImortaisTelemetryEvent
-            {
-                Type = "guild_might_probe",
-                PlayerName = _config.PlayerName,
-                Payload = payload
-            }))
+        var guildEvent = new ImortaisTelemetryEvent
         {
+            Type = "guild_might_probe",
+            PlayerName = _config.PlayerName,
+            Payload = payload
+        };
+        if (Enqueue(guildEvent))
+        {
+            GuildMightPendingIds.TryAdd(guildEvent.EventId,0);
             GuildMightOperationsSeen.TryAdd(operationName, 0);
             Interlocked.Increment(ref _guildMightProbeCount);
             lock (StatusLock)
@@ -1120,6 +1132,8 @@ public static class ImortaisEventBridge
                 var batch = await ReadOutboxHeadAsync(Math.Max(1, _config.MaxBatchSize), token);
                 if (batch.Count == 0) continue;
 
+                var guildBatch = batch.Where(x=>x.Type=="guild_might_probe").ToArray();
+                Interlocked.Add(ref _guildMightSentAttempts,guildBatch.Length);
                 var url = _config.ServerUrl.TrimEnd('/') + "/api/telemetry/ingest";
                 using var req = new HttpRequestMessage(HttpMethod.Post, url);
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.AgentKey);
@@ -1148,6 +1162,7 @@ public static class ImortaisEventBridge
                 }
                 catch (Exception e)
                 {
+                    if(guildBatch.Length>0)Interlocked.Add(ref _guildMightRejectedAttempts,guildBatch.Length);
                     SetConnectionState(false, $"Ingest: {e.Message}");
                     await Task.Delay(ingestRetryDelay, token);
                     ingestRetryDelay = NextIngestRetryDelay(ingestRetryDelay);
@@ -1158,6 +1173,7 @@ public static class ImortaisEventBridge
                 {
                     if (!response.IsSuccessStatusCode)
                     {
+                        if(guildBatch.Length>0)Interlocked.Add(ref _guildMightRejectedAttempts,guildBatch.Length);
                         if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
                         {
                             blockedAgentKey = _config.AgentKey;
@@ -1173,11 +1189,21 @@ public static class ImortaisEventBridge
 
                     ingestRetryDelay = InitialIngestRetryDelay;
 
+                    bool guildBatchAcknowledged=guildBatch.Length==0;
                     try
                     {
                         var responseJson = await response.Content.ReadAsStringAsync(token);
                         using var responseDoc = JsonDocument.Parse(responseJson);
-                        if (responseDoc.RootElement.TryGetProperty("ctaEventId", out var ctaProp))
+                        var root=responseDoc.RootElement;
+                        if(guildBatch.Length>0)
+                        {
+                            var ok=root.TryGetProperty("ok",out var yes) && yes.ValueKind==JsonValueKind.True;
+                            var inserted=root.TryGetProperty("inserted",out var ins) && ins.TryGetInt32(out var ic)?ic:0;
+                            var duplicate=root.TryGetProperty("duplicate",out var dup) && dup.TryGetInt32(out var dc)?dc:0;
+                            var rejected=root.TryGetProperty("rejected",out var rej) && rej.TryGetInt32(out var rc)?rc:-1;
+                            guildBatchAcknowledged=ok && rejected==0 && inserted+duplicate==batch.Count;
+                        }
+                        if (root.TryGetProperty("ctaEventId", out var ctaProp))
                         {
                             var resolvedId = ctaProp.ValueKind == JsonValueKind.String
                                 ? ctaProp.GetString()
@@ -1188,11 +1214,22 @@ public static class ImortaisEventBridge
                     }
                     catch
                     {
-                        // O envio foi aceito; falha ao ler o corpo não invalida a conexão.
+                        // If the ACK is not parseable, do NOT claim Guild acceptance.
+                        guildBatchAcknowledged=guildBatch.Length==0;
+                    }
+                    if (!guildBatchAcknowledged)
+                    {
+                        Interlocked.Add(ref _guildMightRejectedAttempts,guildBatch.Length);
+                        SetConnectionState(false,"Guild Might: lote sem confirmação integral do servidor");
+                        await Task.Delay(ingestRetryDelay,token);
+                        ingestRetryDelay=NextIngestRetryDelay(ingestRetryDelay);
+                        continue;
                     }
                 }
 
                 await AcknowledgeOutboxAsync(batch.Select(x => x.EventId), token);
+                foreach (var evt in guildBatch)GuildMightPendingIds.TryRemove(evt.EventId,out _);
+                Interlocked.Add(ref _guildMightServerAccepted,guildBatch.Length);
                 SetConnectionState(true);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
