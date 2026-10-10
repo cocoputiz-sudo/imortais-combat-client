@@ -49,6 +49,7 @@ public class SettingsObject
     public bool IsImortaisBackgroundRecordingEnabled { get; set; } = false;
     public int ImortaisHighlightFps { get; set; } = 60;
     public bool IsImortaisAutoSaveAbatesEnabled { get; set; } = true;
+    public bool IsImortaisAutoSaveDeathsEnabled { get; set; } = true;
     public bool IsNavigationMenuOpen { get; set; } = true;
     public bool IsTrackingResetByMapChangeActive { get; set; } = false;
     public bool IsMainTrackerFilterSilver { get; set; } = false;
