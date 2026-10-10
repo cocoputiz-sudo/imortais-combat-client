@@ -56,16 +56,16 @@ internal sealed class HighlightStorageManager
         }
     }
 
-    public string CreateAutomaticPath(HighlightClipPlan plan,DateTime firstEventLocalTime)
+    public string CreateAutomaticPath(HighlightClipPlan plan,DateTime firstEventLocalTime,bool saveAsMass)
     {
         lock(_gate)
         {
             EnsureInitialized();
             var destination=plan.SelectedTrigger.Kind==HighlightTriggerKind.Death
                 ?Path.Combine(_folder,"Mortes")
-                :Path.Combine(_folder,plan.MassAbate?"Abates em Massa":"Abates");
+                :Path.Combine(_folder,saveAsMass?"Abates em Massa":"Abates");
             Directory.CreateDirectory(destination);
-            return EnsureUniquePath(HighlightFileNaming.BuildFileName(plan.SelectedTrigger,plan.TriggerCount,firstEventLocalTime),destination);
+            return EnsureUniquePath(HighlightFileNaming.BuildFileName(plan.SelectedTrigger,plan.TriggerCount,firstEventLocalTime,saveAsMass),destination);
         }
     }
 
