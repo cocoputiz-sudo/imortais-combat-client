@@ -3,7 +3,8 @@ name: Build v0.6.1 Candidate (sem publicacao)
 on:
   push:
     branches:
-      - feat/observe-guild-challenge-points-20261008
+      - "feat/**"
+      - "fix/**"
   pull_request:
     branches:
       - main
@@ -37,8 +38,13 @@ jobs:
           if ($project -notmatch '<ApplicationVersion>0\.6\.1\.0</ApplicationVersion>') { throw "csproj is not v0.6.1" }
           if ($assembly -notmatch 'AssemblyFileVersion\("0\.6\.1\.0"\)') { throw "assembly is not v0.6.1" }
           if ($bridge -notmatch 'ClientVersion = "0\.6\.1"') { throw "telemetry version mismatch" }
-          if ($feed -notmatch 'sparkle:version="0\.6\.0"') { throw "Production appcast must remain on v0.6.0" }
-          Write-Host "v0.6.1 candidate, public feed still v0.6.0"
+          # Refuse any appcast modification, regardless of public release version.
+          git fetch origin main --depth=1
+          if ($LASTEXITCODE -ne 0) { throw "Failed to fetch main" }
+          $feedDiff = git diff --name-only origin/main HEAD -- "$root/imortais-netsparkle-update-check.xml"
+          if ($feedDiff) { throw "Candidate cannot modify production appcast" }
+          if ($feed -notmatch 'sparkle:version="[^"]+"') { throw "Invalid public appcast" }
+          Write-Host "Candidate appcast identical to main; no release"
 
       - name: Carimbar commit Git real no cliente
         shell: pwsh
