@@ -140,6 +140,42 @@ public static class ImortaisEventBridge
     public static void Start() => EnsureStarted();
 
     public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
+    // Passive evidence collection for DiedEvent coverage. This does NOT
+    // publish highlights, send telemetry or alter gameplay behavior.
+    public static void DiedEventLocalDiagnostic(
+        string victim,string victimGuild,long victimObjectId,
+        string killer,string killerGuild,long killerObjectId,
+        bool ownDeath,bool ownKill,bool killerInParty,bool victimInParty,
+        string? cluster)
+    {
+        if(!_config.GuildProbeLocalDiagnosticsEnabled)return;
+        var record=new
+        {
+            capturedAtUtc=DateTime.UtcNow.ToString("O"),
+            eventName="DiedEvent",
+            lethal=true, victim, victimGuild,victimObjectId,
+            killer,killerGuild,killerObjectId,
+            ownDeath,ownKill,killerInParty,victimInParty,cluster
+        };
+        try
+        {
+            var folder=Path.Combine(ImortaisTelemetryConfig.DirectoryPath,"Diagnostics");
+            Directory.CreateDirectory(folder);
+            var path=Path.Combine(folder,$"died-events-{DateTime.UtcNow:yyyyMMdd}.ndjson");
+            // Passive small diagnostics; never records AgentKey or raw UDP data.
+            lock(GuildProbeLocalDumpLock)
+            {
+                if(File.Exists(path)&&new FileInfo(path).Length>16*1024*1024)return;
+                File.AppendAllText(path,JsonSerializer.Serialize(record)+"\\n",Utf8NoBom);
+            }
+        }
+        catch(Exception)
+        {
+            AddActivity("DiedEvent: falha ao gravar diagnóstico local");
+        }
+    }
+
+
     /// <summary>Opt-in switch; only these three guild probes are redirected to the local dump.</summary>
     public static void SetGuildProbeLocalDiagnosticsEnabled(bool enabled)
     {
