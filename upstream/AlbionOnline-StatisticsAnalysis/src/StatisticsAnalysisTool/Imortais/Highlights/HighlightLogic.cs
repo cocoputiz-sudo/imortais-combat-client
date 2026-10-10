@@ -232,6 +232,7 @@ internal sealed class HighlightClipPlan
         if(maxDuration<=TimeSpan.Zero)throw new ArgumentOutOfRangeException(nameof(maxDuration));
 
         FirstTrigger=firstTrigger;
+        SelectedTrigger=firstTrigger;
         FirstEventQpc100Ns=firstTrigger.Qpc100Ns;
         LastEventQpc100Ns=firstTrigger.Qpc100Ns;
         StartQpc100Ns=Math.Max(0,firstTrigger.Qpc100Ns-preRoll.Ticks);
@@ -244,6 +245,9 @@ internal sealed class HighlightClipPlan
     }
 
     public HighlightTrigger FirstTrigger{get;}
+    // A morte do próprio jogador prevalece sobre claps/abates na mesma janela.
+    public HighlightTrigger SelectedTrigger{get;private set;}
+    public bool MassAbate=>SelectedTrigger.Kind!=HighlightTriggerKind.Death && TriggerCount>1;
     public long FirstEventQpc100Ns{get;}
     public long LastEventQpc100Ns{get;private set;}
     public long StartQpc100Ns{get;}
@@ -262,11 +266,25 @@ internal sealed class HighlightClipPlan
     {
         if(!CanCoalesce(trigger))throw new InvalidOperationException("Trigger fora da janela de coalescência.");
         LastEventQpc100Ns=trigger.Qpc100Ns;
+        if(trigger.Kind==HighlightTriggerKind.Death)SelectedTrigger=trigger;
         EndQpc100Ns=Math.Min(
             checked(trigger.Qpc100Ns+PostRoll100Ns),
             HardEndQpc100Ns);
         TriggerCount++;
     }
+}
+
+internal static class HighlightAutoSavePolicy
+{
+    // When mass autosave is OFF, personal kills remain enabled under the
+    // original "Salvar meus abates" preference, even if coalesced.
+    public static bool ShouldSave(HighlightClipPlan plan,bool saveAbates,bool saveDeaths,bool saveMass)
+        =>plan.SelectedTrigger.Kind==HighlightTriggerKind.Death
+            ?saveDeaths
+            :plan.MassAbate?(saveMass||saveAbates):saveAbates;
+
+    public static bool SaveAsMass(HighlightClipPlan plan,bool saveMass)
+        =>plan.MassAbate&&saveMass;
 }
 
 internal sealed class HighlightClipCoalescer
@@ -383,13 +401,15 @@ internal static class HighlightFileNaming
         return string.IsNullOrWhiteSpace(result)?"desconhecido":result;
     }
 
-    public static string BuildFileName(HighlightTrigger first,int triggerCount,DateTime localTime)
+    public static string BuildFileName(HighlightTrigger first,int triggerCount,DateTime localTime,bool saveAsMass=true)
     {
         var suffix=triggerCount>1?$"_x{triggerCount}":string.Empty;
         var prefix=localTime.ToString("yyyy-MM-dd_HH-mm-ss");
         return first.Kind==HighlightTriggerKind.Death
             ? $"{prefix}_MORTE_por_{SanitizeComponent(first.Killer)}{suffix}.mp4"
-            : $"{prefix}_ABATE_{SanitizeComponent(first.Victim)}{suffix}.mp4";
+            : triggerCount>1&&saveAsMass
+                ? $"{prefix}_ABATES_EM_MASSA{suffix}.mp4"
+                : $"{prefix}_ABATE_{SanitizeComponent(first.Victim)}{suffix}.mp4";
     }
 }
 

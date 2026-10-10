@@ -34,6 +34,8 @@ internal sealed class HighlightRecorderService : IDisposable
     private bool _disposed;
     private bool _requestedEnabled;
     private bool _saveAbates=true;
+    private bool _saveDeaths;
+    private bool _saveMassAbates;
     private string? _lastCaptureError;
     private string? _lastCaptureErrorStage;
     private string? _lastSavedPath;
@@ -43,6 +45,11 @@ internal sealed class HighlightRecorderService : IDisposable
     private Task? _savePumpTask;
     private int _savePumpActive;
     private long _triggersReceived;
+    private long _deathTriggers;
+    private long _abateTriggers;
+    private long _deathClipsSaved;
+    private long _massClipsSaved;
+    private long _abateClipsSaved;
     private long _triggersCoalesced;
     private long _clipsSaved;
     private long _clipsFailed;
@@ -153,19 +160,26 @@ internal sealed class HighlightRecorderService : IDisposable
             _lastSaveWgcMaxAfterMs,
             _lastAutoSavedPath,
             _lastAutoSavedUtc,
-            _lastAutoSaveError);
+            _lastAutoSaveError,
+            Interlocked.Read(ref _deathTriggers),
+            Interlocked.Read(ref _abateTriggers),
+            Interlocked.Read(ref _deathClipsSaved),
+            Interlocked.Read(ref _massClipsSaved),
+            Interlocked.Read(ref _abateClipsSaved));
     }
 
-    public void Enable(int fps,bool saveAbates=true)
+    public void Enable(int fps,bool saveAbates=true,bool saveDeaths=false,bool saveMassAbates=false)
     {
         ObjectDisposedException.ThrowIf(_disposed,this);
         lock(_gate)
         {
             _requestedEnabled=true;
             _saveAbates=saveAbates;
+            _saveDeaths=saveDeaths;
+            _saveMassAbates=saveMassAbates;
             if(_capture!=null)
             {
-                HighlightTriggerService.UpdateOptions(saveAbates);
+                HighlightTriggerService.UpdateOptions(saveAbates,saveDeaths,saveMassAbates);
                 return;
             }
             _state=RecorderState.WaitingForAlbion;
@@ -175,20 +189,22 @@ internal sealed class HighlightRecorderService : IDisposable
         TryStartForCurrentGame(fps);
     }
 
-    public void UpdateTriggerOptions(bool saveAbates)
+    public void UpdateTriggerOptions(bool saveAbates,bool saveDeaths,bool saveMassAbates)
     {
-        lock(_gate)_saveAbates=saveAbates;
-        HighlightTriggerService.UpdateOptions(saveAbates);
+        lock(_gate){_saveAbates=saveAbates;_saveDeaths=saveDeaths;_saveMassAbates=saveMassAbates;}
+        HighlightTriggerService.UpdateOptions(saveAbates,saveDeaths,saveMassAbates);
         RaiseChanged();
     }
 
-    public void OnAlbionStarted(int fps,bool saveAbates)
+    public void OnAlbionStarted(int fps,bool saveAbates,bool saveDeaths,bool saveMassAbates)
     {
         if(_disposed)return;
         lock(_gate)
         {
             if(!_requestedEnabled)return;
             _saveAbates=saveAbates;
+            _saveDeaths=saveDeaths;
+            _saveMassAbates=saveMassAbates;
         }
         TryStartForCurrentGame(fps);
     }
@@ -270,6 +286,8 @@ internal sealed class HighlightRecorderService : IDisposable
     private void OnTriggerPublished(HighlightTrigger trigger)
     {
         Interlocked.Increment(ref _triggersReceived);
+        if(trigger.Kind==HighlightTriggerKind.Death)Interlocked.Increment(ref _deathTriggers);
+        else if(trigger.Kind==HighlightTriggerKind.Abate)Interlocked.Increment(ref _abateTriggers);
         if(!_triggerInboxAdmission.TryEnter())
         {
             Interlocked.Increment(ref _triggersDroppedPressure);
@@ -328,6 +346,15 @@ internal sealed class HighlightRecorderService : IDisposable
         HighlightClipPlan plan,
         bool forceAvailableEnd)
     {
+        bool allowSave;
+        bool saveAsMass;
+        lock(_gate)
+        {
+            allowSave=HighlightAutoSavePolicy.ShouldSave(plan,_saveAbates,_saveDeaths,_saveMassAbates);
+            saveAsMass=HighlightAutoSavePolicy.SaveAsMass(plan,_saveMassAbates);
+        }
+        if(!allowSave)return true;
+
         var slotAcquired=forceAvailableEnd
             ? WaitForDetachedSnapshotSlot()
             : _detachedSnapshotSlots.Wait(0);
@@ -393,7 +420,8 @@ internal sealed class HighlightRecorderService : IDisposable
                 before.FrameBusyCallbacks,
                 before.WgcIntervalMaxMs,
                 _lastSnapshotMs,
-                snapshotBytes));
+                snapshotBytes,
+                saveAsMass));
             snapshot=null;
             EnsureSavePump();
             return true;
@@ -464,12 +492,16 @@ internal sealed class HighlightRecorderService : IDisposable
         }
 
         bool saveAbates;
+        bool saveDeaths;
+        bool saveMassAbates;
         lock(_gate)
         {
             if(_capture!=null||_disposed||!_requestedEnabled||_state==RecorderState.Starting)return;
             _state=RecorderState.Starting;
             _message="Inicializando captura e encoder H.264 de hardware…";
             saveAbates=_saveAbates;
+            saveDeaths=_saveDeaths;
+            saveMassAbates=_saveMassAbates;
         }
         RaiseChanged();
 
@@ -488,7 +520,7 @@ internal sealed class HighlightRecorderService : IDisposable
                 _state=RecorderState.Running;
                 _message=capture.BorderWarning??"Replay buffer ativo.";
             }
-            HighlightTriggerService.Configure(OnTriggerPublished,true,saveAbates);
+            HighlightTriggerService.Configure(OnTriggerPublished,true,saveAbates,saveDeaths,saveMassAbates);
         }
         catch(HardwareEncoderUnavailableException ex)
         {
@@ -572,7 +604,7 @@ internal sealed class HighlightRecorderService : IDisposable
                 try
                 {
                     _storage.PrepareForSave();
-                    var path=_storage.CreateAutomaticPath(item.Plan,item.FirstEventLocalTime);
+                    var path=_storage.CreateAutomaticPath(item.Plan,item.FirstEventLocalTime,item.SaveAsMass);
                     saved=Mp4PassthroughWriter.Write(
                         path,
                         item.Snapshot.Video,
@@ -581,6 +613,12 @@ internal sealed class HighlightRecorderService : IDisposable
                     _storage.CompleteSave(saved);
 
                     Interlocked.Increment(ref _clipsSaved);
+                    if(item.Plan.SelectedTrigger.Kind==HighlightTriggerKind.Death)
+                        Interlocked.Increment(ref _deathClipsSaved);
+                    else if(item.SaveAsMass)
+                        Interlocked.Increment(ref _massClipsSaved);
+                    else
+                        Interlocked.Increment(ref _abateClipsSaved);
                     lock(_gate)
                     {
                         _lastSavedPath=saved;
@@ -675,7 +713,8 @@ internal sealed class HighlightRecorderService : IDisposable
         long FrameBusyBefore,
         double WgcMaxBeforeMs,
         double SnapshotMilliseconds,
-        long SnapshotBytes);
+        long SnapshotBytes,
+        bool SaveAsMass);
 
     internal enum RecorderState
     {
@@ -753,5 +792,10 @@ internal sealed class HighlightRecorderService : IDisposable
         double LastSaveWgcMaxAfterMs,
         string? LastAutoSavedPath,
         DateTime? LastAutoSavedUtc,
-        string? LastAutoSaveError);
+        string? LastAutoSaveError,
+        long AutoDeathTriggers,
+        long AutoAbateTriggers,
+        long AutoDeathClipsSaved,
+        long AutoMassClipsSaved,
+        long AutoAbateClipsSaved);
 }

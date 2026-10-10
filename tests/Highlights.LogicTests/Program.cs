@@ -1,4 +1,5 @@
 using StatisticsAnalysisTool.Imortais.Highlights;
+using StatisticsAnalysisTool.Imortais;
 
 static void Eq<T>(T actual,T expected,string message)
 {
@@ -366,10 +367,62 @@ static void TestHighlightFileNaming()
         new HighlightTrigger(HighlightTriggerKind.Abate,"Enemy/Name","BadMack",1),
         3,
         new DateTime(2026,10,7,1,2,3));
-    Eq(name,"2026-10-07_01-02-03_ABATE_Enemy_Name_x3.mp4","nome coalescido deve usar primeiro abate e contagem");
+    Eq(name,"2026-10-07_01-02-03_ABATES_EM_MASSA_x3.mp4","múltiplos abates geram categoria de massa");
     Console.WriteLine("✅ nomes de highlight são saneados e incluem contagem coalescida");
 }
 
+static void TestDeathPriorityAndFilename()
+{
+    var clips=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    clips.Add(Trigger(HighlightTriggerKind.Abate,100,"Enemy1","BadMack"));
+    clips.Add(Trigger(HighlightTriggerKind.Abate,103,"Enemy2","BadMack"));
+    clips.Add(Trigger(HighlightTriggerKind.Death,107,"BadMack","Killer"));
+    True(clips.TryDequeueReady(TimeSpan.FromSeconds(122).Ticks,out var clip),"clipe pronto depois do pós-roll da morte");
+    Eq(clip!.TriggerCount,3,"morte não deve criar duplicata na mesma janela");
+    Eq(clip.SelectedTrigger.Kind,HighlightTriggerKind.Death,"morte tem prioridade sobre massa e abate");
+    True(HighlightFileNaming.BuildFileName(clip.SelectedTrigger,clip.TriggerCount,new DateTime(2026,10,10)).Contains("_MORTE_por_Killer_x3"),"deve nomear pela morte real");
+    var single=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    single.Add(Trigger(HighlightTriggerKind.Death,100,"BadMack","Enemy"));
+    True(single.TryDequeueReady(TimeSpan.FromSeconds(115).Ticks,out var lone),"morte única salva");
+    Eq(lone!.SelectedTrigger.Kind,HighlightTriggerKind.Death,"morte única identifica jogador");
+    var reversed=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    reversed.Add(Trigger(HighlightTriggerKind.Death,100,"BadMack","Enemy"));
+    reversed.Add(Trigger(HighlightTriggerKind.Abate,103,"Enemy2","BadMack"));
+    True(reversed.TryDequeueReady(TimeSpan.FromSeconds(118).Ticks,out var third),"clipe reverso");
+    Eq(third!.SelectedTrigger.Kind,HighlightTriggerKind.Death,"abate posterior não rebaixa a prioridade da morte");
+    Console.WriteLine("✅ morte > abates em massa > abate: coalescência e arquivo");
+}
+static void TestCredentialPresentation()
+{
+    Eq(ImortaisCredentialPresentation.Describe(true,false,"none",false).Text,"SEM CHAVE · PAREIE O CLIENT","sem chave");
+    Eq(ImortaisCredentialPresentation.Describe(true,true,"master",false).Text,"CHAVE GERAL · PAREIE PARA O RANKING","chave geral");
+    var paired=ImortaisCredentialPresentation.Describe(true,true,"paired",true);
+    Eq(paired.Text,"PAREADO · RANKING HABILITADO","pareamento confirmado");
+    True(paired.Healthy,"pareado elegível");
+    True(!ImortaisCredentialPresentation.Describe(true,true,"paired",false).Healthy,"não elegível");
+    Console.WriteLine("✅ estado real do pareamento");
+}
+TestCredentialPresentation();
+static void TestMassIsOptIn()
+{
+    var clips=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    clips.Add(Trigger(HighlightTriggerKind.Abate,100,"Enemy1","BadMack"));
+    clips.Add(Trigger(HighlightTriggerKind.Abate,103,"Enemy2","BadMack"));
+    True(clips.TryDequeueReady(TimeSpan.FromSeconds(118).Ticks,out var plan),"clipe de dois abates");
+    True(plan!.MassAbate,"dois abates podem ser classificados como massa");
+    True(HighlightAutoSavePolicy.ShouldSave(plan,true,false,false),"opção original de abates permanece ativa");
+    True(!HighlightAutoSavePolicy.SaveAsMass(plan,false),"não classificar massa desmarcada");
+    True(HighlightFileNaming.BuildFileName(plan.SelectedTrigger,plan.TriggerCount,DateTime.UnixEpoch,false).Contains("_ABATE_Enemy1_x2"),"pasta/arquivo de abates normal");
+    True(HighlightAutoSavePolicy.SaveAsMass(plan,true),"massa opt-in");
+    True(HighlightAutoSavePolicy.ShouldSave(plan,false,false,true),"modo massa independente");
+    True(!HighlightAutoSavePolicy.ShouldSave(plan,false,false,false),"nenhum abate se ambas opções desligadas");
+    var dying=new HighlightClipPlan(Trigger(HighlightTriggerKind.Death,100,"BadMack","Enemy"),TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    True(!HighlightAutoSavePolicy.ShouldSave(dying,true,false,false),"morte não salva sem opt-in");
+    True(HighlightAutoSavePolicy.ShouldSave(dying,true,true,false),"morte salva quando ativada");
+    Console.WriteLine("✅ morte e massa default-off independentes, abate preservado");
+}
+TestMassIsOptIn();
+TestDeathPriorityAndFilename();
 TestHighlightCoalescence();
 TestPersonalMassKillBurstCoalescence();
 TestBoundedAdmissionCounter();
