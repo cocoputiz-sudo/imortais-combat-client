@@ -690,6 +690,43 @@ public partial class MainWindow
         }
     }
 
+    private void ExportImortaisEventDiagnostics_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var directory = Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics");
+            Directory.CreateDirectory(directory);
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Exportar diagnóstico de códigos de eventos Photon",
+                Filter = "Diagnóstico JSON (*.json)|*.json",
+                DefaultExt = ".json",
+                AddExtension = true,
+                InitialDirectory = directory,
+                FileName = $"imortais-photon-event-codes-{DateTime.Now:yyyyMMdd-HHmmss}.json",
+                OverwritePrompt = true
+            };
+
+            if (dialog.ShowDialog(this) != true) return;
+
+            // Só dados agregados e formato dos parâmetros, nunca payload nem IDs.
+            var json = ImortaisPhotonEventDiagnostics.ExportJson();
+            File.WriteAllText(dialog.FileName, json, new UTF8Encoding(false));
+            MessageBox.Show(
+                "Diagnóstico de eventos exportado. Entre e saia de uma PT e saqueie um item antes de enviar o arquivo para análise. " +
+                "O JSON contém somente códigos, contagens e tipos/tamanhos dos parâmetros.",
+                "IMORTAIS Combat Client",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show("Falha ao exportar diagnóstico de eventos: " + error.Message,
+                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void CopyImortaisDiagnostics_Click(object sender, RoutedEventArgs e)
     {
         var status = ImortaisEventBridge.GetStatus();
