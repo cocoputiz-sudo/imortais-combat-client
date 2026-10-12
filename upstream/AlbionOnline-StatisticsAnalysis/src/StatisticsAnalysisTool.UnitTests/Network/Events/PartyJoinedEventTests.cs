@@ -42,6 +42,7 @@ public class PartyJoinedEventTests
 
         var partyJoinedEvent = new PartyJoinedEvent(parameters);
 
+        partyJoinedEvent.HasCompleteRoster.Should().BeTrue();
         partyJoinedEvent.PartyUsers.Should().HaveCount(2);
         partyJoinedEvent.PartyUsers[new Guid(firstGuidBytes)].Should().Be("Bruno313");
         partyJoinedEvent.PartyUsers[new Guid(secondGuidBytes)].Should().Be("Triky313");
@@ -82,8 +83,65 @@ public class PartyJoinedEventTests
 
         var partyJoinedEvent = new PartyJoinedEvent(parameters);
 
+        partyJoinedEvent.HasCompleteRoster.Should().BeTrue();
         partyJoinedEvent.PartyUsers.Should().HaveCount(2);
         partyJoinedEvent.PartyUsers[new Guid(firstGuidBytes)].Should().Be("Bruno313");
         partyJoinedEvent.PartyUsers[new Guid(secondGuidBytes)].Should().Be("Triky313");
     }
+    [Test]
+    public void Constructor_WithoutExpectedRosterFields_DoesNotTrustEmptyRoster()
+    {
+        var parsed = new PartyJoinedEvent(new Dictionary<byte, object>
+        {
+            { 7, new[] { "BadMack", "MitriusBR" } }
+        });
+
+        parsed.HasCompleteRoster.Should().BeFalse();
+        parsed.PartyUsers.Should().BeEmpty();
+        parsed.DecodeDiagnostics.Should().Contain("7:strings(2)");
+    }
+
+    [Test]
+    public void Constructor_WithPartialGuidAndNameLists_RejectsWholeRoster()
+    {
+        var parsed = new PartyJoinedEvent(new Dictionary<byte, object>
+        {
+            { 8, Guid.NewGuid().ToByteArray() },
+            { 9, new[] { "BadMack", "MitriusBR" } }
+        });
+
+        parsed.HasCompleteRoster.Should().BeFalse();
+        parsed.PartyUsers.Should().BeEmpty();
+    }
+
+    [Test]
+    public void Constructor_WithTruncatedGuidBytes_RejectsWholeRoster()
+    {
+        var parsed = new PartyJoinedEvent(new Dictionary<byte, object>
+        {
+            { 8, new byte[17] },
+            { 9, new[] { "BadMack" } }
+        });
+
+        parsed.HasCompleteRoster.Should().BeFalse();
+        parsed.PartyUsers.Should().BeEmpty();
+    }
+
+    [Test]
+    public void Constructor_WithGuidObjects_DecodesCompleteRoster()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var parsed = new PartyJoinedEvent(new Dictionary<byte, object>
+        {
+            { 8, new object[] { first, second } },
+            { 9, new[] { "BadMack", "MitriusBR" } }
+        });
+
+        parsed.HasCompleteRoster.Should().BeTrue();
+        parsed.PartyUsers.Should().HaveCount(2);
+        parsed.PartyUsers[first].Should().Be("BadMack");
+        parsed.PartyUsers[second].Should().Be("MitriusBR");
+    }
+
 }
