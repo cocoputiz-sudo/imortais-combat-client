@@ -72,6 +72,7 @@ public static class ImortaisEventBridge
     private static long _queueSequence;
     private static DateTime? _lastPartySnapshotAtUtc;
     private static int _lastPartyMemberCount;
+    private static PartyMemberSnapshot[] _lastPartyMembers = [];
     private static DateTime _lastHeartbeatEnqueuedUtc = DateTime.MinValue;
     private static DateTime _lastContextRefreshAttemptUtc = DateTime.MinValue;
     private static DateTime _lastPlayerPresenceSnapshotEnqueuedUtc = DateTime.MinValue;
@@ -311,6 +312,14 @@ public static class ImortaisEventBridge
         }
     }
 
+    // Registra apenas formato/tamanho dos campos Photon, jamais os nomes/IDs.
+    public static void PartyJoinedObservation(bool decoded, int count, string shape)
+    {
+        AddActivity(decoded
+            ? $"PARTY_JOINED decodificado · {count} membros · {shape}"
+            : $"PARTY_JOINED ignorado: roster incompleto · {shape}");
+    }
+
     public static void PartySnapshot(IEnumerable<PartyMemberSnapshot> members)
     {
         static string? CleanItem(string? uniqueName)
@@ -368,6 +377,7 @@ public static class ImortaisEventBridge
 
         lock (PartySnapshotLock)
         {
+            _lastPartyMembers = normalizedStates;
             if (LastPartySnapshotPayloads.TryGetValue(PartySnapshotFingerprintKey, out var previous)
                 && string.Equals(previous, fingerprint, StringComparison.Ordinal))
             {
@@ -967,6 +977,20 @@ public static class ImortaisEventBridge
             AddActivity(normalizedId == null
                 ? "CTA desvinculado"
                 : $"CTA vinculado · {(string.IsNullOrWhiteSpace(normalizedTime) ? "#" + normalizedId : normalizedTime)}");
+
+            // A assinatura anterior era global ao dispositivo. Uma party
+            // idêntica deve ser reenviada ao novo CTA, mesmo sem trocar membro.
+            PartyMemberSnapshot[] knownParty;
+            lock (PartySnapshotLock)
+            {
+                LastPartySnapshotPayloads.TryRemove(PartySnapshotFingerprintKey, out _);
+                knownParty = _lastPartyMembers.ToArray();
+            }
+
+            if (normalizedId != null && knownParty.Length > 0)
+            {
+                PartySnapshot(knownParty);
+            }
         }
     }
 
