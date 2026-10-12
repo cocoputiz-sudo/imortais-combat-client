@@ -144,4 +144,37 @@ public class PartyJoinedEventTests
         parsed.PartyUsers[second].Should().Be("MitriusBR");
     }
 
+    [Test]
+    public void Constructor_WithLegacyGuidAndNameFields_UsesValidatedLayout45()
+    {
+        var first = Guid.NewGuid();
+        var second = Guid.NewGuid();
+        var parsed = new PartyJoinedEvent(new Dictionary<byte, object>
+        {
+            { 4, new object[] { first.ToByteArray(), second.ToByteArray() } },
+            { 5, new[] { "BadMack", "MitriusBR" } },
+            { 8, new int[] { 35, 0 } },
+            { 9, new int[] { -1, -1 } }
+        });
+
+        parsed.HasCompleteRoster.Should().BeTrue();
+        parsed.PartyUsers.Should().HaveCount(2);
+        parsed.PartyUsers[first].Should().Be("BadMack");
+        parsed.PartyUsers[second].Should().Be("MitriusBR");
+        parsed.DecodeDiagnostics.Should().Contain("layout=4/5");
+    }
+
+    [Test]
+    public void Constructor_WithIncompleteLayout45_DoesNotPublishPartialMembers()
+    {
+        var parsed = new PartyJoinedEvent(new Dictionary<byte, object>
+        {
+            { 4, new object[] { Guid.NewGuid().ToByteArray() } },
+            { 5, new[] { "BadMack", "MitriusBR" } }
+        });
+
+        parsed.HasCompleteRoster.Should().BeFalse();
+        parsed.PartyUsers.Should().BeEmpty();
+    }
+
 }
