@@ -27,19 +27,20 @@ public sealed class PartyJoinedEvent
 
         try
         {
-            if (!parameters.TryGetValue(8, out var partyUserGuidsParameter))
+            // Há dois layouts documentados no histórico do projeto.
+            // Tentar um par só se ambos os campos existirem e o roster fechar.
+            if (parameters.TryGetValue(8, out var guids89)
+                && parameters.TryGetValue(9, out var names89))
             {
-                return;
+                AddPartyUsers(guids89, names89, "8/9");
+                if (HasCompleteRoster) return;
             }
 
-            if (!parameters.TryGetValue(9, out var partyUserNamesParameter))
+            if (parameters.TryGetValue(4, out var guids45)
+                && parameters.TryGetValue(5, out var names45))
             {
-                return;
+                AddPartyUsers(guids45, names45, "4/5");
             }
-
-            AddPartyUsers(
-                partyUserGuidsParameter,
-                partyUserNamesParameter);
         }
         catch (Exception exception)
         {
@@ -49,12 +50,14 @@ public sealed class PartyJoinedEvent
         }
     }
 
-    private void AddPartyUsers(object partyUserGuidsParameter, object partyUserNamesParameter)
+    private void AddPartyUsers(object partyUserGuidsParameter, object partyUserNamesParameter, string layout)
     {
+        PartyUsers.Clear();
+        HasCompleteRoster = false;
         var partyUserGuids = GetPartyUserGuids(partyUserGuidsParameter);
         var partyUserNames = GetPartyUserNames(partyUserNamesParameter);
         var partyUserCount = partyUserGuids.Count;
-        DecodeDiagnostics += $"; parsedGuids={partyUserGuids.Count}; parsedNames={partyUserNames.Count}";
+        DecodeDiagnostics += $"; layout={layout}, parsedGuids={partyUserGuids.Count}, parsedNames={partyUserNames.Count}";
 
         // Listas parciais ou não reconhecidas não são um estado autoritativo.
         // A própria entrada na party nunca deve apagar uma PT por falha de parser.
