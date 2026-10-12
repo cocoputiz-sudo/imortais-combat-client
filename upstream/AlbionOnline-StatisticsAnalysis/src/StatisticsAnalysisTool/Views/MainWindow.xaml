@@ -433,6 +433,13 @@
                                                     MinWidth="170"
                                                     Click="ImortaisOpenGuildDumps_Click" />
                                         </StackPanel>
+                                        <Button Content="EXPORTAR DIAGNÓSTICO DE EVENTOS"
+                                                Height="34"
+                                                MinWidth="260"
+                                                HorizontalAlignment="Left"
+                                                Margin="0,10,0,0"
+                                                ToolTip="Exporta contagens e formatos dos eventos Photon; não inclui nomes, IDs nem valores"
+                                                Click="ExportImortaisEventDiagnostics_Click" />
                                         <TextBlock x:Name="ImortaisBuildIdentityLabel" Text="BUILD: verificando..." Foreground="LightSkyBlue" FontWeight="SemiBold" Margin="0,6,0,4" />
                                         <TextBlock Text="Captura local dos rankings de Might e Challenge; desligado por padrão."
                                                    Margin="0,8,0,0" FontSize="11"
