@@ -304,10 +304,21 @@ public class EntityController
 
     public async Task SetPartyAsync(Dictionary<Guid, string> party)
     {
-        await ResetPartyMemberAsync();
+        // A lista de PartyJoined é um único estado. Antes, ResetPartyMemberAsync
+        // e AddToPartyAsync em loop publicavam snapshots 0, 1, 2... que o servidor
+        // podia considerar como a última composição durante o processamento.
+        foreach (var entity in _knownEntities.Where(x => x.Value.IsInParty))
+        {
+            entity.Value.IsInParty = false;
+        }
 
         foreach (var member in party)
         {
+            if (member.Key == Guid.Empty || string.IsNullOrWhiteSpace(member.Value))
+            {
+                continue;
+            }
+
             if (!ExistEntity(member.Key) && GetLocalEntity()?.Key != member.Key)
             {
                 AddEntity(new Entity
@@ -319,7 +330,11 @@ public class EntityController
                 });
             }
 
-            await AddToPartyAsync(member.Key);
+            var entity = GetEntity(member.Key);
+            if (entity.Value != null)
+            {
+                entity.Value.IsInParty = true;
+            }
         }
 
         await SetPartyMemberUiAsync();
