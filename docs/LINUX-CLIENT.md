@@ -2,6 +2,40 @@
 
 A versão Linux é um cliente nativo em .NET 10 + Avalonia. Ela não tenta executar WPF por Wine.
 
+## Alpha Dragonfire 3 · 13/10/2026
+
+**Objetivo:** restabelecer a captura e o processamento de eventos no Linux após a atualização Dragonfire Patch 3 do Albion (12/10/2026).
+
+### Correções implementadas
+
+- O `PhotonParser` retorna um código de pacote de apenas 8 bits, enquanto o Albion também informa o **código real do evento no parâmetro `252`**. O Linux agora despacha por esse valor completo e rejeita um valor 252 ilegível. Sem isso, `OtherGrabbedLoot = 278` não era acessível.
+- Preserva os eventos antigos abaixo de 124 e fixa `ClusterInfoUpdate=139`, `TimeSync=159`, `KilledPlayer=163`, `Died=164`, `PartyJoined=230`, `PartyDisbanded=231`, `PartyPlayerJoined=232`, `PartyPlayerLeft=234`, `OtherGrabbedLoot=278`, `FriendOnlineStatus=297`, `FeatureSwitchInfo=503`.
+- A lista completa de PT é **validada antes de substituir a anterior**: nomes e GUIDs devem ter mesma quantidade, sem entradas vazias ou duplicadas, inclusive no formato compactado `byte[16*N]`. Atualiza a UI e a telemetria de forma atômica.
+- Reenvia a party atual quando o CTA muda mesmo sem alteração de integrantes.
+- Envia `loot` de itens não-prata com looter, índice, quantidade e mapa. **Limitação alpha:** sem catálogo dos nomes/preços, `item` é `ITEM_INDEX_N` e `estimatedValue` é zero. Prata continua fora desse contador.
+- Continua capturando `Died` letais relevantes. `KilledPlayer` fica como candidato de abate; não duplica contagem com o evento letal de morte.
+- Botão **EXPORTAR DIAGNÓSTICO PHOTON (JSON)** na aba Registro. Guarda apenas contagem por código e assinatura estrutural (chaves/tipos/tamanhos), sem nomes, GUIDs, valores ou tokens.
+- Restringe permissões de `settings.json` (inclui token de autenticação) e do `outbox.ndjson` ao usuário local (`0600`).
+- Atualiza versão do cliente para `0.2.0-alpha.1-linux`.
+
+### Instalação sem terminal
+
+1. Baixe `IMORTAIS-Combat-Client-v0.2.0-alpha.1-linux-x64.deb` na release **Linux Alpha** do repositório.
+2. Abra o pacote pelo instalador gráfico do Ubuntu; autorize sua instalação quando solicitado.
+3. Encontre **IMORTAIS Combat Client** no menu de aplicativos. Abra e ative com o código de 6 dígitos gerado no War Room.
+4. Se Albion estiver aberto, confira no painel as interfaces, datagramas Photon e jogadores da party.
+5. Teste entrar/sair de PT, dano e loot; exporte o JSON pelo botão de diagnóstico se algo não funcionar.
+
+Não é necessário instalar manualmente Npcap, .NET, libpcap nem rodar comandos de captura. Dependências e `cap_net_raw,cap_net_admin` são configuradas pelo `.deb`.
+
+### Limites conhecidos da alpha
+
+- O Linux **ainda não possui** gravação de vídeo/Highlights (é uma funcionalidade Windows).
+- Instalação e futuras atualizações usam o instalador gráfico do Ubuntu; o **updater automático interno ainda não foi implementado**. Não anunciar atualização automática como disponível.
+- A validação automatizada usa Ubuntu 24.04 e testa parser/contratos, compilação, pacote, SHA256, instalação e capabilities. Falta homologação real com Albion no Ubuntu 22.04 e 24.04, incluindo permissões, envio ao War Room e funcionamento com a PT ZvZ.
+- Não há integração das páginas de Guild Might/Challenge do Windows. A alpha prioriza estabilidade de PT, combate, presença, morte e loot.
+- Esta alpha não é parte do feed de atualização do Windows v0.6.2 e **não depende de merge da branch Linux na main**.
+
 ## Interface
 
 A GUI possui:
@@ -16,7 +50,7 @@ A GUI possui:
 
 O cliente usa **libpcap** e o mesmo parser Photon multiplataforma existente no repositório.
 
-Eventos já ligados na v0.1.1:
+Eventos já ligados na v0.2.0-alpha.1:
 
 - NewCharacter
 - HealthUpdate
@@ -74,19 +108,19 @@ Em Ubuntu:
 ```bash
 sudo apt update
 sudo apt install -y libpcap-dev libcap2-bin dpkg-dev
-bash scripts/build-linux-deb.sh 0.1.1
+bash scripts/build-linux-deb.sh '0.2.0~alpha1' '0.2.0-alpha.1'
 ```
 
 O pacote será criado em:
 
 ```
-dist/linux/IMORTAIS-Combat-Client-v0.1.1-linux-x64.deb
+dist/linux/IMORTAIS-Combat-Client-v0.2.0-alpha.1-linux-x64.deb
 ```
 
 ## Instalação
 
 ```bash
-sudo apt install ./IMORTAIS-Combat-Client-v0.1.1-linux-x64.deb
+sudo apt install ./IMORTAIS-Combat-Client-v0.2.0-alpha.1-linux-x64.deb
 ```
 
 Depois procure **IMORTAIS Combat Client** no menu de aplicativos do Ubuntu. O pacote instala o arquivo `.desktop` e o ícone da guilda.
@@ -119,7 +153,7 @@ O jogador não precisa instalar Npcap, .NET, libpcap manualmente nem executar co
 
 A tela inicial mostra o diagnóstico de captura em tempo real: quantidade de interfaces abertas, pacotes recebidos, datagramas Photon, fragmentos IPv4 e remontagens. Esses mesmos contadores seguem no `client_heartbeat`, permitindo diagnóstico remoto pelo War Room sem pedir terminal ao jogador.
 
-## Captura v0.1.1
+## Captura v0.2.0-alpha.1
 
 A captura Linux agora remonta IPv4 fragmentado antes de entregar o UDP ao parser Photon. O filtro inclui fragmentos posteriores, que não carregam o cabeçalho UDP. Também há suporte de leitura para Ethernet II, VLAN simples, raw IP, Linux cooked capture SLL e SLL2, reduzindo diferenças entre drivers e interfaces no Ubuntu.
 
