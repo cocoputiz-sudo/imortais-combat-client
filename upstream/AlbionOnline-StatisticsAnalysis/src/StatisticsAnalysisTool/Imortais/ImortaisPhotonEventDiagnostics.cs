@@ -175,24 +175,50 @@ public sealed class PhotonEventDiagnosticsCollector
     private static bool String(string s) => s.StartsWith("string(", StringComparison.Ordinal);
     private static bool GuidBytes(string s) => s == "byte[16]" || s == "guid"
         || s == "array[16]<number>";
-    private static bool GuidArray(string s) => s.StartsWith("array[", StringComparison.Ordinal)
-        && (s.EndsWith("<byte[16]>", StringComparison.Ordinal) || s.EndsWith("<guid>", StringComparison.Ordinal)
-            || s.EndsWith("<array>", StringComparison.Ordinal));
     private static bool StringArray(string s) => s.StartsWith("array[", StringComparison.Ordinal)
         && s.EndsWith("<string>", StringComparison.Ordinal);
+
+    private static int GetLength(string shape, string prefix)
+    {
+        if (!shape.StartsWith(prefix, StringComparison.Ordinal)) return -1;
+        var close = shape.IndexOf(']', prefix.Length);
+        return close > prefix.Length
+            && int.TryParse(shape.Substring(prefix.Length, close - prefix.Length),
+                NumberStyles.Integer, CultureInfo.InvariantCulture, out var length)
+            ? length : -1;
+    }
+
+    // Também reconhece GUIDs do formato Photon compactado (16 bytes/identificador).
+    private static bool RosterMatches(IDictionary<string, string> shape, int guidKey, int namesKey)
+    {
+        if (!shape.TryGetValue(guidKey.ToString(CultureInfo.InvariantCulture), out var gids)
+            || !shape.TryGetValue(namesKey.ToString(CultureInfo.InvariantCulture), out var names)
+            || !StringArray(names)) return false;
+        var count = GetLength(names, "array[");
+        if (count <= 0) return false;
+        var packedBytes = GetLength(gids, "byte[");
+        if (packedBytes > 0) return packedBytes == count * 16;
+        var objectCount = GetLength(gids, "array[");
+        return objectCount == count
+            && (gids.EndsWith("<byte[16]>", StringComparison.Ordinal)
+                || gids.EndsWith("<guid>", StringComparison.Ordinal)
+                || gids.EndsWith("<array>", StringComparison.Ordinal));
+    }
+
+    private static bool HasOnly(IDictionary<string, string> shape, params string[] keys)
+        => shape.Count == keys.Length && shape.Keys.All(keys.Contains);
 
     public static bool Matches(string profileName, IDictionary<string, string> shape)
     {
         bool Has(int key, Func<string, bool> test) => Contains(shape, key, test);
         return profileName switch
         {
-            "PartyJoined" =>
-                (Has(4, GuidArray) && Has(5, StringArray))
-                || (Has(8, GuidArray) && Has(9, StringArray)),
+            "PartyJoined" => RosterMatches(shape, 4, 5) || RosterMatches(shape, 8, 9),
             "PartyPlayerJoined" => Enumerable.Range(0, 8).All(x => shape.ContainsKey(x.ToString()))
                 && Has(0, Number) && Has(1, GuidBytes) && Has(2, String),
-            "PartyPlayerLeft" => Has(0, Number) && Has(1, GuidBytes),
-            "PartyDisbanded" => Has(1, Number) && !shape.ContainsKey("2"),
+            "PartyPlayerLeft" => HasOnly(shape, "0", "1", "252")
+                && Has(0, Number) && Has(1, GuidBytes),
+            "PartyDisbanded" => HasOnly(shape, "1", "252") && Has(1, Number),
             "OtherGrabbedLoot" =>
                 (Has(0, Number) && Has(1, String) && Has(2, String)
                     && Has(4, Number) && Has(5, Number))
