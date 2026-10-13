@@ -87,7 +87,7 @@ chmod 0755 "$PKGROOT/DEBIAN/prerm"
 
 mkdir -p "$(dirname "$OUT")"
 dpkg-deb --root-owner-group --build "$PKGROOT" "$OUT"
-sha256sum "$OUT" > "$OUT.sha256"
+( cd "$(dirname "$OUT")" && sha256sum "$(basename "$OUT")" > "$(basename "$OUT").sha256" )
 
 echo
 echo "Linux package created:"
