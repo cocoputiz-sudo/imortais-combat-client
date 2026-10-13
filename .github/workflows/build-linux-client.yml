@@ -88,6 +88,21 @@ jobs:
           test -f /usr/share/applications/imortais-combat-client.desktop
           echo "PASS: Debian alpha installed with capabilities and desktop shortcut"
 
+      - name: Smoke-test GUI as normal user on virtual desktop
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y xvfb
+          set +e
+          timeout 15s xvfb-run -a /usr/bin/imortais-combat-client --background > /tmp/imortais-alpha-gui.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 124 ]; then
+            cat /tmp/imortais-alpha-gui.log
+            echo "Alpha GUI exited unexpectedly: $status"
+            exit 1
+          fi
+          echo "PASS: Avalonia GUI stayed alive 15s as unprivileged user"
+
       - name: Publish Linux alpha pre-release from isolated branch
         if: github.event_name == 'push' && github.ref == 'refs/heads/feat/linux-alpha-dragonfire-20261013'
         env:
