@@ -1,4 +1,4 @@
-param()
+﻿param()
 
 $ErrorActionPreference = "Stop"
 
@@ -291,7 +291,11 @@ if (-not (Test-Path -LiteralPath $SetupFile)) {
 "@
     $releaseUrl="https://github.com/$Repo/releases/tag/v$Version"
     Write-Host "Publicando GitHub Release v$Version..." -ForegroundColor Cyan
-    & $gh release create "v$Version" $SetupFile $HashFile $ZipFile --repo $Repo --target $buildSha --title "IMORTAIS Combat Client v$Version" --notes $notes
+    # Windows PowerShell 5.1 desmembra o texto multilinha de --notes em argumentos.
+    # --notes-file envia um unico caminho; gh le o Markdown em UTF-8 sem globbing.
+    $notesFile=Join-Path $ReleaseDir "IMORTAIS-Combat-Client-v$Version-release-notes.md"
+    Write-Utf8Lf -FilePath $notesFile -Text $notes
+    & $gh release create "v$Version" $SetupFile $HashFile $ZipFile --repo $Repo --target $buildSha --title "IMORTAIS Combat Client v$Version" --notes-file $notesFile
     if($LASTEXITCODE -ne 0){throw "Falha ao criar GitHub Release"}
     $downloadUrl="https://github.com/$Repo/releases/download/v$Version/IMORTAIS-Combat-Client-Setup-v$Version.exe"
     $setupLength=(Get-Item -LiteralPath $SetupFile).Length
