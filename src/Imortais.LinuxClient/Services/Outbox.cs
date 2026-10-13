@@ -14,7 +14,7 @@ public sealed class Outbox
         _path = Path.Combine(LinuxPaths.StateDirectory, "outbox.ndjson");
         if (OperatingSystem.IsLinux())
         {
-            Directory.SetUnixFileMode(LinuxPaths.StateDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.SetUnixFileMode(LinuxPaths.StateDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             if (File.Exists(_path))
                 File.SetUnixFileMode(_path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
