@@ -142,7 +142,6 @@ public enum EventCodes
     NewMatchLootChestObject,
     NewArenaExit,
     GuildMemberTerritoryUpdate,
-    InvitedMercenaryToMatch,
     ClusterInfoUpdate,
     ForcedMovement,
     ForcedMovementCancel,
