@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${1:-0.1.1}"
+VERSION="${1:-0.2.0~alpha1}"
+PACKAGE_LABEL="${2:-0.2.0-alpha.1}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT/src/Imortais.LinuxClient/Imortais.LinuxClient.csproj"
 PUBLISH="$ROOT/dist/linux/publish"
 PKGROOT="$ROOT/dist/linux/pkg"
-OUT="$ROOT/dist/linux/IMORTAIS-Combat-Client-v${VERSION}-linux-x64.deb"
+OUT="$ROOT/dist/linux/IMORTAIS-Combat-Client-v${PACKAGE_LABEL}-linux-x64.deb"
 
 rm -rf "$PUBLISH" "$PKGROOT"
 mkdir -p "$PUBLISH" "$PKGROOT/DEBIAN"   "$PKGROOT/opt/imortais-combat-client"   "$PKGROOT/usr/bin"   "$PKGROOT/usr/share/applications"   "$PKGROOT/usr/share/icons/hicolor/256x256/apps"
