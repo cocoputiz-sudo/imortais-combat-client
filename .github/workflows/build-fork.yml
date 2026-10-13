@@ -87,6 +87,12 @@ jobs:
           dotnet build $project -c Release --no-incremental
           if ($LASTEXITCODE -ne 0) { throw "dotnet build failed" }
 
+      - name: Testar códigos Photon, PT e diagnóstico
+        shell: pwsh
+        run: |
+          dotnet test .\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool.UnitTests\\StatisticsAnalysisTool.UnitTests.csproj -c Release --filter "FullyQualifiedName~PartyJoinedEventTests|FullyQualifiedName~PhotonEventDiagnosticsCollectorTests|FullyQualifiedName~EventCodesOrdinalRegressionTests"
+          if ($LASTEXITCODE -ne 0) { throw "PartyJoinedEventTests failed" }
+
       - name: Executar testes de Highlights
         shell: pwsh
         run: |

@@ -1,4 +1,5 @@
-﻿using StatisticsAnalysisTool.Network.Events;
+﻿using StatisticsAnalysisTool.Imortais;
+using StatisticsAnalysisTool.Network.Events;
 using StatisticsAnalysisTool.Network.Manager;
 using System.Threading.Tasks;
 
@@ -8,6 +9,13 @@ public class PartyJoinedEventHandler(TrackingController trackingController) : Ev
 {
     protected override async Task OnActionAsync(PartyJoinedEvent value)
     {
+        ImortaisEventBridge.PartyJoinedObservation(
+            value.HasCompleteRoster, value.PartyUsers.Count, value.DecodeDiagnostics);
+        if (!value.HasCompleteRoster)
+        {
+            return;
+        }
+
         await trackingController.EntityController.SetPartyAsync(value.PartyUsers);
     }
 }

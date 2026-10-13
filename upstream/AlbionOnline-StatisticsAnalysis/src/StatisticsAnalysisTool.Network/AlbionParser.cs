@@ -7,6 +7,10 @@ internal sealed class AlbionParser : PhotonParser
 {
     private readonly HandlersCollection _handlers = new();
 
+    // Observa QUALQUER evento válido antes do roteamento por enum/handler.
+    // Erros de diagnóstico jamais interferem na interpretação do jogo.
+    public Action<short, Dictionary<byte, object>>? EventObserver { get; set; }
+
     public void AddHandler<TPacket>(PacketHandler<TPacket> handler)
     {
         _handlers.Add(handler);
@@ -19,6 +23,15 @@ internal sealed class AlbionParser : PhotonParser
         if (eventCode <= -1)
         {
             return;
+        }
+
+        try
+        {
+            EventObserver?.Invoke(eventCode, parameters);
+        }
+        catch
+        {
+            // Observação isolada: nunca quebrar handlers de eventos.
         }
 
         var eventPacket = new EventPacket(eventCode, parameters);
