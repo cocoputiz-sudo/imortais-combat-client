@@ -119,7 +119,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Inno setup failed" }
           "PACKAGE_DIR=$package" >> $env:GITHUB_ENV
 
-      - name: Testar atualização real v0.6.0 -> v0.6.2 e preservar pareamento
+      - name: Testar atualização real v0.6.1 -> v0.6.2 e preservar pareamento
         shell: pwsh
         run: |
           $setup = Join-Path $env:PACKAGE_DIR "IMORTAIS-Combat-Client-Setup-v0.6.2.exe"
