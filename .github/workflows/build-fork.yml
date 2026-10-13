@@ -49,11 +49,18 @@ jobs:
       - name: Validar PowerShell do publicador oficial e opt-ins desligados
         shell: pwsh
         run: |
-          $tokens = $null
-          $errors = $null
-          $script = (Resolve-Path ".\\scripts\\publi-icc-v062.ps1").Path
-          [void][System.Management.Automation.Language.Parser]::ParseFile($script,[ref]$tokens,[ref]$errors)
-          if ($errors.Count -gt 0) { $errors | Format-List | Out-String | Write-Host; throw "PowerShell publicador v0.6.2 com erros de sintaxe" }
+          foreach ($name in @("publi-icc-v062.ps1","resume-icc-v062.ps1")) {
+            $tokens = $null
+            $errors = $null
+            $script = (Resolve-Path (".\scripts\" + $name)).Path
+            [void][System.Management.Automation.Language.Parser]::ParseFile($script,[ref]$tokens,[ref]$errors)
+            if ($errors.Count -gt 0) {
+              $errors | Format-List | Out-String | Write-Host
+              throw ("PowerShell publicador com erros de sintaxe: " + $name)
+            }
+            $source = Get-Content -LiteralPath $script -Raw
+            if ($source -notmatch '--notes-file') { throw "gh release create precisa usar notes-file: $name" }
+          }
           $root = ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool"
           $settings = Get-Content "$root\\Common\\UserSettings\\SettingsObject.cs" -Raw
           $storage = Get-Content "$root\\Imortais\\Highlights\\HighlightStorageManager.cs" -Raw
