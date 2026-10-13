@@ -19,6 +19,7 @@ on:
   push:
     branches:
       - main
+      - feat/linux-alpha-dragonfire-20261013
     paths:
       - "src/Imortais.LinuxClient/**"
       - "src/Imortais.LinuxClient.ContractTests/**"
@@ -60,34 +61,68 @@ jobs:
         run: dotnet build src/Imortais.LinuxClient/Imortais.LinuxClient.csproj -c Release --no-restore
 
       - name: Build .deb
-        run: bash scripts/build-linux-deb.sh 0.1.1
+        run: bash scripts/build-linux-deb.sh '0.2.0~alpha1' '0.2.0-alpha.1'
 
       - name: Upload Linux package
         uses: actions/upload-artifact@v4
         with:
-          name: IMORTAIS-Combat-Client-v0.1.1-linux-x64
+          name: IMORTAIS-Combat-Client-v0.2.0-alpha.1-linux-x64
           path: |
             dist/linux/*.deb
             dist/linux/*.sha256
           if-no-files-found: error
 
-      - name: Publish Linux pre-release
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+      - name: Verify Debian alpha and capabilities installation
+        run: |
+          set -euo pipefail
+          cd dist/linux
+          sha256sum -c *.sha256
+          DEB="$(find . -maxdepth 1 -type f -name '*.deb' -print -quit)"
+          test -n "$DEB"
+          test "$(dpkg-deb -f "$DEB" Package)" = "imortais-combat-client"
+          test "$(dpkg-deb -f "$DEB" Version)" = "0.2.0~alpha1"
+          sudo apt-get install -y "./${DEB#./}"
+          test -x /opt/imortais-combat-client/IMORTAIS-Combat-Client
+          getcap /opt/imortais-combat-client/IMORTAIS-Combat-Client | grep -q "cap_net_raw"
+          getcap /opt/imortais-combat-client/IMORTAIS-Combat-Client | grep -q "cap_net_admin"
+          test -f /usr/share/applications/imortais-combat-client.desktop
+          echo "PASS: Debian alpha installed with capabilities and desktop shortcut"
+
+      - name: Smoke-test GUI as normal user on virtual desktop
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y xvfb
+          set +e
+          timeout 15s xvfb-run -a /usr/bin/imortais-combat-client --background > /tmp/imortais-alpha-gui.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 124 ]; then
+            cat /tmp/imortais-alpha-gui.log
+            echo "Alpha GUI exited unexpectedly: $status"
+            exit 1
+          fi
+          echo "PASS: Avalonia GUI stayed alive 15s as unprivileged user"
+
+      - name: Publish Linux alpha pre-release from isolated branch
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/linux-alpha-dragonfire-20261013'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="v0.1.1-linux-preview.4"
+          set -euo pipefail
+          TAG="v0.2.0-linux-alpha.${GITHUB_RUN_NUMBER}"
+          cat > /tmp/linux-alpha-notes.md <<'EOF'
+          # IMORTAIS Combat Client Linux 0.2.0 Alpha
 
-          cat > /tmp/linux-release-notes.md <<'EOF'
-          Preview 4 do IMORTAIS Combat Client nativo para Ubuntu/Linux. Corrige a captura real no Ubuntu: remontagem de IPv4 fragmentado, suporte a Ethernet/raw/SLL/SLL2, diagnóstico automático de interfaces e tráfego Photon, e instalador que valida as capabilities de captura.
+          **Dragonfire Patch 3 (Albion 12/10/2026):** realinha os códigos Photon com o Windows; corrige recepção via parâmetro 252, party, dano/cura, mortes e loot.
+          - GUI Avalonia: Início, Registros, Medidor de dano, Party, Configurações
+          - Diagnóstico Photon anônimo exportável diretamente pela interface
+          - Captura libpcap com IPv4 fragmentado, SLL/SLL2 e permissões aplicadas durante instalação
+          - Party atualizada atomicamente e republicada ao trocar CTA
+          - Dados e pareamento preservados em ~/.config/imortais-combat-client e ~/.local/state/imortais-combat-client
+          - Arquivo .deb amd64 + SHA-256, não altera v0.6.2 do Windows
 
-          Inclui GUI Avalonia com abas Início, Registro, Medidor de dano, Party e Configurações; ativação por código do War Room; captura libpcap; parser Photon; outbox; party_snapshot; combat_delta; player_death_observed; atalho no menu do Ubuntu e pacote .deb amd64.
-
-          Build validado automaticamente em Ubuntu 24.04. Esta é uma versão Preview publicada a partir da main para validação real em Ubuntu antes de promovê-la a release Linux estável.
+          **ALPHA EXPERIMENTAL:** o código compila e passa testes no Ubuntu 24.04, mas a captura real e o instalador em Ubuntu 22.04/24.04 de jogadores ainda devem ser homologados.
+          O Linux ainda não grava vídeo Highlights. Em loot, o índice do item é enviado como ITEM_INDEX_N e valor 0 até integrar o catálogo de itens.
+          Instalar abrindo o pacote .deb com instalador gráfico do Ubuntu; o jogo precisa estar aberto para observar o tráfego. Não é necessário rodar comandos de diagnóstico.
           EOF
-
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release upload "$TAG" dist/linux/*.deb dist/linux/*.sha256 --clobber --repo "$GITHUB_REPOSITORY"
-          else
-            gh release create "$TAG"               dist/linux/*.deb               dist/linux/*.sha256               --repo "$GITHUB_REPOSITORY"               --target "$GITHUB_SHA"               --prerelease               --title "IMORTAIS Combat Client Linux v0.1.1 Preview 4"               --notes-file /tmp/linux-release-notes.md
-          fi
+          gh release create "$TAG" dist/linux/*.deb dist/linux/*.sha256             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease             --title "IMORTAIS Combat Client Linux 0.2.0 Alpha ${GITHUB_RUN_NUMBER}"             --notes-file /tmp/linux-alpha-notes.md

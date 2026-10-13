@@ -1,4 +1,6 @@
 using Imortais.LinuxClient.Services;
+using Imortais.LinuxClient.Network;
+using System.Text.Json;
 
 static void Require(bool condition, string message)
 {
@@ -44,3 +46,76 @@ Require((string?)presence["source"] == "NewCharacter+Leave", "source deve preser
 Require(ReferenceEquals(presence["players"], players), "players deve ser o snapshot construído");
 
 Console.WriteLine("✅ Linux telemetry contract: índices numéricos, TNL e HELLGATE resolvem para UniqueName e a telemetria usa nome de mapa.");
+
+
+// Regression from Dragonfire Patch 3: 0..123 unchanged, all later event ordinals -1.
+Require(LinuxPhotonEventCodes.NewMob == 123 && LinuxPhotonEventCodes.GuildPlayerUpdated == 104,
+    "Pre-patch values cannot shift");
+Require(LinuxPhotonEventCodes.ClusterInfoUpdate == 139 && LinuxPhotonEventCodes.TimeSync == 159,
+    "Post-patch anchors must match the capture");
+Require(LinuxPhotonEventCodes.PartyJoined == 230 && LinuxPhotonEventCodes.PartyDisbanded == 231
+    && LinuxPhotonEventCodes.PartyPlayerJoined == 232 && LinuxPhotonEventCodes.PartyPlayerLeft == 234,
+    "Party codes must match Dragonfire Patch 3");
+Require(LinuxPhotonEventCodes.KilledPlayer == 163 && LinuxPhotonEventCodes.Died == 164
+    && LinuxPhotonEventCodes.OtherGrabbedLoot == 278
+    && LinuxPhotonEventCodes.FriendOnlineStatus == 297
+    && LinuxPhotonEventCodes.FeatureSwitchInfo == 503,
+    "Combat, loot and trailing event anchors must match Dragonfire Patch 3");
+
+Require(LinuxPhotonEventCodes.Resolve(22, new Dictionary<byte, object>
+    { [252] = 278 }) == LinuxPhotonEventCodes.OtherGrabbedLoot,
+    "Photon packetCode(byte) must not truncate extended 252 event codes");
+Require(LinuxPhotonEventCodes.Resolve(230, new Dictionary<byte, object>()) == 230,
+    "Missing 252 should preserve legacy low byte event code");
+Require(LinuxPhotonEventCodes.Resolve(0, new Dictionary<byte, object> { [252] = "corrupt" }) == -1,
+    "Invalid extended event code must not be routed to an unrelated handler");
+
+var rosterGuids = Enumerable.Range(1, 20).Select(_ => Guid.NewGuid()).ToArray();
+var packedGuids = rosterGuids.SelectMany(x => x.ToByteArray()).ToArray();
+var rosterNames = Enumerable.Range(0, 20).Select(i => $"Member{i:00}").ToArray();
+var partyPacket = new Dictionary<byte, object>
+{
+    [8] = packedGuids, [9] = rosterNames, [252] = 230
+};
+Require(LinuxPhotonReceiver.TryDecodePartyRoster(partyPacket, out var roster)
+    && roster.Count == 20 && roster[rosterGuids[19]] == "Member19",
+    "Packed Photon byte[320] must decode 20 complete party members");
+partyPacket[8] = packedGuids.AsSpan(0, packedGuids.Length - 16).ToArray();
+Require(!LinuxPhotonReceiver.TryDecodePartyRoster(partyPacket, out _),
+    "Truncated roster must not evict the existing party");
+partyPacket[8] = packedGuids;
+partyPacket[9] = rosterNames.Select((x, i) => i == 3 ? "" : x).ToArray();
+Require(!LinuxPhotonReceiver.TryDecodePartyRoster(partyPacket, out _),
+    "Empty member name must invalidate entire party roster");
+partyPacket[9] = rosterNames;
+partyPacket[8] = rosterGuids.Select(g => (object)g.ToByteArray()).ToArray();
+Require(LinuxPhotonReceiver.TryDecodePartyRoster(partyPacket, out roster) && roster.Count == 20,
+    "Object[] of GUID bytes must decode");
+partyPacket[8] = null!;
+Require(!LinuxPhotonReceiver.TryDecodePartyRoster(partyPacket, out _),
+    "Missing GUIDs may not erase party");
+
+var diagnostic = new LinuxPhotonDiagnostics();
+const string privateName = "PRIVATE_PLAYER_NAME";
+diagnostic.Observe(278, new Dictionary<byte, object>
+{
+    [252] = 278,
+    [2] = privateName,
+    [4] = 987654321L,
+    [9] = Guid.NewGuid().ToByteArray()
+});
+diagnostic.Observe(278, new Dictionary<byte, object> { [252] = 278, [2] = "OTHER" });
+using (var json = JsonDocument.Parse(diagnostic.Export()))
+{
+    Require(json.RootElement.GetProperty("totalEvents").GetInt64() == 2,
+        "Diagnostics count every raw event");
+    var evt = json.RootElement.GetProperty("observed").EnumerateArray().Single();
+    Require(evt.GetProperty("count").GetInt64() == 2,
+        "Diagnostics only saves first signature, accumulates count");
+}
+Require(!diagnostic.Export().Contains(privateName)
+        && !diagnostic.Export().Contains("987654321")
+        && diagnostic.Export().Contains("byte[16]"),
+    "Diagnostics must contain only structure and never payload values or names");
+
+Console.WriteLine("PASS: Linux alpha patch codes 252, packed/incomplete party and anonymous diagnostics");

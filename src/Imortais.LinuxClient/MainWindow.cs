@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Imortais.LinuxClient.Models;
 using Imortais.LinuxClient.Network;
@@ -95,7 +96,7 @@ public sealed class MainWindow : Window
 
         Opened += async (_, _) =>
         {
-            AddLog("SYSTEM  IMORTAIS Combat Client Linux v0.1.1 iniciado");
+            AddLog("SYSTEM  IMORTAIS Combat Client Linux v0.2.0-alpha.1 iniciado");
             if (_settings.StartCaptureAutomatically) StartCapture();
             await RefreshContextAsync();
             RefreshAll();
@@ -206,6 +207,9 @@ public sealed class MainWindow : Window
             Foreground = Muted,
             Margin = new Thickness(0, 0, 0, 10)
         });
+        var export = Button("EXPORTAR DIAGNÓSTICO PHOTON (JSON)");
+        export.Click += async (_, _) => await ExportPhotonDiagnosticsAsync();
+        body.Children.Add(export);
         body.Children.Add(new ListBox
         {
             ItemsSource = _logs,
@@ -301,6 +305,33 @@ public sealed class MainWindow : Window
             Margin = new Thickness(0, 18, 0, 0)
         });
         return panel;
+    }
+
+    private async Task ExportPhotonDiagnosticsAsync()
+    {
+        try
+        {
+            var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "Exportar diagnóstico Photon (sem nomes ou IDs)",
+                SuggestedFileName = $"imortais-linux-photon-{DateTime.Now:yyyyMMdd-HHmmss}.json",
+                DefaultExtension = "json",
+                FileTypeChoices = new[]
+                {
+                    new FilePickerFileType("Diagnóstico JSON") { Patterns = new[] { "*.json" } }
+                }
+            });
+            if (file is null) return;
+            await using var stream = await file.OpenWriteAsync();
+            using var writer = new StreamWriter(stream);
+            await writer.WriteAsync(_receiver.Diagnostics.Export());
+            await writer.FlushAsync();
+            AddLog("DIAG    JSON Photon exportado sem valores dos parâmetros");
+        }
+        catch (Exception ex)
+        {
+            AddLog("DIAG    falha ao exportar JSON: " + ex.Message);
+        }
     }
 
     private async Task TickAsync()
@@ -424,8 +455,12 @@ public sealed class MainWindow : Window
             return;
         }
 
+        var changedCta = !string.Equals(_settings.CurrentCtaId, result.CtaId, StringComparison.Ordinal);
         _settings.CurrentCtaId = result.CtaId;
         _ctaTime = result.CtaTime;
+        // Ao trocar o CTA, reenviar a PT existente mesmo que os jogadores não mudem.
+        if (changedCta && !string.IsNullOrWhiteSpace(result.CtaId))
+            _receiver.ResendPartyForCtaChange();
         _store.Save(_settings);
         RefreshHeader();
     }
