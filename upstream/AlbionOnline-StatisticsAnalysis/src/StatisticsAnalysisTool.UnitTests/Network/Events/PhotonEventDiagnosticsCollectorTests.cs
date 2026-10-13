@@ -105,11 +105,13 @@ public sealed class PhotonEventDiagnosticsCollectorTests
         var left = new Dictionary<string, string>
         {
             ["0"] = "number",
-            ["1"] = "byte[16]"
+            ["1"] = "byte[16]",
+            ["252"] = "number"
         };
         var disband = new Dictionary<string, string>
         {
-            ["1"] = "number"
+            ["1"] = "number",
+            ["252"] = "number"
         };
         var loot = new Dictionary<string, string>
         {
@@ -139,4 +141,31 @@ public sealed class PhotonEventDiagnosticsCollectorTests
         PhotonEventDiagnosticsCollector.DescribeShape(new int[] { 1, 1234, 55 })
             .Should().Be("array[3]<number>");
     }
+    [Test]
+    public void PackedRosterFromObservedCode230Matches()
+    {
+        var shape = new Dictionary<string, string>
+        {
+            ["0"] = "number", ["4"] = "byte[16]",
+            ["8"] = "byte[80]", ["9"] = "array[5]<string>",
+            ["252"] = "number"
+        };
+        PhotonEventDiagnosticsCollector.Matches("PartyJoined", shape).Should().BeTrue();
+        shape["8"] = "byte[64]";
+        PhotonEventDiagnosticsCollector.Matches("PartyJoined", shape).Should().BeFalse();
+    }
+
+    [Test]
+    public void BroadUnrelatedShapesDoNotMatchLeaveOrDisband()
+    {
+        var shape = new Dictionary<string, string>
+        {
+            ["0"] = "number", ["1"] = "byte[16]",
+            ["2"] = "number", ["252"] = "number"
+        };
+        PhotonEventDiagnosticsCollector.Matches("PartyPlayerLeft", shape).Should().BeFalse();
+        shape["1"] = "number";
+        PhotonEventDiagnosticsCollector.Matches("PartyDisbanded", shape).Should().BeFalse();
+    }
+
 }
