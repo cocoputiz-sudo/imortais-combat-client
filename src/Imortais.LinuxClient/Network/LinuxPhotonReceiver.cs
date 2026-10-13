@@ -14,6 +14,7 @@ public sealed class LinuxPhotonReceiver : PhotonParser
     private readonly Dictionary<long, PlayerInfo> _entities = new();
     private readonly Dictionary<Guid, string> _partyByGuid = new();
     private readonly object _entityLock = new();
+    public LinuxPhotonDiagnostics Diagnostics { get; } = new();
 
     public event Action<string>? Log;
     public event Action? PartyChanged;
@@ -59,6 +60,7 @@ public sealed class LinuxPhotonReceiver : PhotonParser
         GameDataDetected?.Invoke();
 
         var eventCode = LinuxPhotonEventCodes.Resolve(code, parameters);
+        Diagnostics.Observe(eventCode, parameters);
         switch (eventCode)
         {
             case LinuxPhotonEventCodes.Leave:
@@ -191,7 +193,7 @@ public sealed class LinuxPhotonReceiver : PhotonParser
             if (rawNames is null || rawGuids is null) continue;
             var names = ToStrings(rawNames);
             var guids = ToGuids(rawGuids);
-            if (names.Count == 0 || names.Count != guids.Count || guids.Any(g => g == Guid.Empty)
+            if (names.Count == 0 || names.Count != guids.Count || names.Any(string.IsNullOrWhiteSpace) || guids.Any(g => g == Guid.Empty)
                 || guids.Distinct().Count() != guids.Count
                 || names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Count)
                 continue;
