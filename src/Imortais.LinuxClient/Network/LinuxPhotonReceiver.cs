@@ -7,17 +7,7 @@ namespace Imortais.LinuxClient.Network;
 
 public sealed class LinuxPhotonReceiver : PhotonParser
 {
-    private const byte Leave = 1;
-    private const byte HealthUpdate = 6;
-    private const byte HealthUpdates = 7;
-    private const byte NewCharacter = 29;
-    private const byte Died = 165;
-    private const byte PartyJoined = 231;
-    private const byte PartyDisbanded = 232;
-    private const byte PartyPlayerJoined = 233;
-    private const byte PartyPlayerLeft = 235;
     private const byte ChangeClusterOperation = 41;
-
     private readonly CombatState _state;
     private readonly Outbox _outbox;
     private readonly Func<ClientSettings> _settings;
@@ -68,38 +58,45 @@ public sealed class LinuxPhotonReceiver : PhotonParser
     {
         GameDataDetected?.Invoke();
 
-        switch (code)
+        var eventCode = LinuxPhotonEventCodes.Resolve(code, parameters);
+        switch (eventCode)
         {
-            case Leave:
+            case LinuxPhotonEventCodes.Leave:
                 HandleLeave(parameters);
                 break;
-            case NewCharacter:
+            case LinuxPhotonEventCodes.NewCharacter:
                 HandleNewCharacter(parameters);
                 break;
-            case HealthUpdate:
+            case LinuxPhotonEventCodes.HealthUpdate:
                 HandleHealthUpdate(parameters);
                 break;
-            case HealthUpdates:
+            case LinuxPhotonEventCodes.HealthUpdates:
                 HandleHealthUpdates(parameters);
                 break;
-            case PartyJoined:
+            case LinuxPhotonEventCodes.PartyJoined:
                 HandlePartyJoined(parameters);
                 break;
-            case PartyPlayerJoined:
+            case LinuxPhotonEventCodes.PartyPlayerJoined:
                 HandlePartyPlayerJoined(parameters);
                 break;
-            case PartyPlayerLeft:
+            case LinuxPhotonEventCodes.PartyPlayerLeft:
                 HandlePartyPlayerLeft(parameters);
                 break;
-            case PartyDisbanded:
+            case LinuxPhotonEventCodes.PartyDisbanded:
                 _partyByGuid.Clear();
                 _state.ClearParty();
                 EmitPartySnapshot();
                 Log?.Invoke("PARTY  dissolvida");
                 PartyChanged?.Invoke();
                 break;
-            case Died:
+            case LinuxPhotonEventCodes.Died:
                 HandleDied(parameters);
+                break;
+            case LinuxPhotonEventCodes.KilledPlayer:
+                HandleKilledPlayer(parameters);
+                break;
+            case LinuxPhotonEventCodes.OtherGrabbedLoot:
+                HandleGrabbedLoot(parameters);
                 break;
         }
     }
@@ -183,22 +180,45 @@ public sealed class LinuxPhotonReceiver : PhotonParser
         CombatChanged?.Invoke();
     }
 
+    // Não substituir um roster íntegro por uma lista parcial ou truncada.
+    public static bool TryDecodePartyRoster(Dictionary<byte, object> p, out Dictionary<Guid, string> roster)
+    {
+        roster = new Dictionary<Guid, string>();
+        foreach (var (guidsKey, namesKey) in new (byte, byte)[] { (8, 9), (4, 5) })
+        {
+            var rawNames = GetValue(p, namesKey);
+            var rawGuids = GetValue(p, guidsKey);
+            if (rawNames is null || rawGuids is null) continue;
+            var names = ToStrings(rawNames);
+            var guids = ToGuids(rawGuids);
+            if (names.Count == 0 || names.Count != guids.Count || guids.Any(g => g == Guid.Empty)
+                || guids.Distinct().Count() != guids.Count
+                || names.Distinct(StringComparer.OrdinalIgnoreCase).Count() != names.Count)
+                continue;
+            var candidate = new Dictionary<Guid, string>();
+            for (var i = 0; i < names.Count; i++) candidate.Add(guids[i], names[i]);
+            roster = candidate;
+            return true;
+        }
+        return false;
+    }
+
     private void HandlePartyJoined(Dictionary<byte, object> p)
     {
-        var names = ToStrings(GetValue(p, 9));
-        if (names.Count == 0) names = ToStrings(GetValue(p, 5));
+        if (!TryDecodePartyRoster(p, out var roster))
+        {
+            Log?.Invoke("PARTY  roster incompleto/ilegível ignorado");
+            return;
+        }
 
-        var guids = ToGuids(GetValue(p, 8));
-        if (guids.Count == 0) guids = ToGuids(GetValue(p, 4));
-
+        var current = _state.SnapshotParty();
+        var changed = !current.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            .SetEquals(roster.Values);
         _partyByGuid.Clear();
-        for (var i = 0; i < Math.Min(names.Count, guids.Count); i++)
-            if (guids[i] != Guid.Empty && !string.IsNullOrWhiteSpace(names[i]))
-                _partyByGuid[guids[i]] = names[i];
-
-        _state.SetParty(names);
-        EmitPartySnapshot();
-        Log?.Invoke($"PARTY  snapshot · {names.Count} membros");
+        foreach (var member in roster) _partyByGuid.Add(member.Key, member.Value);
+        _state.SetParty(roster.Values);
+        if (changed) EmitPartySnapshot();
+        Log?.Invoke($"PARTY  snapshot completo · {roster.Count} membros");
         PartyChanged?.Invoke();
     }
 
@@ -206,9 +226,9 @@ public sealed class LinuxPhotonReceiver : PhotonParser
     {
         var name = GetString(p, 2);
         var guid = ToGuid(GetValue(p, 1));
-        if (string.IsNullOrWhiteSpace(name)) return;
+        if (string.IsNullOrWhiteSpace(name) || guid == Guid.Empty) return;
 
-        if (guid != Guid.Empty) _partyByGuid[guid] = name;
+        _partyByGuid[guid] = name;
         _state.AddPartyMember(name);
         EmitPartySnapshot();
         Log?.Invoke($"PARTY  + {name}");
@@ -224,6 +244,54 @@ public sealed class LinuxPhotonReceiver : PhotonParser
         EmitPartySnapshot();
         Log?.Invoke($"PARTY  - {name}");
         PartyChanged?.Invoke();
+    }
+
+    // KilledPlayer é um candidato de abate. A confirmação letal vem de Died,
+    // evitando contar o mesmo kill duas vezes quando ambos os eventos chegarem.
+    private void HandleKilledPlayer(Dictionary<byte, object> p)
+    {
+        var killerObjectId = GetLong(p, 0);
+        var victim = GetString(p, 2);
+        PlayerInfo? killer;
+        lock (_entityLock) _entities.TryGetValue(killerObjectId, out killer);
+        if (killer is not null && (_state.IsPartyMember(killer.Name) || IsImortaisFamily(killer.Guild)))
+            Log?.Invoke($"KILL   candidato observado · {victim}");
+    }
+
+    private void HandleGrabbedLoot(Dictionary<byte, object> p)
+    {
+        // Outro loot no Albion: 1=corpo, 2=looter, 3=prata, 4=itemIndex, 5=quantidade.
+        if (GetBool(p, 3)) return; // dinheiro não é item.
+        var looter = GetString(p, 2);
+        var lootedFrom = GetString(p, 1);
+        var itemIndex = GetLong(p, 4);
+        var quantity = GetLong(p, 5);
+        if (string.IsNullOrWhiteSpace(looter) || itemIndex <= 0 || quantity <= 0 || quantity > int.MaxValue) return;
+        string? guild;
+        lock (_entityLock)
+            guild = _entities.Values.FirstOrDefault(x => string.Equals(x.Name, looter, StringComparison.OrdinalIgnoreCase))?.Guild;
+        // O alpha ainda não contém o catálogo AODP de itens/valor: identificar pelo índice
+        // é melhor do que enviar uma descrição ou um preço inventados.
+        _ = _outbox.AddAsync(TelemetryEvent.Create("loot", looter,
+            new Dictionary<string, object?>
+            {
+                ["lootedBy"] = looter,
+                ["lootedByGuild"] = string.IsNullOrWhiteSpace(guild) ? null : guild,
+                ["lootedFrom"] = lootedFrom,
+                ["item"] = $"ITEM_INDEX_{itemIndex}",
+                ["itemIndex"] = itemIndex,
+                ["quantity"] = quantity,
+                ["estimatedValue"] = 0,
+                ["cluster"] = _state.CurrentCluster,
+                ["source"] = "OtherGrabbedLoot-linux-alpha"
+            }));
+        Log?.Invoke($"LOOT   {looter} · item {itemIndex} x{quantity}");
+    }
+
+    public void ResendPartyForCtaChange()
+    {
+        if (_state.SnapshotParty().Count > 0)
+            EmitPartySnapshot();
     }
 
     private void HandleDied(Dictionary<byte, object> p)
@@ -335,7 +403,7 @@ public sealed class LinuxPhotonReceiver : PhotonParser
 
     private static List<string> ToStrings(object? value) =>
         ToList(value).Select(x => Convert.ToString(x)?.Trim() ?? string.Empty)
-            .Where(x => !string.IsNullOrWhiteSpace(x)).ToList();
+            .ToList();
 
     private static List<Guid> ToGuids(object? value)
     {
@@ -346,7 +414,7 @@ public sealed class LinuxPhotonReceiver : PhotonParser
             return result;
         }
 
-        return ToList(value).Select(ToGuid).Where(x => x != Guid.Empty).ToList();
+        return ToList(value).Select(ToGuid).ToList();
     }
 
     private static Guid ToGuid(object? value)
