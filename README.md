@@ -2,7 +2,7 @@
 
 Cliente desktop da guilda **I M O R T A I S** para Albion Online, baseado no projeto open source **AlbionOnline-StatisticsAnalysis** e integrado ao **IMORTAIS War Room**.
 
-> **Versão estável atual:** v0.6.0  
+> **Versão estável atual:** v0.6.1  
 > **Plataforma estável:** Windows 10/11 x64  
 > **Runtime:** .NET 10 / WPF  
 > **Release oficial:** `IMORTAIS-Combat-Client-Setup-v0.6.1.exe`
@@ -416,11 +416,17 @@ Builds oficiais exigem a chave pública do updater.
 
 ## Publicação de release
 
-A v0.6.0 usa:
+A última release publicada é a v0.6.1. A próxima versão foi preparada para assinatura
+com as **mesmas chaves Ed25519**, depois de homologação e integração do PR #36:
 
 ```powershell
-.\scripts\publi-icc-v060.ps1
+.\scripts\publi-icc-v062.ps1
 ```
+
+Este script deve ser executado no computador autorizado que já possui
+`NetSparkle_Ed25519.priv` e `NetSparkle_Ed25519.pub`. Ele só publica a
+v0.6.2 depois de validar o enum Photon, os testes, a assinatura do instalador
+e a assinatura do feed. Não execute novamente publicadores antigos.
 
 O script oficial valida, entre outros pontos:
 
