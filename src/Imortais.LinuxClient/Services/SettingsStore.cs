@@ -25,7 +25,7 @@ public sealed class SettingsStore
         Directory.CreateDirectory(LinuxPaths.ConfigDirectory);
         // O token Bearer não pode ficar legível por outros usuários locais.
         if (OperatingSystem.IsLinux())
-            Directory.SetUnixFileMode(LinuxPaths.ConfigDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+            File.SetUnixFileMode(LinuxPaths.ConfigDirectory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         File.WriteAllText(FilePath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
         if (OperatingSystem.IsLinux())
             File.SetUnixFileMode(FilePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
