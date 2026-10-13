@@ -149,9 +149,9 @@ try{
     $windowCode=[IO.File]::ReadAllText($WindowCodeFile)
     $appConfig=[IO.File]::ReadAllText($AppConfigFile)
     $feed=[IO.File]::ReadAllText($AppCastFile)
-    if($project -notmatch '<ApplicationVersion>0\.6\.1\.0</ApplicationVersion>'){throw "Projeto não está na versão v0.6.2"}
-    if($assembly -notmatch 'AssemblyFileVersion\("0\.6\.1\.0"\)' -or $assembly -notmatch 'AssemblyInformationalVersion\("0\.6\.1"\)'){throw "Assembly não é v0.6.2"}
-    if($bridge -notmatch 'ClientVersion\s*=\s*"0\.6\.1"'){throw "Telemetria não está em v0.6.2"}
+    if($project -notmatch '<ApplicationVersion>0\.6\.2\.0</ApplicationVersion>'){throw "Projeto não está na versão v0.6.2"}
+    if($assembly -notmatch 'AssemblyFileVersion\("0\.6\.2\.0"\)' -or $assembly -notmatch 'AssemblyInformationalVersion\("0\.6\.2"\)'){throw "Assembly não é v0.6.2"}
+    if($bridge -notmatch 'ClientVersion\s*=\s*"0\.6\.2"'){throw "Telemetria não está em v0.6.2"}
     if($settings -notmatch 'IsImortaisAutoSaveDeathsEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*false' -or
         $settings -notmatch 'IsImortaisAutoSaveMassAbatesEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*false'){throw "Morte e massa devem estar desmarcadas por padrão"}
     if($settings -notmatch 'IsImortaisAutoSaveAbatesEnabled\s*\{\s*get;\s*set;\s*\}\s*=\s*true'){throw "Comportamento anterior Salvar meus abates foi alterado"}
@@ -161,7 +161,7 @@ try{
     if($bridge -notmatch 'GetGuildChallengePoints' -or $bridge -notmatch 'GetGvgSeasonContributionByActivity'){throw "Challenge/temporada ausentes"}
     $stableFeedUrl='https://raw.githubusercontent.com/cocoputiz-sudo/imortais-combat-client/main/upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/imortais-netsparkle-update-check.xml'
     if(([regex]::Matches($appConfig,[regex]::Escape($stableFeedUrl))).Count -lt 4){throw "App.config não aponta para o feed IMORTAIS"}
-    if($feed -notmatch 'sparkle:version="0\.6\.0"'){throw "Feed atual não é v0.6.1. Recusando sobrescrever outra publicação."}
+    if($feed -notmatch 'sparkle:version="0\.6\.1"'){throw "Feed atual não é v0.6.1. Recusando sobrescrever outra publicação."}
     $listed=& $gh release list --repo $Repo --limit 100 --json tagName
     if($LASTEXITCODE -ne 0){throw "Não foi possível consultar releases do GitHub"}
     if(@($listed|ConvertFrom-Json|Where-Object {$_.tagName -eq "v$Version"}).Count -gt 0){throw "Release v$Version já existe. Não sobrescrever."}
