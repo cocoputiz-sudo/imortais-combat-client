@@ -24,7 +24,9 @@ function Sign-Verify([string]$f){
     if($LASTEXITCODE -ne 0){throw "Assinatura falhou: $f"}
     $line=@($output|Where-Object{$_ -match '^Signature:\s*(.+)$'}|Select-Object -First 1)
     if(!$line){throw "Nenhuma assinatura: $f"}
-    $match=[regex]::Match([string]$line[0], '^Signature:\s*(.+)
+    $matched=[regex]::Match([string]$line[0], '^Signature:\s*(.+)$')
+    if(!$matched.Success){throw "Formato de assinatura inesperado: $f"}
+    $sig=$matched.Groups[1].Value.Trim()
     $verify=& $SparkleTool --verify $f --signature $sig
     if($LASTEXITCODE -ne 0 -or ($verify -join [char]10) -notmatch 'Signature valid'){throw "Assinatura invalida: $f"}
     return $sig
