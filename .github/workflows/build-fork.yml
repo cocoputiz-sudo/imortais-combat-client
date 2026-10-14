@@ -1,4 +1,4 @@
-name: Build v0.6.4 Candidate (sem publicacao)
+name: Build v0.6.5 Candidate (sem publicacao)
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Conferir versao v0.6.4 e proteger feed publico
+      - name: Conferir versao v0.6.5 e proteger feed publico
         shell: pwsh
         run: |
           $root = "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool"
@@ -35,9 +35,9 @@ jobs:
           $assembly = Get-Content "$root/Properties/AssemblyInfo.cs" -Raw
           $bridge = Get-Content "$root/Imortais/ImortaisEventBridge.cs" -Raw
           $feed = Get-Content "$root/imortais-netsparkle-update-check.xml" -Raw
-          if ($project -notmatch '<ApplicationVersion>0\.6\.4\.0</ApplicationVersion>') { throw "csproj is not v0.6.4" }
-          if ($assembly -notmatch 'AssemblyFileVersion\("0\.6\.4\.0"\)') { throw "assembly is not v0.6.4" }
-          if ($bridge -notmatch 'ClientVersion = "0\.6\.4"') { throw "telemetry version mismatch" }
+          if ($project -notmatch '<ApplicationVersion>0\.6\.5\.0</ApplicationVersion>') { throw "csproj is not v0.6.5" }
+          if ($assembly -notmatch 'AssemblyFileVersion\("0\.6\.5\.0"\)') { throw "assembly is not v0.6.5" }
+          if ($bridge -notmatch 'ClientVersion = "0\.6\.5"') { throw "telemetry version mismatch" }
           # Refuse any appcast modification, regardless of public release version.
           git fetch origin main --depth=1
           if ($LASTEXITCODE -ne 0) { throw "Failed to fetch main" }
@@ -49,7 +49,7 @@ jobs:
       - name: Validar release notes, publicador e defaults do piloto core
         shell: pwsh
         run: |
-          foreach ($name in @("publi-icc-v064.ps1","resume-icc-v064.ps1")) {
+          foreach ($name in @("publi-icc-v065.ps1","resume-icc-v065.ps1")) {
             $tokens = $null
             $errors = $null
             $script = (Resolve-Path (".\scripts\" + $name)).Path
@@ -62,39 +62,33 @@ jobs:
             if ($source -notmatch '--notes-file') { throw "gh release create precisa usar notes-file: $name" }
           }
           # Publicador oficial também deve rodar via irm <url> | iex no PowerShell 5.1.
-          $publisher = Get-Content -LiteralPath ".\\scripts\\publi-icc-v064.ps1" -Raw
+          $publisher = Get-Content -LiteralPath ".\\scripts\\publi-icc-v065.ps1" -Raw
           if ([string]::IsNullOrWhiteSpace($publisher) -or $publisher[0] -eq [char]0xFEFF -or $publisher -match '^\s*param\(') {
-            throw "Publicador v0.6.4 não é compatível com irm | iex (BOM ou param no início)"
+            throw "Publicador v0.6.5 não é compatível com irm | iex (BOM ou param no início)"
           }
           $identity = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\Imortais\\ImortaisBuildIdentity.cs" -Raw
           $feed = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\imortais-netsparkle-update-check.xml" -Raw
           # Released branches are legitimately stamped with the published commit.
           # Only an unpublished new release candidate must use LOCAL-UNSTAMPED.
           if ($identity -notmatch 'LOCAL-UNSTAMPED') {
-            $published = $feed -match 'sparkle:version="0\.6\.4"'
+            $published = $feed -match 'sparkle:version="0\.6\.5"'
             $stamped = $identity -match 'public const string Commit = "[a-f0-9]{40}"'
             if (-not ($published -and $stamped)) {
               throw "Identidade do build inconsistente com feed publicado"
             }
           }
-          $recovery = ".\\scripts\\reparar-atualizacao-icc-v064.ps1"
-          $tokens = $null
-          $errors = $null
-          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $recovery).Path,[ref]$tokens,[ref]$errors)
-          if ($errors.Count -gt 0) { throw "Script de reparo ICC v0.6.4 contem erros PowerShell" }
-          $repairSource = Get-Content -LiteralPath $recovery -Raw
-          if ($repairSource[0] -eq [char]0xFEFF -or $repairSource -match '^\s*param\(') {
-            throw "Reparo deve funcionar via irm | iex, sem BOM/param"
+          $handoff = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\Updater\\AutoUpdateController.cs" -Raw
+          $patcher = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\Updater\\NetSparkleHandoffScript.cs" -Raw
+          if ($handoff -notmatch 'NetSparkleHandoffScript.TryPatch' -or
+              $handoff -notmatch 'ShutdownForInstallerHandoff' -or
+              $patcher -notmatch 'ping -n 2 127.0.0.1') {
+            throw "Updater precisa de handoff NetSparkle seguro e encerramento do processo"
           }
-          foreach ($required in @('Get-FileHash', 'SHA256', 'Start-Process', '-Wait -PassThru', '0.6.4', 'Get-Process', 'ExitCode')) {
-            if (-not $repairSource.Contains($required)) { throw "Reparo sem salvaguarda: $required" }
-          }
-          if ($repairSource -match 'Stop-Process') { throw "O reparo nao deve terminar o Combat Client forcadamente" }
           $root = ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool"
           $settings = Get-Content "$root\\Common\\UserSettings\\SettingsObject.cs" -Raw
           $migration = Get-Content "$root\\Common\\UserSettings\\SettingsController.cs" -Raw
           $review = Get-Content "$root\\Imortais\\DeathReview\\DeathCombatReviewCapture.cs" -Raw
-          $notes = Get-Content ".\\docs\\releases\\v0.6.4-startup-fix.md" -Raw
+          $notes = Get-Content ".\\docs\\releases\\v0.6.5-updater.md" -Raw
           # Regressão do travamento em Rastreando 100% provocado por MessageBox no evento Loaded.
           $startupUi = Get-Content "$root\\Views\\MainWindow.xaml.cs" -Raw
           $startupApp = Get-Content "$root\\App.xaml.cs" -Raw
@@ -125,7 +119,7 @@ jobs:
           if ($settings -notmatch 'HasSeenImortaisDeathReviewCorePilotNotice.*false') { throw "Aviso de primeira execução ausente" }
           if ($migration -notmatch 'CurrentImortaisSettingsSchemaVersion = 2' -or $migration -notmatch 'ApplyImortaisSettingsMigration') { throw "Migração one-shot não foi implementada" }
           if ($review -notmatch 'HasSeenImortaisDeathReviewCorePilotNotice') { throw "Captura não está condicionada ao aviso inicial" }
-          if ($notes -notmatch 'DEATH REVIEW PRÉ-HABILITADO' -or $notes -notmatch 'NÃO há envio automático') { throw "Transparência da coleta local ausente nas notas v0.6.4" }
+          if ($notes -notmatch 'DEATH REVIEW PRÉ-HABILITADO' -or $notes -notmatch 'NÃO há envio automático') { throw "Transparência da coleta local ausente nas notas v0.6.5" }
           $storage = Get-Content "$root\\Imortais\\Highlights\\HighlightStorageManager.cs" -Raw
           $ui = Get-Content "$root\\Views\\MainWindow.xaml" -Raw
           $bridge = Get-Content "$root\\Imortais\\ImortaisEventBridge.cs" -Raw
@@ -145,7 +139,7 @@ jobs:
           if ($sha -ne $env:EXPECTED_SHA.ToLowerInvariant()) { throw "Checkout does not match event SHA" }
           if ($sha -notmatch '^[a-f0-9]{40}$') { throw "Invalid Git SHA" }
           $target = "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisBuildIdentity.cs"
-          $code = 'namespace StatisticsAnalysisTool.Imortais; public static class ImortaisBuildIdentity { public const string Version = "v0.6.4"; public const string Commit = "PLACEHOLDER_SHA"; public static string Display => Version + " commit " + Commit; }'
+          $code = 'namespace StatisticsAnalysisTool.Imortais; public static class ImortaisBuildIdentity { public const string Version = "v0.6.5"; public const string Commit = "PLACEHOLDER_SHA"; public static string Display => Version + " commit " + Commit; }'
           $code = $code.Replace("PLACEHOLDER_SHA",$sha)
           [System.IO.File]::WriteAllText($target,$code,[System.Text.UTF8Encoding]::new($false))
           Write-Host "BUILD_SHA=$sha"
@@ -163,6 +157,12 @@ jobs:
           dotnet test .\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool.UnitTests\\StatisticsAnalysisTool.UnitTests.csproj -c Release --filter "FullyQualifiedName~PartyJoinedEventTests|FullyQualifiedName~PhotonEventDiagnosticsCollectorTests|FullyQualifiedName~EventCodesOrdinalRegressionTests|FullyQualifiedName~PhotonEventObserverTests|FullyQualifiedName~ImortaisDeathReviewPilotSettingsTests|FullyQualifiedName~ImortaisDeathReviewStartupNoticeTests"
           if ($LASTEXITCODE -ne 0) { throw "PartyJoinedEventTests failed" }
 
+      - name: Testar handoff real do NetSparkle sem console interativo
+        shell: pwsh
+        run: |
+          dotnet run --project .\\tests\\UpdaterHandoff.LogicTests\\UpdaterHandoff.LogicTests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Updater detached handoff smoke tests failed" }
+
       - name: Executar testes de Highlights
         shell: pwsh
         run: |
@@ -175,37 +175,37 @@ jobs:
           dotnet run --project .\tests\DeathReview.LogicTests\DeathReview.LogicTests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw "Death Combat Timeline logic tests failed" }
 
-      - name: Publicar executavel v0.6.4 autocontido (nao distribuido)
+      - name: Publicar executavel v0.6.5 autocontido (nao distribuido)
         shell: pwsh
         run: |
           $project = ".\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj"
-          $out = Join-Path $env:RUNNER_TEMP "imortais-v064-app"
+          $out = Join-Path $env:RUNNER_TEMP "imortais-v065-app"
           dotnet publish $project -c Release -r win-x64 --self-contained true -p:LocalInstallerBuild=true -o $out
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
           $exe = Join-Path $out "IMORTAIS-Combat-Client.exe"
           if (-not (Test-Path $exe)) { throw "No executable published" }
-          if ((Get-Item $exe).VersionInfo.FileVersion -notlike '0.6.4*') { throw "Version not embedded" }
+          if ((Get-Item $exe).VersionInfo.FileVersion -notlike '0.6.5*') { throw "Version not embedded" }
           "APP_DIR=$out" >> $env:GITHUB_ENV
 
-      - name: Gerar instalador normal v0.6.4
+      - name: Gerar instalador normal v0.6.5
         shell: pwsh
         run: |
-          $package = Join-Path $env:RUNNER_TEMP "imortais-v064-setup"
-          .\scripts\build-icc-v064-candidate.ps1 -AppDir "$env:APP_DIR" -OutDir $package
+          $package = Join-Path $env:RUNNER_TEMP "imortais-v065-setup"
+          .\scripts\build-icc-v065-candidate.ps1 -AppDir "$env:APP_DIR" -OutDir $package
           if ($LASTEXITCODE -ne 0) { throw "Inno setup failed" }
           "PACKAGE_DIR=$package" >> $env:GITHUB_ENV
 
-      - name: Testar atualização real v0.6.3 -> v0.6.4 e preservar pareamento
+      - name: Testar atualização real v0.6.4 -> v0.6.5 e preservar pareamento
         shell: pwsh
         run: |
-          $setup = Join-Path $env:PACKAGE_DIR "IMORTAIS-Combat-Client-Setup-v0.6.4.exe"
-          .\scripts\test-icc-v064-upgrade.ps1 -CandidateSetup $setup
+          $setup = Join-Path $env:PACKAGE_DIR "IMORTAIS-Combat-Client-Setup-v0.6.5.exe"
+          .\scripts\test-icc-v065-upgrade.ps1 -CandidateSetup $setup
           # PowerShell throws on failures; LASTEXITCODE may be stale from Inno Setup.
 
-      - name: Anexar instalador v0.6.4 para conferência, sem Release
+      - name: Anexar instalador v0.6.5 para conferência, sem Release
         uses: actions/upload-artifact@v4
         with:
-          name: IMORTAIS-Combat-Client-Setup-v0.6.4
+          name: IMORTAIS-Combat-Client-Setup-v0.6.5
           path: ${{ env.PACKAGE_DIR }}\*
           if-no-files-found: error
           retention-days: 14
