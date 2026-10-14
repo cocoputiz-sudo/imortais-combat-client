@@ -75,11 +75,28 @@ jobs:
           $notes = Get-Content ".\\docs\\releases\\v0.6.4-startup-fix.md" -Raw
           # Regressão do travamento em Rastreando 100% provocado por MessageBox no evento Loaded.
           $startupUi = Get-Content "$root\\Views\\MainWindow.xaml.cs" -Raw
-          if (($startupUi -notmatch 'Dispatcher\.BeginInvoke\(DispatcherPriority\.ContextIdle') -or ($startupUi -notmatch 'ShowImortaisDeathReviewPilotNoticeIfNeededAsync') -or ($startupUi -notmatch 'await SettingsController\.SaveSettingsAsync\(\)')) {
-            throw "Aviso do Death Review deve ser adiado até depois de MainWindow.Show e salvar async"
+          $startupApp = Get-Content "$root\\App.xaml.cs" -Raw
+          $closeAt = $startupApp.IndexOf("toolLoadingWindow.Close();")
+          $scheduleAt = $startupApp.IndexOf("mainWindow.ScheduleImortaisDeathReviewPilotNoticeAfterStartup();")
+          if ($closeAt -lt 0 -or $scheduleAt -le $closeAt) {
+            throw "Regressão: App.OnStartup deve fechar ToolLoadingWindow ANTES de agendar o aviso"
           }
-          if (($startupUi -match 'ShowImortaisDeathReviewPilotNoticeIfNeeded\(\)') -or ($startupUi -match 'SettingsController\.SaveSettings\(\);')) {
-            throw "Regressão: aviso síncrono do Death Review pode reter splash Rastreando 100%"
+          $loadedStart = $startupUi.IndexOf("private void MainWindow_OnLoaded(")
+          $loadedEnd = $startupUi.IndexOf("private async void AlbionGameProcessMonitor_OnGameStarted(", $loadedStart)
+          if ($loadedStart -lt 0 -or $loadedEnd -le $loadedStart) { throw "OnLoaded não localizado" }
+          $loadedBody = $startupUi.Substring($loadedStart, $loadedEnd - $loadedStart)
+          if ($loadedBody -match 'ShowImortaisDeathReviewPilotNotice' -or $loadedBody -match 'MessageBox.Show') {
+            throw "Regressão: evento Loaded não pode mostrar nem agendar modal"
+          }
+          if (($startupUi -notmatch 'Dispatcher\.BeginInvoke\(DispatcherPriority\.ApplicationIdle') -or
+              ($startupUi -notmatch 'MessageBox.Show\(\s*this,') -or
+              ($startupUi -notmatch 'Activate\(\);') -or
+              ($startupUi -notmatch 'await SettingsController\.SaveSettingsAsync\(\)') -or
+              ($startupUi -notmatch 'IsVisibleChanged \+=')) {
+            throw "Faltam proteção de bandeja, dono do modal, foco ou salvamento assíncrono"
+          }
+          if ($startupUi -match 'SettingsController\.SaveSettings\(\);') {
+            throw "Regressão: aviso não pode salvar síncrono na thread UI"
           }
 
           if ($settings -notmatch 'IsImortaisDeathReviewEnabled.*true') { throw "Death Review piloto core não inicia pré-habilitado" }
@@ -121,7 +138,7 @@ jobs:
       - name: Testar códigos Photon, PT e diagnóstico
         shell: pwsh
         run: |
-          dotnet test .\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool.UnitTests\\StatisticsAnalysisTool.UnitTests.csproj -c Release --filter "FullyQualifiedName~PartyJoinedEventTests|FullyQualifiedName~PhotonEventDiagnosticsCollectorTests|FullyQualifiedName~EventCodesOrdinalRegressionTests|FullyQualifiedName~PhotonEventObserverTests|FullyQualifiedName~ImortaisDeathReviewPilotSettingsTests"
+          dotnet test .\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool.UnitTests\\StatisticsAnalysisTool.UnitTests.csproj -c Release --filter "FullyQualifiedName~PartyJoinedEventTests|FullyQualifiedName~PhotonEventDiagnosticsCollectorTests|FullyQualifiedName~EventCodesOrdinalRegressionTests|FullyQualifiedName~PhotonEventObserverTests|FullyQualifiedName~ImortaisDeathReviewPilotSettingsTests|FullyQualifiedName~ImortaisDeathReviewStartupNoticeTests"
           if ($LASTEXITCODE -ne 0) { throw "PartyJoinedEventTests failed" }
 
       - name: Executar testes de Highlights
