@@ -435,17 +435,20 @@
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                             <Button x:Name="ImortaisDeathReviewToggleButton"
-                                                    Content="DEATH REVIEW: DESLIGADO"
+                                                    Content="DEATH REVIEW: LIGADO"
                                                     Height="34"
                                                     MinWidth="205"
                                                     Margin="0,0,10,0"
-                                                    ToolTip="Registro local e opcional dos 45 segundos anteriores à própria morte. Não envia relatório ao War Room."
+                                                    ToolTip="Piloto core v0.6.3: inicia ativado na atualização. Registra localmente dados da própria morte, pode ser desligado. Não envia relatórios ao War Room."
                                                     Click="ImortaisDeathReviewToggle_Click" />
                                             <Button Content="ABRIR DEATH REVIEWS"
                                                     Height="34"
                                                     MinWidth="170"
                                                     Click="ImortaisOpenDeathReviewFolder_Click" />
                                         </StackPanel>
+                                        <TextBlock Text="PILOTO CORE v0.6.3: Death Review começa LIGADO após a atualização. Salva apenas neste PC relatórios das suas mortes (até 30 JSONs), com nomes/IDs, dano, habilidades e equipamento. Nada é enviado automaticamente. Clique em DEATH REVIEW para desligar."
+                                                   TextWrapping="Wrap" Margin="0,6,0,2" FontSize="11"
+                                                   Foreground="LightSkyBlue" />
                                         <Button Content="EXPORTAR DIAGNÓSTICO DE EVENTOS"
                                                 Height="34"
                                                 MinWidth="260"
