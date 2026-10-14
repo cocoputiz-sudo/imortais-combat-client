@@ -1,13 +1,13 @@
 param()
-# Recuperacao da v0.6.3: reutiliza o instalador ja compilado e assinado.
+# Recuperacao da v0.6.4: reutiliza o instalador ja compilado e assinado.
 $ErrorActionPreference="Stop"
-$Version="0.6.3"
+$Version="0.6.4"
 $Repo="cocoputiz-sudo/imortais-combat-client"
 $BuildRoot=Join-Path $env:TEMP "icc-v064"
 $ReleaseDir=Join-Path $BuildRoot "release"
-$SetupFile=Join-Path $ReleaseDir "IMORTAIS-Combat-Client-Setup-v0.6.3.exe"
+$SetupFile=Join-Path $ReleaseDir "IMORTAIS-Combat-Client-Setup-v0.6.4.exe"
 $HashFile="$SetupFile.sha256"
-$ZipFile=Join-Path $ReleaseDir "IMORTAIS-Combat-Client-v0.6.3-win-x64.zip"
+$ZipFile=Join-Path $ReleaseDir "IMORTAIS-Combat-Client-v0.6.4-win-x64.zip"
 $AppExe=Join-Path $BuildRoot "dist\IMORTAIS-Combat-Client\IMORTAIS-Combat-Client.exe"
 $BuildIdentity=Join-Path $BuildRoot "upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\Imortais\ImortaisBuildIdentity.cs"
 $KeyDir=Join-Path $env:LOCALAPPDATA "IMORTAIS Combat Client\signing-keys"
@@ -34,15 +34,15 @@ function Sign-Verify([string]$f){
 $git=(Get-Command git.exe -ErrorAction Stop).Source
 $gh=(Get-Command gh.exe -ErrorAction Stop).Source
 foreach($f in @($SetupFile,$HashFile,$ZipFile,$AppExe,$BuildIdentity,$PubKeyFile,$PrivKeyFile,$SparkleTool)){Assert-File $f}
-if((Get-Item $AppExe).VersionInfo.FileVersion -notlike "0.6.3*"){throw "Executavel local nao e v0.6.3"}
+if((Get-Item $AppExe).VersionInfo.FileVersion -notlike "0.6.4*"){throw "Executavel local nao e v0.6.4"}
 $sha=(& $git -C $BuildRoot rev-parse HEAD).Trim().ToLowerInvariant()
 if($LASTEXITCODE -ne 0 -or $sha -notmatch '^[0-9a-f]{40}$'){throw "SHA de build invalido"}
 $idText=[IO.File]::ReadAllText($BuildIdentity)
-if(!$idText.Contains($sha) -or !$idText.Contains('"v0.6.3"')){throw "Build e identidade de commit diferentes"}
+if(!$idText.Contains($sha) -or !$idText.Contains('"v0.6.4"')){throw "Build e identidade de commit diferentes"}
 $want=((Get-Content -LiteralPath $HashFile -Raw).Trim() -split '\s+')[0].ToLowerInvariant()
 $actual=(Get-FileHash -LiteralPath $SetupFile -Algorithm SHA256).Hash.ToLowerInvariant()
 if($want -ne $actual){throw "Hash do instalador diverge. Parando."}
-Write-Host "Artefatos v0.6.3 conferidos: SHA256 e commit $sha" -ForegroundColor Green
+Write-Host "Artefatos v0.6.4 conferidos: SHA256 e commit $sha" -ForegroundColor Green
 & $gh auth status
 if($LASTEXITCODE -ne 0){throw "GitHub CLI nao autenticado"}
 & $gh auth setup-git | Out-Null
@@ -57,7 +57,7 @@ $FeedSigFile="$FeedFile.signature"
 $MainIdentity=Join-Path $FeedRoot ($IdentityPath.Replace('/','\'))
 $ReadmeFile=Join-Path $FeedRoot "README.md"
 foreach($f in @($FeedFile,$FeedSigFile,$MainIdentity,$ReadmeFile)){Assert-File $f}
-if(([IO.File]::ReadAllText($FeedFile)) -notmatch 'sparkle:version="0\.6\.1"'){throw "Feed publico nao esta na v0.6.1"}
+if(([IO.File]::ReadAllText($FeedFile)) -notmatch 'sparkle:version="0\.6\.3"'){throw "Feed publico nao esta na v0.6.3"}
 $mainIdText=[IO.File]::ReadAllText($MainIdentity)
 if(!$mainIdText.Contains("LOCAL-UNSTAMPED")){throw "Identidade da main inesperada"}
 try{
@@ -66,19 +66,11 @@ try{
   if(!$env:SPARKLE_PUBLIC_KEY -or !$env:SPARKLE_PRIVATE_KEY){throw "Chaves originais vazias"}
   $installerSig=Sign-Verify $SetupFile
   Write-Host "Assinatura existente conferida." -ForegroundColor Green
-  $notes=@"
-## IMORTAIS Combat Client v0.6.3
+  $notesPath=Join-Path $FeedRoot "docs\\releases\\v0.6.4-startup-fix.md"
+  if(-not(Test-Path -LiteralPath $notesPath)){throw "Notas v0.6.4 ausentes"}
+  $notes=Get-Content -LiteralPath $notesPath -Raw -Encoding UTF8
 
-**Compatível com o Dragonfire Patch 3 do Albion (12/10): volta a reconhecer PT, dano, loot, abates e mortes.**
-
-- Corrige o deslocamento ordinal dos codigos Photon introduzido pelo patch de 12/10.
-- Restaura PT, combate, loot, abates e mortes.
-- Mantem snapshots atomicos, rejeicao de roster incompleto e reenvio da PT.
-- Preserva o diagnostico local Photon e o botao de exportar JSON sem nomes ou IDs.
-- Mantem pareamento, Highlights e configuracoes pessoais na atualizacao.
-- Homologado em PostgreSQL: 34 party_snapshot, 70 combat_delta, 24 loot, 1 kill, 1 death e 1 player_death_observed.
-"@
-  $notesFile=Join-Path $ReleaseDir "IMORTAIS-Combat-Client-v0.6.3-notes.md"
+  $notesFile=Join-Path $ReleaseDir "IMORTAIS-Combat-Client-v0.6.4-notes.md"
   Save-Text $notesFile $notes
   Write-Host "Publicando release GitHub com --notes-file..." -ForegroundColor Cyan
   & $gh release create "v$Version" $SetupFile $HashFile $ZipFile --repo $Repo --target $sha --title "IMORTAIS Combat Client v$Version" --notes-file $notesFile
@@ -113,16 +105,16 @@ try{
   Save-Text $FeedSigFile $feedSig
   Save-Text $MainIdentity ($mainIdText.Replace("LOCAL-UNSTAMPED",$sha))
   $readme=[IO.File]::ReadAllText($ReadmeFile)
-  $readme=$readme.Replace("**Versão estável atual:** v0.6.1","**Versão estável atual:** v0.6.3")
-  $readme=$readme.Replace("IMORTAIS-Combat-Client-Setup-v0.6.1.exe","IMORTAIS-Combat-Client-Setup-v0.6.3.exe")
+  $readme=$readme.Replace("**Versão estável atual:** v0.6.3","**Versão estável atual:** v0.6.4")
+  $readme=$readme.Replace("IMORTAIS-Combat-Client-Setup-v0.6.3.exe","IMORTAIS-Combat-Client-Setup-v0.6.4.exe")
   Save-Text $ReadmeFile $readme
   & $git -C $FeedRoot add $FeedPath "$FeedPath.signature" $IdentityPath README.md
   if($LASTEXITCODE -ne 0){throw "Falha git add"}
-  & $git -C $FeedRoot commit -m "release: publish signed IMORTAIS Combat Client v0.6.3 feed"
+  & $git -C $FeedRoot commit -m "release: publish signed IMORTAIS Combat Client v0.6.4 feed"
   if($LASTEXITCODE -ne 0){throw "Falha git commit"}
   & $git -C $FeedRoot push origin main
   if($LASTEXITCODE -ne 0){throw "Release criada, mas feed nao publicado. NAO anunciar ainda."}
-  Write-Host "v0.6.3 ASSINADA, RELEASE E UPDATER PUBLICADOS COM SUCESSO" -ForegroundColor Green
+  Write-Host "v0.6.4 ASSINADA, RELEASE E UPDATER PUBLICADOS COM SUCESSO" -ForegroundColor Green
   Write-Host "Build: $sha" -ForegroundColor Green
   Write-Host "SHA256: $actual" -ForegroundColor Green
   Write-Host "Release: $releaseUrl" -ForegroundColor Green
