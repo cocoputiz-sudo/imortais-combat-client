@@ -163,6 +163,12 @@ jobs:
           dotnet run --project .\\tests\\UpdaterHandoff.LogicTests\\UpdaterHandoff.LogicTests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw "Updater detached handoff smoke tests failed" }
 
+      - name: Testar modo assistido VPN e política conservadora
+        shell: pwsh
+        run: |
+          dotnet run --project .\\tests\\VpnCapture.LogicTests\\VpnCapture.LogicTests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "VPN capture assist logic tests failed" }
+
       - name: Executar testes de Highlights
         shell: pwsh
         run: |
