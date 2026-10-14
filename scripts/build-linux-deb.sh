@@ -33,7 +33,7 @@ Version: $VERSION
 Section: games
 Priority: optional
 Architecture: amd64
-Depends: libpcap0.8 | libpcap0.8t64, libcap2-bin
+Depends: libpcap0.8 | libpcap0.8t64, libcap2-bin, pkexec
 Maintainer: IMORTAIS
 Description: IMORTAIS Combat Client for Albion Online
  Cliente Linux da guilda IMORTAIS com captura libpcap, parser Photon,
