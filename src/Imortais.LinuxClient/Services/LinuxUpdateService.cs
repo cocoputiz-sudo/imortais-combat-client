@@ -44,13 +44,19 @@ public sealed class LinuxUpdateService
         if (releases.RootElement.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException("A resposta de releases não é uma lista.");
 
+        return SelectLatestRelease(releases.RootElement, CurrentBuildNumber);
+    }
+
+    public static LinuxReleaseUpdate? SelectLatestRelease(JsonElement releases, int installedBuild)
+    {
+        if (releases.ValueKind != JsonValueKind.Array) throw new InvalidDataException("Formato das releases inválido.");
         LinuxReleaseUpdate? newest = null;
-        foreach (var release in releases.RootElement.EnumerateArray())
+        foreach (var release in releases.EnumerateArray())
         {
             if (release.GetProperty("draft").GetBoolean() || !release.GetProperty("prerelease").GetBoolean()) continue;
             var tag = release.GetProperty("tag_name").GetString() ?? "";
             var match = TagPattern.Match(tag);
-            if (!match.Success || !int.TryParse(match.Groups[1].Value, out var build) || build <= CurrentBuildNumber) continue;
+            if (!match.Success || !int.TryParse(match.Groups[1].Value, out var build) || build <= installedBuild) continue;
 
             var assets = release.GetProperty("assets").EnumerateArray().ToArray();
             foreach (var asset in assets)
@@ -80,17 +86,22 @@ public sealed class LinuxUpdateService
         return url;
     }
 
+    public static string ParseExpectedSha256(string checksumText, string packageName)
+    {
+        var line = checksumText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault(x => x.EndsWith(packageName, StringComparison.Ordinal));
+        if (line is null) throw new InvalidDataException("Checksum do pacote não encontrado.");
+        var parts = line.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length != 2 || parts[0].Length != 64 || !parts[0].All(Uri.IsHexDigit) ||
+            parts[1].TrimStart('*') != packageName)
+            throw new InvalidDataException("Arquivo SHA-256 inválido.");
+        return parts[0];
+    }
+
     public async Task<string> DownloadVerifiedAsync(LinuxReleaseUpdate release, CancellationToken cancellationToken = default)
     {
         var checksumText = await _http.GetStringAsync(release.ChecksumUrl, cancellationToken);
-        var checksumLine = checksumText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .FirstOrDefault(x => x.EndsWith(release.PackageName, StringComparison.Ordinal));
-        if (checksumLine is null)
-            throw new InvalidDataException("A release não contém o checksum do pacote solicitado.");
-        var parts = checksumLine.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length < 2 || parts[0].Length != 64 || !parts[0].All(Uri.IsHexDigit) ||
-            parts[^1].TrimStart('*') != release.PackageName)
-            throw new InvalidDataException("O arquivo SHA-256 é inválido.");
+        var expectedSha256 = ParseExpectedSha256(checksumText, release.PackageName);
 
         var home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         if (string.IsNullOrWhiteSpace(home)) throw new IOException("Pasta pessoal não encontrada.");
@@ -128,7 +139,7 @@ public sealed class LinuxUpdateService
             await using (var read = File.OpenRead(temp))
             {
                 var actual = Convert.ToHexString(await SHA256.HashDataAsync(read, cancellationToken));
-                if (!actual.Equals(parts[0], StringComparison.OrdinalIgnoreCase))
+                if (!actual.Equals(expectedSha256, StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("SHA-256 diferente do publicado. Instalação bloqueada.");
             }
             File.Move(temp, target, overwrite: true);
