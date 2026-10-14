@@ -132,7 +132,11 @@ public partial class MainWindow
                 settings.IsImortaisAutoSaveMassAbatesEnabled);
         }
         UpdateImortaisBackgroundRecordingUi();
-        ShowImortaisDeathReviewPilotNoticeIfNeeded();
+        // Never show a modal notice inside Loaded: App.OnStartup still needs
+        // to return from MainWindow.Show() to close the 100% tracking splash.
+        // The deferred callback runs after the initial UI startup unwinds.
+        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle,
+            new Action(() => _ = ShowImortaisDeathReviewPilotNoticeIfNeededAsync()));
 
         var shouldRemainVisibleForRunningGame = settings.IsOpenWithGameActive
                                                 && _albionGameProcessMonitor.IsGameRunning;
@@ -636,35 +640,47 @@ public partial class MainWindow
         }
     }
 
-    private void ShowImortaisDeathReviewPilotNoticeIfNeeded()
+    private async System.Threading.Tasks.Task ShowImortaisDeathReviewPilotNoticeIfNeededAsync()
     {
         var settings = SettingsController.CurrentSettings;
         if (settings.HasSeenImortaisDeathReviewCorePilotNotice) return;
 
-        // Show once on the first startup after the core pilot update, before
-        // hiding to tray. The user may immediately opt out without losing settings.
-        var choice = MessageBox.Show(
-            "PILOTO CORE - DEATH REVIEW ATIVADO NESTA ATUALIZAÇÃO\n\n" +
-            "O aplicativo inicia com o registro LOCAL dos 45 segundos anteriores à sua própria morte ligado. " +
-            "Ele pode registrar nomes e IDs observados, dano/vida, índices de habilidades, " +
-            "equipamentos e formatos de eventos Photon (sem valores brutos de casts).\n\n" +
-            "Os dados ficam somente neste computador, em até 30 arquivos JSON na pasta DeathReview. " +
-            "NÃO são enviados automaticamente ao War Room nem à liderança. " +
-            "Não grava vídeo por causa desta opção.\n\n" +
-            "Você pode desligar a qualquer momento no botão DEATH REVIEW. " +
-            "Deseja MANTER o Death Review ligado para o piloto?",
-            "IMORTAIS Combat Client - Aviso da atualização v0.6.3",
-            MessageBoxButton.YesNo, MessageBoxImage.Information);
-
-        if (choice != MessageBoxResult.Yes)
+        try
         {
-            settings.IsImortaisDeathReviewEnabled = false;
-            DeathCombatReviewCapture.Reset();
-        }
+            Log.Information("IMORTAIS core pilot notice opened after main window startup.");
+            var choice = MessageBox.Show(
+                this,
+                "PILOTO CORE - DEATH REVIEW PRÉ-HABILITADO\n\n" +
+                "Nesta atualização, o registro LOCAL dos 45 segundos anteriores à sua própria morte está pré-habilitado. " +
+                "Ele pode registrar nomes e IDs observados, dano/vida, índices de habilidades, " +
+                "equipamentos e formatos de eventos Photon (sem valores brutos de casts).\n\n" +
+                "Os dados ficam somente neste computador, em até 30 arquivos JSON na pasta DeathReview. " +
+                "NÃO são enviados automaticamente ao War Room nem à liderança. " +
+                "Não grava vídeo por causa desta opção.\n\n" +
+                "Você pode desligar a qualquer momento no botão DEATH REVIEW. " +
+                "Deseja MANTER o Death Review ligado para o piloto?",
+                "IMORTAIS Combat Client - Aviso da atualização v0.6.4",
+                MessageBoxButton.YesNo, MessageBoxImage.Information);
 
-        settings.HasSeenImortaisDeathReviewCorePilotNotice = true;
-        SettingsController.SaveSettings();
-        UpdateImortaisDeathReviewUi();
+            if (choice != MessageBoxResult.Yes)
+            {
+                settings.IsImortaisDeathReviewEnabled = false;
+                DeathCombatReviewCapture.Reset();
+            }
+
+            settings.HasSeenImortaisDeathReviewCorePilotNotice = true;
+            // Asynchronous save: do not block the WPF dispatcher on I/O.
+            await SettingsController.SaveSettingsAsync();
+            UpdateImortaisDeathReviewUi();
+            Log.Information("IMORTAIS core pilot notice acknowledged. DeathReviewEnabled={Enabled}",
+                DeathCombatReviewCapture.IsEnabled);
+        }
+        catch (Exception ex)
+        {
+            // Failure must not hold up the main window or mark the notice accepted.
+            Log.Error(ex, "IMORTAIS core pilot notice failed after startup.");
+            UpdateImortaisDeathReviewUi();
+        }
     }
 
     private void UpdateImortaisDeathReviewUi()
