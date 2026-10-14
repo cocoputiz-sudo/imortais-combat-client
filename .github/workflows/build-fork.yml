@@ -49,7 +49,7 @@ jobs:
       - name: Validar release notes, publicador e defaults do piloto core
         shell: pwsh
         run: |
-          foreach ($name in @("publi-icc-v063.ps1","resume-icc-v063.ps1")) {
+          foreach ($name in @("publi-icc-v063.ps1","resume-icc-v062.ps1")) {
             $tokens = $null
             $errors = $null
             $script = (Resolve-Path (".\scripts\" + $name)).Path
