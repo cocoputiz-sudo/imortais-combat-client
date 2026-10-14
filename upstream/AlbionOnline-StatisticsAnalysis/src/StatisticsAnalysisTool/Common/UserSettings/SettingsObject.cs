@@ -50,6 +50,8 @@ public class SettingsObject
     public int ImortaisHighlightFps { get; set; } = 60;
     public bool IsImortaisAutoSaveAbatesEnabled { get; set; } = true;
     public bool IsImortaisAutoSaveDeathsEnabled { get; set; } = false;
+    // Independent opt-in: local JSON containing the last 45 s of incoming health changes on own death.
+    public bool IsImortaisDeathReviewEnabled { get; set; } = false;
     public bool IsImortaisAutoSaveMassAbatesEnabled { get; set; } = false;
     public bool IsNavigationMenuOpen { get; set; } = true;
     public bool IsTrackingResetByMapChangeActive { get; set; } = false;
