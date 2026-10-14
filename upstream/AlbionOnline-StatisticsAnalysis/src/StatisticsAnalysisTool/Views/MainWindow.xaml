@@ -446,7 +446,7 @@
                                                     MinWidth="170"
                                                     Click="ImortaisOpenDeathReviewFolder_Click" />
                                         </StackPanel>
-                                        <TextBlock Text="PILOTO CORE v0.6.3: Death Review começa LIGADO após a atualização. Salva apenas neste PC relatórios das suas mortes (até 30 JSONs), com nomes/IDs, dano, habilidades e equipamento. Nada é enviado automaticamente. Clique em DEATH REVIEW para desligar."
+                                        <TextBlock Text="PILOTO CORE v0.6.4: Death Review começa LIGADO após o aviso inicial. Salva apenas neste PC relatórios das suas mortes (até 30 JSONs), com nomes/IDs, dano, habilidades e equipamento. Nada é enviado automaticamente. Clique em DEATH REVIEW para desligar."
                                                    TextWrapping="Wrap" Margin="0,6,0,2" FontSize="11"
                                                    Foreground="LightSkyBlue" />
                                         <Button Content="EXPORTAR DIAGNÓSTICO DE EVENTOS"
