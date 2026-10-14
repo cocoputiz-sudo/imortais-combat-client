@@ -49,6 +49,7 @@ public static class AutoUpdateController
     private static bool _isStartupCheckCompleted;
     private static bool _isUpdateCheckRunning;
     private static bool _hasLoggedAuthenticodeVerificationNotConfigured;
+    private static int _isHandoffShutdownInitiated;
     private static CancellationTokenSource _backgroundUpdateCancellationTokenSource;
     private static Task _backgroundUpdateTask;
     private static PendingUpdateInfo _pendingUpdateInfo;
@@ -1353,13 +1354,7 @@ public static class AutoUpdateController
             UserInteractionMode = UserInteractionMode.DownloadAndInstall
         };
 
-        sparkleUpdater.CloseApplication += () =>
-        {
-            Application.Current?.Dispatcher.Invoke(() =>
-            {
-                Application.Current.Shutdown();
-            });
-        };
+        sparkleUpdater.CloseApplication += ShutdownForInstallerHandoff;
         sparkleUpdater.InstallUpdateFailed += (failureReason, installPath) =>
         {
             if (failureReason == InstallUpdateFailureReason.InvalidSignature)
@@ -1373,7 +1368,19 @@ public static class AutoUpdateController
                 installPath);
             return true;
         };
-        sparkleUpdater.InstallerProcessAboutToStart += (_, downloadFilePath) => CanStartDownloadedInstaller(downloadFilePath);
+        sparkleUpdater.InstallerProcessAboutToStart += (process, downloadFilePath) =>
+        {
+            if (!CanStartDownloadedInstaller(downloadFilePath)) return false;
+
+            if (!NetSparkleHandoffScript.TryPatch(process.StartInfo.FileName, out var problem))
+            {
+                Log.Error("NetSparkle handoff refused before installer launch. {Problem}", problem);
+                return false;
+            }
+
+            Log.Information("Patched NetSparkle hidden Windows install handoff: noninteractive-safe wait enabled.");
+            return true;
+        };
 
         if (configuration.IsProxyEnabled)
         {
@@ -1387,6 +1394,44 @@ public static class AutoUpdateController
         }
 
         return sparkleUpdater;
+    }
+
+    private static void ShutdownForInstallerHandoff()
+    {
+        if (Interlocked.Exchange(ref _isHandoffShutdownInitiated, 1) != 0) return;
+
+        Log.Information("NetSparkle installer started. Requesting WPF shutdown before replacing application files.");
+
+        // The signed installer has ALREADY been handed to a detached .cmd by
+        // NetSparkle. If an unrelated WPF tray worker or cleanup keeps this
+        // process alive, the installer would otherwise time out and never run.
+        // The 25-second watchdog is a last resort after graceful shutdown.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(25)).ConfigureAwait(false);
+            try { Log.Warning("WPF shutdown still pending 25s after signed installer handoff; terminating old client process."); }
+            catch { /* logger may already have closed */ }
+            Environment.Exit(0);
+        });
+
+        try
+        {
+            var app = Application.Current;
+            if (app is null)
+            {
+                Environment.Exit(0);
+                return;
+            }
+
+            if (app.Dispatcher.CheckAccess())
+                app.Shutdown();
+            else
+                app.Dispatcher.BeginInvoke(new Action(app.Shutdown));
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Unable to request WPF shutdown for update; watchdog will finish old process.");
+        }
     }
 
     private static string ResolveExecutablePath()
