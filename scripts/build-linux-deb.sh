@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="${1:-0.2.0~alpha1}"
-PACKAGE_LABEL="${2:-0.2.0-alpha.1}"
+VERSION="${1:-0.2.0~alpha2}"
+PACKAGE_LABEL="${2:-0.2.0-alpha.2}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT="$ROOT/src/Imortais.LinuxClient/Imortais.LinuxClient.csproj"
 PUBLISH="$ROOT/dist/linux/publish"
@@ -14,6 +14,14 @@ mkdir -p "$PUBLISH" "$PKGROOT/DEBIAN"   "$PKGROOT/opt/imortais-combat-client"   
 
 dotnet publish "$PROJECT" -c Release -r linux-x64 --self-contained true   -p:PublishSingleFile=false   -p:DebugType=None   -p:DebugSymbols=false   -o "$PUBLISH"
 
+# Every installed .deb carries its GitHub Actions run number for future update comparisons.
+# Local developer builds intentionally use 0 and cannot claim to be a published release.
+BUILD_NUMBER="${GITHUB_RUN_NUMBER:-0}"
+if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
+  echo "Invalid Linux build number: $BUILD_NUMBER" >&2
+  exit 1
+fi
+printf '{"buildNumber":%s,"version":"%s"}\\n' "$BUILD_NUMBER" "$PACKAGE_LABEL" > "$PUBLISH/linux-build.json"
 cp -a "$PUBLISH/." "$PKGROOT/opt/imortais-combat-client/"
 cp "$ROOT/upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Assets/imortais-icon.png"   "$PKGROOT/usr/share/icons/hicolor/256x256/apps/imortais-combat-client.png"
 
