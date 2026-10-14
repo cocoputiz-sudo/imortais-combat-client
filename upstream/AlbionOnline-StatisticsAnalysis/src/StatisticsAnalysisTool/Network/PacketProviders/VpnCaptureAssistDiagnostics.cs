@@ -75,7 +75,7 @@ internal static class VpnCaptureAssistDiagnostics
         Interlocked.Increment(ref _decodedEvents);
     }
 
-    public static void ObserveSelectedAdapter(string adapter)
+    public static void ObserveSelectedAdapter(string? adapter)
     {
         lock (Gate) _selectedAdapter = adapter;
     }
