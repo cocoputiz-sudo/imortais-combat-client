@@ -36,7 +36,8 @@ internal sealed record DeathCombatSnapshot(
     bool CooldownsVerified,
     bool SkillNamesResolved,
     ObservedEquipment? EquipmentAtDeath,
-    IReadOnlyList<IncomingHealthChange> IncomingHealthChanges);
+    IReadOnlyList<IncomingHealthChange> IncomingHealthChanges,
+    SkillEvidenceSnapshot? SkillEvidence = null);
 
 /// <summary>
 /// Thread-safe, RAM-only, victim-scoped bounded timeline. No disk or network I/O.
