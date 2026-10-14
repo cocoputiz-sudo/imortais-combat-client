@@ -63,7 +63,7 @@ jobs:
           }
           # Publicador oficial também deve rodar via irm <url> | iex no PowerShell 5.1.
           $publisher = Get-Content -LiteralPath ".\\scripts\\publi-icc-v063.ps1" -Raw
-          if ([string]::IsNullOrWhiteSpace($publisher) -or $publisher[0] -eq [char]0xFEFF -or $publisher -match '^\\s*param\\(') {
+          if ([string]::IsNullOrWhiteSpace($publisher) -or $publisher[0] -eq [char]0xFEFF -or $publisher -match '^\s*param\(') {
             throw "Publicador v0.6.3 não é compatível com irm | iex (BOM ou param no início)"
           }
           $identity = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\Imortais\\ImortaisBuildIdentity.cs" -Raw
