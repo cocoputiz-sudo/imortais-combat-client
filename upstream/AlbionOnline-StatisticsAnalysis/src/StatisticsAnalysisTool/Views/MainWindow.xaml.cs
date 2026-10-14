@@ -132,6 +132,7 @@ public partial class MainWindow
                 settings.IsImortaisAutoSaveMassAbatesEnabled);
         }
         UpdateImortaisBackgroundRecordingUi();
+        ShowImortaisDeathReviewPilotNoticeIfNeeded();
 
         var shouldRemainVisibleForRunningGame = settings.IsOpenWithGameActive
                                                 && _albionGameProcessMonitor.IsGameRunning;
@@ -633,6 +634,37 @@ public partial class MainWindow
 
             UpdateImortaisStatus();
         }
+    }
+
+    private void ShowImortaisDeathReviewPilotNoticeIfNeeded()
+    {
+        var settings = SettingsController.CurrentSettings;
+        if (settings.HasSeenImortaisDeathReviewCorePilotNotice) return;
+
+        // Show once on the first startup after the core pilot update, before
+        // hiding to tray. The user may immediately opt out without losing settings.
+        var choice = MessageBox.Show(
+            "PILOTO CORE - DEATH REVIEW ATIVADO NESTA ATUALIZAÇÃO\n\n" +
+            "O aplicativo inicia com o registro LOCAL dos 45 segundos anteriores à sua própria morte ligado. " +
+            "Ele pode registrar nomes e IDs observados, dano/vida, índices de habilidades, " +
+            "equipamentos e formatos de eventos Photon (sem valores brutos de casts).\n\n" +
+            "Os dados ficam somente neste computador, em até 30 arquivos JSON na pasta DeathReview. " +
+            "NÃO são enviados automaticamente ao War Room nem à liderança. " +
+            "Não grava vídeo por causa desta opção.\n\n" +
+            "Você pode desligar a qualquer momento no botão DEATH REVIEW. " +
+            "Deseja MANTER o Death Review ligado para o piloto?",
+            "IMORTAIS Combat Client - Aviso da atualização v0.6.3",
+            MessageBoxButton.YesNo, MessageBoxImage.Information);
+
+        if (choice != MessageBoxResult.Yes)
+        {
+            settings.IsImortaisDeathReviewEnabled = false;
+            DeathCombatReviewCapture.Reset();
+        }
+
+        settings.HasSeenImortaisDeathReviewCorePilotNotice = true;
+        SettingsController.SaveSettings();
+        UpdateImortaisDeathReviewUi();
     }
 
     private void UpdateImortaisDeathReviewUi()
