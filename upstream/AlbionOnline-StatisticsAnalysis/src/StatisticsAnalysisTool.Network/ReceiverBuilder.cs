@@ -33,7 +33,7 @@ public sealed class ReceiverBuilder
 
     public void AddEventObserver(Action<short, Dictionary<byte, object>> observer)
     {
-        _parser.EventObserver = observer;
+        _parser.EventObserver += observer;
     }
 
     public IPhotonReceiver Build()
