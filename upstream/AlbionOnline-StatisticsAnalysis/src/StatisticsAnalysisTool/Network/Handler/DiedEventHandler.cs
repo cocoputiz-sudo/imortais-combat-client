@@ -3,6 +3,7 @@ using StatisticsAnalysisTool.EventLogging;
 using StatisticsAnalysisTool.EventLogging.Notification;
 using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Imortais.Highlights;
+using StatisticsAnalysisTool.Imortais.DeathReview;
 using StatisticsAnalysisTool.Localization;
 using StatisticsAnalysisTool.Models.NetworkModel;
 using StatisticsAnalysisTool.Network.Events;
@@ -37,6 +38,20 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
                 trackingController.EntityController.IsEntityInParty(value.DiedObjectId)
                     || trackingController.EntityController.IsEntityInParty(value.Died),
                 ClusterController.GetCurrentClusterDisplayName());
+
+            if (ownDeath && DeathCombatReviewCapture.IsEnabled)
+            {
+                // Identity is already established by the same name/object-id guard used for highlights.
+                var reviewVictimId = value.DiedObjectId > 0
+                    ? value.DiedObjectId
+                    : localObjectId.GetValueOrDefault();
+                var equipped = reviewVictimId > 0
+                    ? trackingController.EntityController.GetEntity(reviewVictimId)?.Value.CharacterEquipment
+                    : null;
+                DeathCombatReviewCapture.OnOwnLethalDeath(
+                    value.Died, reviewVictimId, value.KilledBy, value.KillerObjectId,
+                    ClusterController.GetCurrentClusterDisplayName(), equipped);
+            }
 
             // Death outranks a personal kill: never emit both for the same lethal event.
             if(ownDeath || personalAbate)
