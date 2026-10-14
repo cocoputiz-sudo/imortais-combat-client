@@ -67,7 +67,28 @@ jobs:
             throw "Publicador v0.6.4 não é compatível com irm | iex (BOM ou param no início)"
           }
           $identity = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\Imortais\\ImortaisBuildIdentity.cs" -Raw
-          if ($identity -notmatch 'LOCAL-UNSTAMPED') { throw "Publisher necessita de identidade LOCAL-UNSTAMPED na main" }
+          # Released branches are legitimately stamped with the published commit.
+          # Only an unpublished new release candidate must use LOCAL-UNSTAMPED.
+          if ($identity -notmatch 'LOCAL-UNSTAMPED') {
+            $published = $feed -match 'sparkle:version="0\.6\.4"'
+            $stamped = $identity -match 'public const string Commit = "[a-f0-9]{40}"'
+            if (-not ($published -and $stamped)) {
+              throw "Identidade do build inconsistente com feed publicado"
+            }
+          }
+          $recovery = ".\\scripts\\reparar-atualizacao-icc-v064.ps1"
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $recovery).Path,[ref]$tokens,[ref]$errors)
+          if ($errors.Count -gt 0) { throw "Script de reparo ICC v0.6.4 contem erros PowerShell" }
+          $repairSource = Get-Content -LiteralPath $recovery -Raw
+          if ($repairSource[0] -eq [char]0xFEFF -or $repairSource -match '^\s*param\(') {
+            throw "Reparo deve funcionar via irm | iex, sem BOM/param"
+          }
+          foreach ($required in @('Get-FileHash', 'SHA256', 'Start-Process', '-Wait -PassThru', '0.6.4', 'Get-Process', 'ExitCode')) {
+            if (-not $repairSource.Contains($required)) { throw "Reparo sem salvaguarda: $required" }
+          }
+          if ($repairSource -match 'Stop-Process') { throw "O reparo nao deve terminar o Combat Client forcadamente" }
           $root = ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool"
           $settings = Get-Content "$root\\Common\\UserSettings\\SettingsObject.cs" -Raw
           $migration = Get-Content "$root\\Common\\UserSettings\\SettingsController.cs" -Raw
