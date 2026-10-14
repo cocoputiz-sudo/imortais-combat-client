@@ -54,5 +54,5 @@ using System.Runtime.CompilerServices;
 // indem Sie "*" wie unten gezeigt eingeben:
 // AssemblyVersion is intentionally stable across 0.4.x releases.
 [assembly: AssemblyVersion("0.4.4.0")]
-[assembly: AssemblyFileVersion("0.6.5.0")]
-[assembly: AssemblyInformationalVersion("0.6.5")]
+[assembly: AssemblyFileVersion("0.6.6.0")]
+[assembly: AssemblyInformationalVersion("0.6.6")]
