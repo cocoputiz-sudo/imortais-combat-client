@@ -61,6 +61,13 @@ jobs:
             $source = Get-Content -LiteralPath $script -Raw
             if ($source -notmatch '--notes-file') { throw "gh release create precisa usar notes-file: $name" }
           }
+          # Publicador oficial também deve rodar via irm <url> | iex no PowerShell 5.1.
+          $publisher = Get-Content -LiteralPath ".\\scripts\\publi-icc-v063.ps1" -Raw
+          if ([string]::IsNullOrWhiteSpace($publisher) -or $publisher[0] -eq [char]0xFEFF -or $publisher -match '^\s*param\(') {
+            throw "Publicador v0.6.3 não é compatível com irm | iex (BOM ou param no início)"
+          }
+          $identity = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\Imortais\\ImortaisBuildIdentity.cs" -Raw
+          if ($identity -notmatch 'LOCAL-UNSTAMPED') { throw "Publisher necessita de identidade LOCAL-UNSTAMPED na main" }
           $root = ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool"
           $settings = Get-Content "$root\\Common\\UserSettings\\SettingsObject.cs" -Raw
           $migration = Get-Content "$root\\Common\\UserSettings\\SettingsController.cs" -Raw
