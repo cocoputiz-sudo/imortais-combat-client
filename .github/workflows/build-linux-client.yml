@@ -83,7 +83,7 @@ jobs:
           DEB="$(find . -maxdepth 1 -type f -name '*.deb' -print -quit)"
           test -n "$DEB"
           test "$(dpkg-deb -f "$DEB" Package)" = "imortais-combat-client"
-          test "$(dpkg-deb -f "$DEB" Version)" = "0.2.0~alpha2"
+          test "$(dpkg-deb -f "$DEB" Version)" = "0.2.0~alpha2+build${GITHUB_RUN_NUMBER}"
           sudo apt-get install -y "./${DEB#./}"
           test -x /opt/imortais-combat-client/IMORTAIS-Combat-Client
           getcap /opt/imortais-combat-client/IMORTAIS-Combat-Client | grep -q "cap_net_raw"
