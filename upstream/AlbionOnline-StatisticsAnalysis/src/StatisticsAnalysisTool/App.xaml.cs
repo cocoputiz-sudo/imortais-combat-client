@@ -146,6 +146,14 @@ public partial class App
                 toolLoadingWindow.Close();
             }
 
+            // Strict startup ordering: the splash is closed BEFORE the core pilot
+            // notice can be queued. A hidden tray launch waits until the user opens
+            // the main window, so no modal can appear behind an invisible window.
+            if (Current.MainWindow is MainWindow mainWindow)
+            {
+                mainWindow.ScheduleImortaisDeathReviewPilotNoticeAfterStartup();
+            }
+
             await AutoUpdateController.StartBackgroundUpdateLoopAsync();
 
             Utilities.AnotherAppToStart(SettingsController.CurrentSettings.AnotherAppToStartPath);
