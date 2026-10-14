@@ -106,6 +106,12 @@ jobs:
           dotnet run --project .\tests\Highlights.LogicTests\Highlights.LogicTests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw "Highlights logic tests failed" }
 
+      - name: Executar testes do Death Combat Timeline
+        shell: pwsh
+        run: |
+          dotnet run --project .\tests\DeathReview.LogicTests\DeathReview.LogicTests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Death Combat Timeline logic tests failed" }
+
       - name: Publicar executavel v0.6.2 autocontido (nao distribuido)
         shell: pwsh
         run: |
