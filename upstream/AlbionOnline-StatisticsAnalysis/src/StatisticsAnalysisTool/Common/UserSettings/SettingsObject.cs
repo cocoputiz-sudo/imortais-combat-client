@@ -54,6 +54,8 @@ public class SettingsObject
     public bool IsImortaisDeathReviewEnabled { get; set; } = true;
     public bool HasSeenImortaisDeathReviewCorePilotNotice { get; set; } = false;
     public bool IsImortaisAutoSaveMassAbatesEnabled { get; set; } = false;
+    // User declares an existing VPN/route optimizer; it does not create a VPN.
+    public bool IsImortaisVpnCaptureAssistEnabled { get; set; } = false;
     public bool IsNavigationMenuOpen { get; set; } = true;
     public bool IsTrackingResetByMapChangeActive { get; set; } = false;
     public bool IsMainTrackerFilterSilver { get; set; } = false;
