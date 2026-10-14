@@ -42,14 +42,16 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
             if (ownDeath && DeathCombatReviewCapture.IsEnabled)
             {
                 // Identity is already established by the same name/object-id guard used for highlights.
-                var reviewVictimId = value.DiedObjectId > 0
-                    ? value.DiedObjectId
-                    : localObjectId.GetValueOrDefault();
+                // Prefer the tracked local ID over the packet ID when ownership was matched by name.
+                var reviewVictimId = localObjectId.GetValueOrDefault() > 0
+                    ? localObjectId.Value
+                    : value.DiedObjectId;
+                var reviewVictimName = string.IsNullOrWhiteSpace(value.Died) ? localName : value.Died;
                 var equipped = reviewVictimId > 0
                     ? trackingController.EntityController.GetEntity(reviewVictimId)?.Value.CharacterEquipment
                     : null;
                 DeathCombatReviewCapture.OnOwnLethalDeath(
-                    value.Died, reviewVictimId, value.KilledBy, value.KillerObjectId,
+                    reviewVictimName, reviewVictimId, value.KilledBy, value.KillerObjectId,
                     ClusterController.GetCurrentClusterDisplayName(), equipped);
             }
 
