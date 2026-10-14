@@ -1,5 +1,3 @@
-﻿param()
-
 $ErrorActionPreference = "Stop"
 
 $Version = "0.6.3"
@@ -334,7 +332,7 @@ if (-not (Test-Path -LiteralPath $SetupFile)) {
     Write-Host "Feed: $stableFeedUrl" -ForegroundColor Green
     Write-Host "Agora abra o Combat Client v0.6.2 e clique em Verificar atualização." -ForegroundColor Cyan
     Write-Host "Confirme v0.6.3, instalação e preservação do pareamento." -ForegroundColor Cyan
-    Write-Host "Para testar morte: ative GRAVAÇÃO e marque Salvar quando eu MORRER." -ForegroundColor Cyan
+    Write-Host "Para testar Death Review: leia o aviso inicial, mantenha LIGADO e verifique a pasta ABRIR DEATH REVIEWS após morrer. GRAVAÇÃO de vídeo é independente." -ForegroundColor Cyan
 }
 finally{
     Pop-Location
