@@ -37,10 +37,12 @@ public sealed class LinuxUpdateService
 
     public async Task<LinuxReleaseUpdate?> CheckAsync(CancellationToken cancellationToken = default)
     {
-        using var response = await _http.GetAsync(ReleasesApi, cancellationToken);
+        using var checkTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        checkTimeout.CancelAfter(TimeSpan.FromSeconds(15));
+        using var response = await _http.GetAsync(ReleasesApi, checkTimeout.Token);
         response.EnsureSuccessStatusCode();
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-        using var releases = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        await using var stream = await response.Content.ReadAsStreamAsync(checkTimeout.Token);
+        using var releases = await JsonDocument.ParseAsync(stream, cancellationToken: checkTimeout.Token);
         if (releases.RootElement.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException("A resposta de releases não é uma lista.");
 
