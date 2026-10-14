@@ -67,6 +67,7 @@ jobs:
             throw "Publicador v0.6.4 não é compatível com irm | iex (BOM ou param no início)"
           }
           $identity = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\Imortais\\ImortaisBuildIdentity.cs" -Raw
+          $feed = Get-Content -LiteralPath ".\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool\\imortais-netsparkle-update-check.xml" -Raw
           # Released branches are legitimately stamped with the published commit.
           # Only an unpublished new release candidate must use LOCAL-UNSTAMPED.
           if ($identity -notmatch 'LOCAL-UNSTAMPED') {
