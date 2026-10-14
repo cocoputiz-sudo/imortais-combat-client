@@ -72,7 +72,7 @@ $gh = Need "gh.exe"
 $dotnet = Need "dotnet.exe"
 
 Write-Host "== PUBLICAÇÃO ICC v$Version ==" -ForegroundColor Cyan
-Write-Host "Script revision: v065-r1 (atualizador corrigido, mesma assinatura Ed25519)
+Write-Host "Script revision: v065-r1 (atualizador corrigido, mesma assinatura Ed25519)" -ForegroundColor DarkGray
 Write-Host "Corrige a passagem do atualizador NetSparkle para o instalador e o encerramento do cliente." -ForegroundColor DarkGray
 Write-Host ""
 
@@ -330,9 +330,9 @@ if (-not (Test-Path -LiteralPath $SetupFile)) {
     Write-Host "SHA256: $hash" -ForegroundColor Green
     Write-Host "Release: $releaseUrl" -ForegroundColor Green
     Write-Host "Feed: $stableFeedUrl" -ForegroundColor Green
-    Write-Host "Agora abra o Combat Client v0.6.4 e clique em Verificar atualização." -ForegroundColor Cyan
+    Write-Host "Para clientes v0.6.4 que falham no atualizador, compartilhe o instalador .exe v0.6.5 de GitHub Releases. Sem PowerShell nos clientes." -ForegroundColor Cyan
     Write-Host "Confirme v0.6.5, instalação e preservação do pareamento." -ForegroundColor Cyan
-    Write-Host "Teste: confirme que a janela Rastreando 100% desaparece antes do aviso Death Review. O envio de JSON continua LOCAL." -ForegroundColor Cyan
+    Write-Host "Confira no cliente v0.6.5 o handoff do NetSparkle nas futuras atualizacoes. O envio de JSON continua LOCAL." -ForegroundColor Cyan
 }
 finally{
     Pop-Location
