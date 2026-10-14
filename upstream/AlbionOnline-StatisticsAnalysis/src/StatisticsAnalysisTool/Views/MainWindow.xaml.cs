@@ -5,6 +5,7 @@ using StatisticsAnalysisTool.Network.Manager;
 using StatisticsAnalysisTool.ViewModels;
 using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Imortais.Highlights;
+using StatisticsAnalysisTool.Imortais.DeathReview;
 using StatisticsAnalysisTool.Updater;
 using System;
 using System.IO;
@@ -65,6 +66,7 @@ public partial class MainWindow
         UpdateImortaisStatus();
         UpdateImortaisBackgroundRecordingUi();
         UpdateImortaisGuildDumpUi();
+        UpdateImortaisDeathReviewUi();
         if (ImortaisBuildIdentityLabel != null) ImortaisBuildIdentityLabel.Text = "BUILD: " + ImortaisBuildIdentity.Display;
         _applicationUptimeTimer.Start();
         _imortaisStatusTimer.Start();
@@ -633,6 +635,56 @@ public partial class MainWindow
         }
     }
 
+    private void UpdateImortaisDeathReviewUi()
+    {
+        if (ImortaisDeathReviewToggleButton == null) return;
+        var enabled = DeathCombatReviewCapture.IsEnabled;
+        ImortaisDeathReviewToggleButton.Content = enabled
+            ? "DEATH REVIEW: LIGADO"
+            : "DEATH REVIEW: DESLIGADO";
+        ImortaisDeathReviewToggleButton.Foreground = enabled ? Brushes.LightGreen : Brushes.Gold;
+    }
+
+    private async void ImortaisDeathReviewToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = SettingsController.CurrentSettings;
+        var enable = !settings.IsImortaisDeathReviewEnabled;
+        if (enable)
+        {
+            var confirm = MessageBox.Show(
+                "Ativar o relatório LOCAL dos 45 segundos anteriores à SUA morte?\n\n" +
+                "Serão registrados nomes e IDs de jogadores observados, variações de vida, índices de habilidades " +
+                "e um retrato do equipamento. Os índices ainda NÃO identificam Q/W/E nem comprovam cooldown.\n\n" +
+                "Os relatórios permanecem neste computador, sem envio ao War Room. Até 30 JSONs serão mantidos.",
+                "IMORTAIS - Death Combat Review", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes) return;
+        }
+
+        settings.IsImortaisDeathReviewEnabled = enable;
+        if (!enable) DeathCombatReviewCapture.Reset();
+        await SettingsController.SaveSettingsAsync();
+        UpdateImortaisDeathReviewUi();
+    }
+
+    private void ImortaisOpenDeathReviewFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var directory = DeathCombatReviewCapture.Folder;
+            Directory.CreateDirectory(directory);
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = directory,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception error)
+        {
+            MessageBox.Show("Falha ao abrir os relatórios: " + error.Message,
+                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
     private void UpdateImortaisGuildDumpUi()
     {
         if (ImortaisGuildDumpToggleButton == null) return;
@@ -736,6 +788,7 @@ public partial class MainWindow
         builder.AppendLine("IMORTAIS COMBAT CLIENT - DIAGNÓSTICO");
         builder.AppendLine("Build: " + ImortaisBuildIdentity.Display);
         builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
+        builder.AppendLine($"Death Review local: {(DeathCombatReviewCapture.IsEnabled ? "ATIVADO" : "DESLIGADO")} · último relatório {DeathCombatReviewCapture.LastSavedPath ?? "nenhum"} · erro {DeathCombatReviewCapture.LastError ?? "nenhum"}");
         builder.AppendLine($"Guild Might: enviados {status.GuildMightSentAttempts} · aceitos pelo servidor {status.GuildMightServerAccepted} · rejeitados/erros {status.GuildMightRejectedAttempts} · pendentes {status.GuildMightPending}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
         builder.AppendLine($"Updater: {AutoUpdateController.LastUpdateCheckStatus}");
