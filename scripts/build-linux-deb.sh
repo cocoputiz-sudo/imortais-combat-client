@@ -21,7 +21,7 @@ if ! [[ "$BUILD_NUMBER" =~ ^[0-9]+$ ]]; then
   echo "Invalid Linux build number: $BUILD_NUMBER" >&2
   exit 1
 fi
-printf '{"buildNumber":%s,"version":"%s"}\\n' "$BUILD_NUMBER" "$PACKAGE_LABEL" > "$PUBLISH/linux-build.json"
+printf '{"buildNumber":%s,"version":"%s"}\n' "$BUILD_NUMBER" "$PACKAGE_LABEL" > "$PUBLISH/linux-build.json"
 cp -a "$PUBLISH/." "$PKGROOT/opt/imortais-combat-client/"
 cp "$ROOT/upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Assets/imortais-icon.png"   "$PKGROOT/usr/share/icons/hicolor/256x256/apps/imortais-combat-client.png"
 
