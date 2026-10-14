@@ -48,6 +48,13 @@ public sealed class MainWindow : Window
     private readonly TextBlock _playerStatus = LabelValue("-", Text);
     private readonly TextBlock _ctaStatus = LabelValue("-", Text);
     private readonly TextBlock _queueStatus = LabelValue("0", Text);
+    private readonly TextBlock _photonSummaryStatus = LabelValue("Aguardando", Text);
+    private readonly TextBlock _battleSummaryStatus = LabelValue("Aguardando", Text);
+    private readonly TextBlock _diagnosticExportStatus = LabelValue("Diagnóstico: ainda não exportado", Muted);
+    private readonly TextBlock _updateStatus = LabelValue("Verificação de versão disponível", Muted);
+    private readonly Avalonia.Controls.Button _updateButton = Button("VERIFICAR ATUALIZAÇÕES");
+    private readonly LinuxUpdateService _updateService = new();
+    private LinuxReleaseUpdate? _availableUpdate;
     private readonly TextBlock _clusterStatus = LabelValue("Mapa desconhecido", Text);
     private readonly TextBlock _partyCount = LabelValue("0", Text);
 
@@ -96,10 +103,11 @@ public sealed class MainWindow : Window
 
         Opened += async (_, _) =>
         {
-            AddLog("SYSTEM  IMORTAIS Combat Client Linux v0.2.0-alpha.1 iniciado");
+            AddLog("SYSTEM  IMORTAIS Combat Client Linux v0.2.0-alpha.2 iniciado");
             if (_settings.StartCaptureAutomatically) StartCapture();
             await RefreshContextAsync();
             RefreshAll();
+            _ = CheckLinuxUpdatesAsync();
         };
 
         Closing += (_, _) =>
@@ -120,7 +128,7 @@ public sealed class MainWindow : Window
 
         var title = new StackPanel { Spacing = 2 };
         title.Children.Add(new TextBlock { Text = "IMORTAIS", FontSize = 28, FontWeight = FontWeight.Bold, Foreground = Text });
-        title.Children.Add(new TextBlock { Text = "COMBAT CLIENT · LINUX v0.1.1", FontSize = 12, Foreground = Gold });
+        title.Children.Add(new TextBlock { Text = "COMBAT CLIENT · LINUX v0.2.0-alpha.2", FontSize = 12, Foreground = Gold });
         Grid.SetRow(title, 0);
         root.Children.Add(title);
 
@@ -162,6 +170,8 @@ public sealed class MainWindow : Window
         statusBody.Children.Add(StatusLine("Mapa/cluster", _clusterStatus));
         statusBody.Children.Add(StatusLine("Party", _partyCount));
         statusBody.Children.Add(StatusLine("Outbox", _queueStatus));
+        statusBody.Children.Add(StatusLine("Photon (eventos / códigos)", _photonSummaryStatus));
+        statusBody.Children.Add(StatusLine("Sinais PT / loot / mortes", _battleSummaryStatus));
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 18, 0, 0) };
         var start = PrimaryButton("INICIAR CAPTURA");
@@ -210,6 +220,8 @@ public sealed class MainWindow : Window
         var export = Button("EXPORTAR DIAGNÓSTICO PHOTON (JSON)");
         export.Click += async (_, _) => await ExportPhotonDiagnosticsAsync();
         body.Children.Add(export);
+        _diagnosticExportStatus.TextWrapping = TextWrapping.Wrap;
+        body.Children.Add(_diagnosticExportStatus);
         body.Children.Add(new ListBox
         {
             ItemsSource = _logs,
@@ -297,6 +309,21 @@ public sealed class MainWindow : Window
         buttons.Children.Add(context);
         body.Children.Add(buttons);
 
+        var updatePanel = Card("ATUALIZAÇÕES DO COMBAT CLIENT · LINUX");
+        var updateBody = (StackPanel)updatePanel.Child!;
+        updateBody.Children.Add(new TextBlock
+        {
+            Text = "Confira uma nova versão, baixe com SHA-256 verificado e autorize a instalação pela janela do Ubuntu. Sem terminal.",
+            Foreground = Muted,
+            TextWrapping = TextWrapping.Wrap
+        });
+        _updateStatus.TextWrapping = TextWrapping.Wrap;
+        updateBody.Children.Add(_updateStatus);
+        _updateButton.Click += async (_, _) => await OnUpdateButtonClickAsync();
+        updateBody.Children.Add(_updateButton);
+        updatePanel.Margin = new Thickness(0, 18, 0, 0);
+        body.Children.Add(updatePanel);
+
         body.Children.Add(new TextBlock
         {
             Text = "A chave do agente é armazenada em ~/.config/imortais-combat-client/settings.json. O outbox fica em ~/.local/state/imortais-combat-client/.",
@@ -309,6 +336,7 @@ public sealed class MainWindow : Window
 
     private async Task ExportPhotonDiagnosticsAsync()
     {
+        var json = _receiver.Diagnostics.Export();
         try
         {
             var file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
@@ -321,17 +349,92 @@ public sealed class MainWindow : Window
                     new FilePickerFileType("Diagnóstico JSON") { Patterns = new[] { "*.json" } }
                 }
             });
-            if (file is null) return;
+            if (file is null) return; // Cancellation is not a failure.
             await using var stream = await file.OpenWriteAsync();
             using var writer = new StreamWriter(stream);
-            await writer.WriteAsync(_receiver.Diagnostics.Export());
+            await writer.WriteAsync(json);
             await writer.FlushAsync();
+            _diagnosticExportStatus.Text = "Diagnóstico exportado para: " + file.Path.LocalPath;
             AddLog("DIAG    JSON Photon exportado sem valores dos parâmetros");
         }
         catch (Exception ex)
         {
-            AddLog("DIAG    falha ao exportar JSON: " + ex.Message);
+            // A GUI can run with file capabilities: XDG Desktop Portal may then reject
+            // /proc/<pid>/root and the regular file picker. Never lose the diagnosis.
+            AddLog("DIAG    seletor gráfico indisponível: " + ex.Message);
+            try
+            {
+                var path = await LinuxDiagnosticExport.SaveFallbackAsync(json);
+                _diagnosticExportStatus.Text = "DIAGNÓSTICO SALVO: " + path;
+                _diagnosticExportStatus.Foreground = Green;
+                AddLog("DIAG    JSON salvo automaticamente em: " + path);
+            }
+            catch (Exception saveError)
+            {
+                _diagnosticExportStatus.Text = "Não foi possível salvar: " + saveError.Message;
+                _diagnosticExportStatus.Foreground = Red;
+                AddLog("DIAG    falha ao salvar JSON: " + saveError.Message);
+            }
         }
+    }
+
+    private async Task OnUpdateButtonClickAsync()
+    {
+        if (_availableUpdate is null) await CheckLinuxUpdatesAsync();
+        else await DownloadAndInstallLinuxUpdateAsync(_availableUpdate);
+    }
+
+    private async Task CheckLinuxUpdatesAsync()
+    {
+        _updateButton.IsEnabled = false;
+        _updateStatus.Text = "Verificando atualizações Linux no GitHub...";
+        try
+        {
+            _availableUpdate = await _updateService.CheckAsync();
+            if (_availableUpdate is null)
+            {
+                _updateStatus.Text = "Nenhuma atualização Linux Alpha mais recente disponível.";
+                _updateButton.Content = "VERIFICAR NOVAMENTE";
+            }
+            else
+            {
+                _updateStatus.Text = $"Nova versão {_availableUpdate.Version} disponível. Confira e instale pelo botão abaixo.";
+                _updateButton.Content = "BAIXAR E INSTALAR ATUALIZAÇÃO";
+            }
+        }
+        catch (Exception ex)
+        {
+            _availableUpdate = null;
+            _updateStatus.Text = "Não foi possível verificar as atualizações: " + ex.Message;
+            _updateButton.Content = "TENTAR NOVAMENTE";
+            AddLog("UPDATE  falha na verificação: " + ex.Message);
+        }
+        finally { _updateButton.IsEnabled = true; }
+    }
+
+    private async Task DownloadAndInstallLinuxUpdateAsync(LinuxReleaseUpdate release)
+    {
+        _updateButton.IsEnabled = false;
+        string? packagePath = null;
+        try
+        {
+            _updateStatus.Text = "Baixando e verificando SHA-256. Aguarde...";
+            packagePath = await _updateService.DownloadVerifiedAsync(release);
+            _updateStatus.Text = "Pacote verificado. Autorize a instalação na janela de autenticação do Ubuntu.";
+            await LinuxUpdateService.InstallWithAuthorizationAsync(packagePath);
+            _updateStatus.Text = $"Versão {release.Version} instalada. Feche e abra novamente o Combat Client.";
+            _availableUpdate = null;
+            _updateButton.Content = "INSTALADO · REINICIE O APP";
+            AddLog("UPDATE  pacote instalado; reiniciar aplicativo");
+        }
+        catch (Exception ex)
+        {
+            _updateStatus.Text = "Instalação não concluída: " + ex.Message +
+                (packagePath is null ? "" : "\nPacote conferido salvo em: " + packagePath);
+            _updateButton.Content = "TENTAR INSTALAR NOVAMENTE";
+            AddLog("UPDATE  falha ou cancelamento: " + ex.Message);
+        }
+        finally { _updateButton.IsEnabled = _availableUpdate is not null; }
     }
 
     private async Task TickAsync()
@@ -523,6 +626,10 @@ public sealed class MainWindow : Window
         _clusterStatus.Text = _combat.CurrentCluster;
         _partyCount.Text = _combat.SnapshotParty().Count.ToString();
         _queueStatus.Text = _outbox.Count.ToString();
+        var events = _receiver.Diagnostics.GetSummary();
+        _photonSummaryStatus.Text = $"{events.Total:N0} / {events.Distinct:N0}";
+        _battleSummaryStatus.Text = $"{events.PartyEvents:N0} / {events.LootEvents:N0} / {events.DeathEvents:N0}";
+
     }
 
     private void ReportCaptureHealth()
