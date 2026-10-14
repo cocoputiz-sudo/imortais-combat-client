@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -55,6 +56,7 @@ public sealed class MainWindow : Window
     private readonly Avalonia.Controls.Button _updateButton = Button("VERIFICAR ATUALIZAÇÕES");
     private readonly LinuxUpdateService _updateService = new();
     private LinuxReleaseUpdate? _availableUpdate;
+    private bool _updateInstalled;
     private readonly TextBlock _clusterStatus = LabelValue("Mapa desconhecido", Text);
     private readonly TextBlock _partyCount = LabelValue("0", Text);
 
@@ -380,6 +382,16 @@ public sealed class MainWindow : Window
 
     private async Task OnUpdateButtonClickAsync()
     {
+        if (_updateInstalled)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo("/usr/bin/imortais-combat-client") { UseShellExecute = false });
+                Close();
+            }
+            catch (Exception ex) { _updateStatus.Text = "Instalado, mas não foi possível reiniciar: " + ex.Message; }
+            return;
+        }
         if (_availableUpdate is null) await CheckLinuxUpdatesAsync();
         else await DownloadAndInstallLinuxUpdateAsync(_availableUpdate);
     }
@@ -424,7 +436,8 @@ public sealed class MainWindow : Window
             await LinuxUpdateService.InstallWithAuthorizationAsync(packagePath);
             _updateStatus.Text = $"Versão {release.Version} instalada. Feche e abra novamente o Combat Client.";
             _availableUpdate = null;
-            _updateButton.Content = "INSTALADO · REINICIE O APP";
+            _updateInstalled = true;
+            _updateButton.Content = "REINICIAR CLIENTE AGORA";
             AddLog("UPDATE  pacote instalado; reiniciar aplicativo");
         }
         catch (Exception ex)
@@ -434,7 +447,7 @@ public sealed class MainWindow : Window
             _updateButton.Content = "TENTAR INSTALAR NOVAMENTE";
             AddLog("UPDATE  falha ou cancelamento: " + ex.Message);
         }
-        finally { _updateButton.IsEnabled = _availableUpdate is not null; }
+        finally { _updateButton.IsEnabled = _updateInstalled || _availableUpdate is not null; }
     }
 
     private async Task TickAsync()
