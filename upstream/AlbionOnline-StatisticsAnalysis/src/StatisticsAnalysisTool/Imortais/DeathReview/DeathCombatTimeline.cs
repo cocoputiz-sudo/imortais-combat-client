@@ -16,6 +16,18 @@ internal sealed record IncomingHealthChange(
     int CausingSpellIndex,
     string EffectType);
 
+// Evidence statuses, not a claim to have observed the lethal hit.
+internal sealed record DeathTerminalEvidence(
+    string TerminalHealthObservationStatus,
+    DateTime? LastObservedHealthUtc,
+    double? LastObservedHealth,
+    double? LastObservedHealthDelta,
+    double? LastHealthObservationAgeMilliseconds,
+    bool? KillerHadObservedNegativeDelta,
+    string FinalBlowAttributionStatus,
+    int ObservedNegativeDeltas,
+    int ObservedPositiveDeltas);
+
 internal sealed record ObservedSpellSelection(string Slot, string Value, string ItemIndex);
 
 internal sealed record ObservedEquipment(
@@ -37,7 +49,8 @@ internal sealed record DeathCombatSnapshot(
     bool SkillNamesResolved,
     ObservedEquipment? EquipmentAtDeath,
     IReadOnlyList<IncomingHealthChange> IncomingHealthChanges,
-    SkillEvidenceSnapshot? SkillEvidence = null);
+    SkillEvidenceSnapshot? SkillEvidence = null,
+    DeathTerminalEvidence? TerminalEvidence = null);
 
 /// <summary>
 /// Thread-safe, RAM-only, victim-scoped bounded timeline. No disk or network I/O.
@@ -100,15 +113,49 @@ internal sealed class DeathCombatTimeline
             _trackedVictimId = 0;
 
             return new DeathCombatSnapshot(
-                1, "passive-health-update", deathUtc, victim, victimObjectId,
+                2, "passive-health-update", deathUtc, victim, victimObjectId,
                 killer ?? string.Empty, killerObjectId, cluster,
                 (int)_window.TotalSeconds,
                 CompleteCombatHistory: false,
                 CooldownsVerified: false,
                 SkillNamesResolved: false,
                 EquipmentAtDeath: equipment,
-                IncomingHealthChanges: matching);
+                IncomingHealthChanges: matching,
+                TerminalEvidence: AnalyzeTerminalEvidence(matching, deathUtc, killerObjectId));
         }
+    }
+
+    internal static DeathTerminalEvidence AnalyzeTerminalEvidence(
+        IReadOnlyList<IncomingHealthChange> changes, DateTime deathUtc, long killerObjectId)
+    {
+        var last = changes.LastOrDefault(x =>
+            x.HealthAfter.HasValue && double.IsFinite(x.HealthAfter.Value));
+        var finalHealth = last?.HealthAfter;
+        var status = !finalHealth.HasValue
+            ? "no_observed_health"
+            : finalHealth.Value <= 0 ? "nonpositive_health_observed" : "positive_health_before_death";
+
+        // A positive value immediately before the Died event is NOT proof the
+        // game failed to apply fatal damage. The network may omit the last hit.
+        var negative = changes.Where(x => x.HealthDelta < 0).ToArray();
+        bool? killerEvidence = killerObjectId > 0
+            ? negative.Any(x => x.SourceObjectId == killerObjectId)
+            : null;
+        var attribution = killerEvidence == true
+            ? "killer_has_negative_delta_but_lethal_hit_unverified"
+            : "killer_credit_without_matching_observed_negative_delta";
+
+        return new DeathTerminalEvidence(
+            status,
+            last?.ObservedUtc,
+            finalHealth,
+            last?.HealthDelta,
+            last is null ? null
+                : Math.Max(0, (deathUtc - last.ObservedUtc).TotalMilliseconds),
+            killerEvidence,
+            attribution,
+            negative.Length,
+            changes.Count(x => x.HealthDelta > 0));
     }
 
     public void Reset()

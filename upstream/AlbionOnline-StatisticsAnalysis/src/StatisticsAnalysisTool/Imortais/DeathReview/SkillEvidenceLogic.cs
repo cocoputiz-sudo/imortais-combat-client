@@ -16,6 +16,12 @@ internal sealed record CastShapeEvidence(
 internal sealed record SpellCatalogCandidate(
     int CausingSpellIndex, string? CatalogUniqueName, string Status);
 
+// Aggregated per-second evidence across the WHOLE 45s window, including
+// events omitted from the deliberately sparse, metadata-only sample.
+internal sealed record CastSecondSummary(
+    DateTime SecondUtc, int ObservedPackets, int RetainedSamples,
+    int OmittedSamples, IReadOnlyDictionary<string, int> CountsByEvent);
+
 internal sealed record SkillEvidenceSnapshot(
     string Schema,
     DateTime? LastEquipmentSelectionUtc,
@@ -25,7 +31,10 @@ internal sealed record SkillEvidenceSnapshot(
     bool CastSamplesTruncated,
     IReadOnlyList<SpellCatalogCandidate> DamageSpellCatalogCandidates,
     string CooldownAvailabilityStatus,
-    string CastAttributionStatus);
+    string CastAttributionStatus,
+    int TotalCastPacketsObserved = 0,
+    int TotalCastPacketsOmitted = 0,
+    IReadOnlyList<CastSecondSummary>? CastCoverageBySecond = null);
 
 /// <summary>
 /// Evidence for post-death reports, NOT realtime combat decisions.
@@ -34,7 +43,18 @@ internal sealed record SkillEvidenceSnapshot(
 internal sealed class SkillEvidenceCollector
 {
     private readonly object _sync = new();
-    private readonly Queue<CastShapeEvidence> _samples = new();
+    private sealed class CastSecondBucket
+    {
+        public DateTime SecondUtc { get; init; }
+        public int Observed;
+        public int Omitted;
+        public readonly Dictionary<string, int> ByEvent = new(StringComparer.Ordinal);
+        public readonly List<CastShapeEvidence> Samples = new();
+    }
+
+    private readonly SortedDictionary<long, CastSecondBucket> _seconds = new();
+    private int _retainedSamples;
+    private readonly int _samplesPerSecond;
     private readonly TimeSpan _window;
     private readonly int _maxSamples;
     private bool _truncated;
@@ -55,6 +75,9 @@ internal sealed class SkillEvidenceCollector
         if (maxSamples < 1) throw new ArgumentOutOfRangeException(nameof(maxSamples));
         _window = window;
         _maxSamples = maxSamples;
+        // 46 buckets can overlap a 45-second sliding window (partial seconds).
+        // Avoid a ZvZ burst evicting evidence from the preceding 43 seconds.
+        _samplesPerSecond = Math.Max(1, maxSamples / (int)Math.Ceiling(window.TotalSeconds + 1));
     }
 
     public void ObserveOwnSelection(long ownObjectId, IReadOnlyList<int>? selectedSpells, DateTime receivedUtc)
@@ -73,9 +96,48 @@ internal sealed class SkillEvidenceCollector
     {
         lock (_sync)
         {
-            var bounded = shapes.Take(20).ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
-            _samples.Enqueue(new CastShapeEvidence(receivedUtc, code, expectedEventName, bounded));
             Prune(receivedUtc);
+            var key = receivedUtc.Ticks / TimeSpan.TicksPerSecond;
+            if (!_seconds.TryGetValue(key, out var bucket))
+            {
+                bucket = new CastSecondBucket
+                {
+                    SecondUtc = new DateTime(key * TimeSpan.TicksPerSecond, DateTimeKind.Utc)
+                };
+                _seconds.Add(key, bucket);
+            }
+
+            bucket.Observed++;
+            bucket.ByEvent.TryGetValue(expectedEventName, out var count);
+            bucket.ByEvent[expectedEventName] = count + 1;
+
+            // The hourly thousands of CastHit packets need not displace every
+            // CastSpell or CastStart in the SAME second. Keep per-second spread.
+            if (bucket.Samples.Count >= _samplesPerSecond)
+            {
+                var duplicate = bucket.Samples.FindIndex(x =>
+                    bucket.Samples.Count(y => y.ObservedCode == x.ObservedCode) > 1);
+                if (duplicate >= 0 &&
+                    !bucket.Samples.Any(x => x.ObservedCode == code))
+                {
+                    bucket.Samples.RemoveAt(duplicate);
+                    _retainedSamples--;
+                }
+                else
+                {
+                    bucket.Omitted++;
+                    _truncated = true;
+                    return;
+                }
+
+                bucket.Omitted++;
+                _truncated = true;
+            }
+
+            var bounded = shapes.Take(20).ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal);
+            bucket.Samples.Add(new CastShapeEvidence(receivedUtc, code, expectedEventName, bounded));
+            _retainedSamples++;
+            TrimGlobalBudget();
         }
     }
 
@@ -110,20 +172,31 @@ internal sealed class SkillEvidenceCollector
                         name is null ? "indice_sem_correspondencia" : "candidato_catalogo_nao_validado");
                 }).ToArray();
 
+            var buckets = _seconds.Values.OrderBy(x => x.SecondUtc).ToArray();
+            var coverage = buckets.Select(x => new CastSecondSummary(
+                x.SecondUtc, x.Observed, x.Samples.Count, x.Omitted,
+                new Dictionary<string, int>(x.ByEvent, StringComparer.Ordinal))).ToArray();
+
             var snapshot = new SkillEvidenceSnapshot(
-                "experimental-post-death-v1",
+                "experimental-post-death-v2",
                 choiceIsCurrentActor ? _selectionUtc : null,
                 choiceIsCurrentActor ? _selectionObjectId : null,
                 choices,
-                _samples.Where(s => s.ReceivedUtc <= deathUtc
-                                    && s.ReceivedUtc >= deathUtc - _window).ToArray(),
+                buckets.SelectMany(x => x.Samples)
+                    .Where(s => s.ReceivedUtc <= deathUtc
+                                && s.ReceivedUtc >= deathUtc - _window)
+                    .OrderBy(s => s.ReceivedUtc).ToArray(),
                 _truncated,
                 candidates,
                 "indeterminado: sem historico de casts/cooldowns validado",
-                "indeterminado: assinaturas Photon sem IDs de atores nem nomes verificados");
+                "indeterminado: assinaturas Photon sem IDs de atores nem nomes verificados",
+                coverage.Sum(x => x.ObservedPackets),
+                coverage.Sum(x => x.OmittedSamples),
+                coverage);
 
             // Clear per-death evidence so the next life cannot reuse a stale selection.
-            _samples.Clear();
+            _seconds.Clear();
+            _retainedSamples = 0;
             _truncated = false;
             _selectedSpellIndices = null;
             _selectionObjectId = 0;
@@ -136,7 +209,8 @@ internal sealed class SkillEvidenceCollector
     {
         lock (_sync)
         {
-            _samples.Clear();
+            _seconds.Clear();
+            _retainedSamples = 0;
             _truncated = false;
             _selectionObjectId = 0;
             _selectionUtc = null;
@@ -146,12 +220,27 @@ internal sealed class SkillEvidenceCollector
 
     private void Prune(DateTime now)
     {
-        var cutoff = now - _window;
-        while (_samples.Count > 0 && _samples.Peek().ReceivedUtc < cutoff)
-            _samples.Dequeue();
-        while (_samples.Count > _maxSamples)
+        // Remove complete old seconds, then filter sub-second boundaries in
+        // Freeze. Timestamp boundaries are preserved to the closest second.
+        var cutoffSecond = (now - _window).Ticks / TimeSpan.TicksPerSecond;
+        while (_seconds.Count > 0 && _seconds.First().Key < cutoffSecond)
         {
-            _samples.Dequeue();
+            _retainedSamples -= _seconds.First().Value.Samples.Count;
+            _seconds.Remove(_seconds.First().Key);
+        }
+    }
+
+    private void TrimGlobalBudget()
+    {
+        // For tiny test budgets (< window seconds), keep a hard global cap.
+        // Normal 256-sample production has 46 * 5 = 230 maximum, so this
+        // is only a guard, never a source of ZvZ history starvation.
+        while (_retainedSamples > _maxSamples)
+        {
+            var oldest = _seconds.Values.First(x => x.Samples.Count > 0);
+            oldest.Samples.RemoveAt(0);
+            oldest.Omitted++;
+            _retainedSamples--;
             _truncated = true;
         }
     }

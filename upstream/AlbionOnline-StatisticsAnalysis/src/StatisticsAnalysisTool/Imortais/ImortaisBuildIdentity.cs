@@ -4,7 +4,7 @@ namespace StatisticsAnalysisTool.Imortais;
 // Local developer builds retain an explicit unknown marker.
 public static class ImortaisBuildIdentity
 {
-    public const string Version = "v0.6.5";
-    public const string Commit = "dff83e1b09866426058be039f040094e7fb84056";
+    public const string Version = "v0.6.6";
+    public const string Commit = "LOCAL-UNSTAMPED";
     public static string Display => Version + " · commit " + Commit;
 }

@@ -106,3 +106,69 @@ Console.WriteLine("OK: character object identity check");
 
 skills.Reset();
 Console.WriteLine("Skill Evidence combined feasibility logic tests passed.");
+
+
+// PR #50: Forensic v2 regression grounded in the two real 14/10 reports,
+// but simulated without real player identifiers or any packet contents.
+var zvzDeath = new DateTime(2026, 10, 14, 18, 52, 24, DateTimeKind.Utc).AddMilliseconds(272);
+var zvz = new DeathCombatTimeline(TimeSpan.FromSeconds(45), 2048);
+zvz.Observe(new IncomingHealthChange(zvzDeath.AddMilliseconds(-104),
+    42299, 44556, "ObservedSource", -337, 165, 2905, "Magic"));
+var zvzSnapshot = zvz.FreezeAtDeath(zvzDeath, "LocalCharacter", 42299, "KillerCredit", 40687, "Test", null);
+Check(zvzSnapshot is not null && zvzSnapshot.SchemaVersion == 2 && zvzSnapshot.TerminalEvidence is not null,
+    "forensic v2 must be explicit, additive and serializable");
+Check(zvzSnapshot.TerminalEvidence.TerminalHealthObservationStatus == "positive_health_before_death"
+      && zvzSnapshot.TerminalEvidence.LastObservedHealth == 165,
+    "positive observed HP before Died must not be converted to an invented zero-HP hit");
+Check(zvzSnapshot.TerminalEvidence.KillerHadObservedNegativeDelta == false
+      && zvzSnapshot.TerminalEvidence.FinalBlowAttributionStatus.Contains("unverified") == false,
+    "killer credit must not falsely attribute the observed negative delta to another player");
+
+var soloDeath = new DateTime(2026, 10, 14, 9, 40, 19, DateTimeKind.Utc).AddMilliseconds(196);
+var solo = new DeathCombatTimeline(TimeSpan.FromSeconds(45), 100);
+solo.Observe(new IncomingHealthChange(soloDeath.AddMilliseconds(-1500), 4481, 4372,
+    "OtherSource", -77, 38, 3227, "Magic"));
+solo.Observe(new IncomingHealthChange(soloDeath.AddMilliseconds(-532), 4481, 3191,
+    null, -27, 11, 8289, "Physical"));
+var soloSnapshot = solo.FreezeAtDeath(soloDeath, "LocalCharacter", 4481,
+    "KillerCredit", 4372, "Test", null);
+Check(soloSnapshot?.TerminalEvidence?.LastObservedHealth == 11 &&
+      soloSnapshot.TerminalEvidence.KillerHadObservedNegativeDelta == true &&
+      soloSnapshot.TerminalEvidence.FinalBlowAttributionStatus.Contains("lethal_hit_unverified"),
+    "killer damage candidate is evidence, never a verified final blow");
+
+var burst = new SkillEvidenceCollector(TimeSpan.FromSeconds(45), 256);
+var castStart = new DateTime(2026, 10, 14, 18, 51, 40, DateTimeKind.Utc);
+for (var second = 0; second < 45; second++)
+{
+    for (var sample = 0; sample < 800; sample++)
+    {
+        var at = castStart.AddSeconds(second).AddMilliseconds(sample / 4d);
+        burst.ObserveCastShape((short)(sample % 7 + 16),
+            sample % 7 == 0 ? "CastSpell" : "CastHit", at,
+            new Dictionary<string, string> { ["0"] = "number", ["252"] = "number" });
+    }
+}
+var forensicSkills = burst.Freeze(zvzDeath, 42299, Array.Empty<int>(), _ => null);
+Check(forensicSkills.Schema == "experimental-post-death-v2",
+    "forensic cast format must distinguish v1 capped FIFO from v2 sparse histogram");
+Check(forensicSkills.CastPacketShapes.Count <= 256
+      && forensicSkills.CastCoverageBySecond is not null
+      && forensicSkills.CastCoverageBySecond.Count >= 44,
+    "dense last seconds must not evict 45s of history");
+Check(forensicSkills.TotalCastPacketsObserved == 45 * 800
+      && forensicSkills.TotalCastPacketsOmitted > 0
+      && forensicSkills.CastSamplesTruncated,
+    "v2 must report full cast volume and explicitly disclose omitted samples");
+Check(forensicSkills.CastPacketShapes.Min(x => x.ReceivedUtc) <= zvzDeath.AddSeconds(-43)
+      && forensicSkills.CastPacketShapes.Max(x => x.ReceivedUtc) >= zvzDeath.AddSeconds(-1),
+    "sparse samples should span both the start and end of a 45-second ZvZ");
+Check(forensicSkills.CastCoverageBySecond.All(x => x.ObservedPackets == 800
+      && x.RetainedSamples <= 6 && x.OmittedSamples > 0),
+    "per-second bounded counters must retain observable pressure information");
+
+var nextLife = burst.Freeze(zvzDeath.AddSeconds(20), 42299, Array.Empty<int>(), _ => null);
+Check(nextLife.TotalCastPacketsObserved == 0
+      && (nextLife.CastCoverageBySecond?.Count ?? 0) == 0,
+    "a new life may not inherit forensic casts from a previous death");
+Console.WriteLine("PASS: 45-second sparse casts under 36,000 packet ZvZ burst and truthful HP/last-hit reporting");
