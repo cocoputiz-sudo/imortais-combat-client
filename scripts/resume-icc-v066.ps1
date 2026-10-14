@@ -66,7 +66,7 @@ try{
   if(!$env:SPARKLE_PUBLIC_KEY -or !$env:SPARKLE_PRIVATE_KEY){throw "Chaves originais vazias"}
   $installerSig=Sign-Verify $SetupFile
   Write-Host "Assinatura existente conferida." -ForegroundColor Green
-  $notesPath=Join-Path $FeedRoot "docs\\releases\\v0.6.6-updater.md"
+  $notesPath=Join-Path $FeedRoot "docs\\releases\\v0.6.6-forensic-v2.md"
   if(-not(Test-Path -LiteralPath $notesPath)){throw "Notas v0.6.6 ausentes"}
   $notes=Get-Content -LiteralPath $notesPath -Raw -Encoding UTF8
 
