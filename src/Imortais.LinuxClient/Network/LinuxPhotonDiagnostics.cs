@@ -43,6 +43,19 @@ public sealed class LinuxPhotonDiagnostics
         }
     }
 
+    public (long Total, int Distinct, long PartyEvents, long LootEvents, long DeathEvents) GetSummary()
+    {
+        lock (_gate)
+        {
+            long Count(int eventCode) => _observed.TryGetValue(eventCode, out var sample) ? sample.Count : 0;
+            return (_total, _observed.Count,
+                Count(LinuxPhotonEventCodes.PartyJoined) + Count(LinuxPhotonEventCodes.PartyPlayerJoined)
+                    + Count(LinuxPhotonEventCodes.PartyPlayerLeft) + Count(LinuxPhotonEventCodes.PartyDisbanded),
+                Count(LinuxPhotonEventCodes.OtherGrabbedLoot),
+                Count(LinuxPhotonEventCodes.Died));
+        }
+    }
+
     public string Export()
     {
         lock (_gate)

@@ -2,6 +2,33 @@
 
 A versão Linux é um cliente nativo em .NET 10 + Avalonia. Ela não tenta executar WPF por Wine.
 
+## Alpha 2: exportação confiável, sessão ao vivo e atualizador (13/10/2026)
+
+**Benefícios para o jogador:**
+
+- A aba **Registro** permite exportar o diagnóstico Photon mesmo se o XDG Desktop Portal do Ubuntu impedir a janela de salvar. O fallback grava com permissões privadas em `~/Downloads/IMORTAIS-Diagnostics` (ou `~/IMORTAIS-Diagnostics` se a pasta Downloads não existir) e mostra o caminho completo na própria interface.
+- A aba **Início** mostra novos contadores atualizados em tempo real: quantidade de eventos Photon, códigos distintos e sinais brutos de party, loot e mortes. Esses sinais são eventos recebidos, **não equivalem necessariamente a abates confirmados ou loot contabilizado**.
+- Em **Configurações > Atualizações do Combat Client · Linux**, há um botão **Verificar atualizações**. Se houver release Linux Alpha mais recente, o jogador escolhe **Baixar e instalar atualização**. O client confere a integridade SHA-256 do `.deb`, pede autorização gráfica pelo PolicyKit do Ubuntu e instala sem terminal. Depois, é necessário fechar e abrir o aplicativo.
+- Em caso de falha ou cancelamento da autorização gráfica, o pacote validado permanece em `~/Downloads/IMORTAIS-Updates` para instalação gráfica manual. O app exibe o caminho e informa o erro.
+- A versão indicada na interface e no heartbeat agora é **0.2.0-alpha.2**.
+
+**Primeira transição:** quem estiver na Alpha 1 precisa instalar a Alpha 2 uma vez pelo instalador gráfico, porque a Alpha 1 não tinha atualizador. A partir da Alpha 2, a verificação é feita na interface. O aplicativo também tenta consultar novas versões ao iniciar, mas **não instala silenciosamente sem o clique e a autorização do usuário**.
+
+**Segurança e limitações:** só são consideradas releases Alpha publicadas pelo repositório oficial `cocoputiz-sudo/imortais-combat-client` com pacote `.deb` e SHA-256 associado. A verificação de hash protege a integridade do download, mas não substitui uma assinatura independente da distribuição. A instalação automática depende da disponibilidade do PolicyKit (`pkexec`) e de uma sessão gráfica Ubuntu com agente de autenticação.
+
+**Checklist da Alpha 2:**
+
+- [ ] Exportar JSON com XDG Desktop Portal funcionando normalmente
+- [ ] Exportar JSON com portal retornando `AccessDenied`, verificando o arquivo local e o caminho na tela
+- [ ] Confirmar que o JSON não contém nomes, tokens e valores de parâmetros
+- [ ] Conferir contadores na aba Início durante party, loot e fight
+- [ ] Buscar release inexistente, release atual e release mais nova
+- [ ] Impedir instalação com SHA-256 inválido ou origem de download não oficial
+- [ ] Autorizar instalação via PolicyKit e reiniciar a GUI sem perder ativação/outbox
+- [ ] Testar em Ubuntu 22.04 LTS e Ubuntu 24.04 LTS
+
+A Alpha 2 deve ser homologada em jogo real antes de promoção à versão Linux estável. O Windows v0.6.2 e seu feed de atualização não são alterados por este PR.
+
 ## Alpha Dragonfire 3 · 13/10/2026
 
 **Objetivo:** restabelecer a captura e o processamento de eventos no Linux após a atualização Dragonfire Patch 3 do Albion (12/10/2026).
@@ -20,7 +47,7 @@ A versão Linux é um cliente nativo em .NET 10 + Avalonia. Ela não tenta execu
 
 ### Instalação sem terminal
 
-1. Baixe `IMORTAIS-Combat-Client-v0.2.0-alpha.1-linux-x64.deb` na release **Linux Alpha** do repositório.
+1. Baixe `IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb` na release **Linux Alpha** do repositório.
 2. Abra o pacote pelo instalador gráfico do Ubuntu; autorize sua instalação quando solicitado.
 3. Encontre **IMORTAIS Combat Client** no menu de aplicativos. Abra e ative com o código de 6 dígitos gerado no War Room.
 4. Se Albion estiver aberto, confira no painel as interfaces, datagramas Photon e jogadores da party.
@@ -108,19 +135,19 @@ Em Ubuntu:
 ```bash
 sudo apt update
 sudo apt install -y libpcap-dev libcap2-bin dpkg-dev
-bash scripts/build-linux-deb.sh '0.2.0~alpha1' '0.2.0-alpha.1'
+bash scripts/build-linux-deb.sh '0.2.0~alpha2' '0.2.0-alpha.2'
 ```
 
 O pacote será criado em:
 
 ```
-dist/linux/IMORTAIS-Combat-Client-v0.2.0-alpha.1-linux-x64.deb
+dist/linux/IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb
 ```
 
 ## Instalação
 
 ```bash
-sudo apt install ./IMORTAIS-Combat-Client-v0.2.0-alpha.1-linux-x64.deb
+sudo apt install ./IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb
 ```
 
 Depois procure **IMORTAIS Combat Client** no menu de aplicativos do Ubuntu. O pacote instala o arquivo `.desktop` e o ícone da guilda.

@@ -119,3 +119,63 @@ Require(!diagnostic.Export().Contains(privateName)
     "Diagnostics must contain only structure and never payload values or names");
 
 Console.WriteLine("PASS: Linux alpha patch codes 252, packed/incomplete party and anonymous diagnostics");
+
+// Linux alpha 2: diagnostics export must work without a desktop portal.
+var diagnosticSummary = diagnostic.GetSummary();
+Require(diagnosticSummary.Total == 2 && diagnosticSummary.Distinct == 1
+        && diagnosticSummary.LootEvents == 2 && diagnosticSummary.PartyEvents == 0,
+    "Live Photon counters must match sampled events");
+
+var fakeHome = Path.Combine(Path.GetTempPath(), "imortais-linux-diag-" + Guid.NewGuid().ToString("N"));
+try
+{
+    Directory.CreateDirectory(Path.Combine(fakeHome, "Downloads"));
+    var content = diagnostic.Export();
+    var diagnosticPath = await LinuxDiagnosticExport.SaveFallbackAsync(content, fakeHome);
+    Require(File.Exists(diagnosticPath) && File.ReadAllText(diagnosticPath) == content,
+        "Portal-free diagnostic fallback must create valid JSON");
+    Require(diagnosticPath.StartsWith(Path.Combine(fakeHome, "Downloads", "IMORTAIS-Diagnostics"), StringComparison.Ordinal),
+        "Diagnostics should be easy for a player to locate in Downloads");
+    if (OperatingSystem.IsLinux())
+        Require((File.GetUnixFileMode(diagnosticPath) & (UnixFileMode.GroupRead | UnixFileMode.OtherRead)) == 0,
+            "Diagnostic file must not be world-readable");
+}
+finally
+{
+    if (Directory.Exists(fakeHome)) Directory.Delete(fakeHome, recursive: true);
+}
+
+// Linux update resolver: official release, newer run, correct package + SHA asset.
+const string package = "IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb";
+const string officialRelease = "https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.2.0-linux-alpha.222/";
+var releaseJson = """
+[
+  {"draft":false,"prerelease":true,"tag_name":"v0.2.0-linux-alpha.222",
+   "assets":[
+     {"name":"IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb","browser_download_url":"https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.2.0-linux-alpha.222/IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb"},
+     {"name":"IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb.sha256","browser_download_url":"https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.2.0-linux-alpha.222/IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb.sha256"}
+   ]},
+  {"draft":false,"prerelease":true,"tag_name":"v0.2.0-linux-alpha.333",
+   "assets":[
+     {"name":"IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb","browser_download_url":"https://evil.example/fake.deb"},
+     {"name":"IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64.deb.sha256","browser_download_url":"https://evil.example/fake.sha256"}
+   ]}
+]
+""";
+using (var doc = JsonDocument.Parse(releaseJson))
+{
+    Require(LinuxUpdateService.SelectLatestRelease(doc.RootElement, 221)?.BuildNumber == 222,
+        "Updater must select newer official release and reject untrusted download host");
+    Require(LinuxUpdateService.SelectLatestRelease(doc.RootElement, 222) is null,
+        "Updater must not reinstall the running build");
+}
+Require(LinuxUpdateService.ParseExpectedSha256(new string('a', 64) + "  " + package + "\n", package)
+    == new string('a', 64), "SHA-256 parser accepts only the matching package");
+try
+{
+    LinuxUpdateService.ParseExpectedSha256("bad_hash  " + package, package);
+    throw new Exception("Expected invalid SHA rejection");
+}
+catch (InvalidDataException) { }
+
+Console.WriteLine("PASS: Linux alpha 2 diagnostic fallback, session counters and verified release resolver");
