@@ -62,7 +62,7 @@ public sealed class PhotonEventObserverTests
             Assert.That(parameters, Is.Not.Null);
             secondCalls++;
         });
-        builder.AddEventHandler(new CountingHandler(() => handledCalls++));
+        builder.AddHandler(new CountingHandler(() => handledCalls++));
 
         Assert.DoesNotThrow(() => DispatchEvent(builder, SampleEvent()));
         Assert.Multiple(() =>
