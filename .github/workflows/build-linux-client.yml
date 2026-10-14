@@ -22,6 +22,7 @@ on:
     branches:
       - main
       - feat/linux-alpha-dragonfire-20261013
+      - fix/linux-export-updater-session-20261013
     paths:
       - "src/Imortais.LinuxClient/**"
       - "src/Imortais.LinuxClient.ContractTests/**"
