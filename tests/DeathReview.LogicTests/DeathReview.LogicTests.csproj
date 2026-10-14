@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/DeathReview/DeathCombatTimeline.cs" Link="DeathCombatTimeline.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/DeathReview/SkillEvidenceLogic.cs" Link="SkillEvidenceLogic.cs" />
   </ItemGroup>
 </Project>
