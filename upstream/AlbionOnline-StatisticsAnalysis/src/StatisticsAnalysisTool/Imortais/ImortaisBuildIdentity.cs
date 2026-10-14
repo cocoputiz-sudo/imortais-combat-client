@@ -5,6 +5,6 @@ namespace StatisticsAnalysisTool.Imortais;
 public static class ImortaisBuildIdentity
 {
     public const string Version = "v0.6.3";
-    public const string Commit = "1062c6110d180e12549f248381618850b20663eb";
+    public const string Commit = "LOCAL-UNSTAMPED";
     public static string Display => Version + " · commit " + Commit;
 }
