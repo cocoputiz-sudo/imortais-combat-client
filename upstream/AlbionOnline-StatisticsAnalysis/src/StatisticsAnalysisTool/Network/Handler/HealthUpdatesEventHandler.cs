@@ -1,3 +1,4 @@
+using StatisticsAnalysisTool.Imortais.DeathReview;
 using StatisticsAnalysisTool.Models.NetworkModel;
 using StatisticsAnalysisTool.Network.Events;
 using StatisticsAnalysisTool.Network.Manager;
@@ -9,8 +10,21 @@ public class HealthUpdatesEventHandler(TrackingController trackingController) : 
 {
     protected override async Task OnActionAsync(HealthUpdatesEvent value)
     {
+        var reviewEnabled = DeathCombatReviewCapture.IsEnabled;
+        var localId = reviewEnabled ? (trackingController.EntityController.LocalUserData.UserObjectId ?? 0) : 0;
         foreach (HealthUpdate healthUpdate in value.HealthUpdates)
         {
+            if (localId > 0 && healthUpdate.AffectedObjectId == localId)
+            {
+                var source = healthUpdate.CauserId > 0
+                    ? trackingController.EntityController.GetEntity(healthUpdate.CauserId)?.Value.Name
+                    : null;
+                DeathCombatReviewCapture.ObserveLocalHealthChange(
+                    localId, healthUpdate.AffectedObjectId, healthUpdate.CauserId, source,
+                    healthUpdate.HealthChange,
+                    healthUpdate.HasNewHealthValue ? healthUpdate.NewHealthValue : null,
+                    healthUpdate.CausingSpellIndex, healthUpdate.EffectType.ToString());
+            }
             var mob = trackingController.CombatController.CombatEventTracker.GetKnownMobOrDefault(healthUpdate.AffectedObjectId);
             trackingController.MobKillController.TrackLocalPlayerMobDamage(healthUpdate.AffectedObjectId, healthUpdate.CauserId, healthUpdate.HealthChange);
 
