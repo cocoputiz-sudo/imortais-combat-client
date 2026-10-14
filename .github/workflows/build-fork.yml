@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/death-combat-timeline-phase1-20261013 # PR encadeado de habilidades, remover ao incorporar na main
   workflow_dispatch:
 
 permissions:
@@ -97,7 +98,7 @@ jobs:
       - name: Testar códigos Photon, PT e diagnóstico
         shell: pwsh
         run: |
-          dotnet test .\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool.UnitTests\\StatisticsAnalysisTool.UnitTests.csproj -c Release --filter "FullyQualifiedName~PartyJoinedEventTests|FullyQualifiedName~PhotonEventDiagnosticsCollectorTests|FullyQualifiedName~EventCodesOrdinalRegressionTests"
+          dotnet test .\\upstream\\AlbionOnline-StatisticsAnalysis\\src\\StatisticsAnalysisTool.UnitTests\\StatisticsAnalysisTool.UnitTests.csproj -c Release --filter "FullyQualifiedName~PartyJoinedEventTests|FullyQualifiedName~PhotonEventDiagnosticsCollectorTests|FullyQualifiedName~EventCodesOrdinalRegressionTests|FullyQualifiedName~PhotonEventObserverTests"
           if ($LASTEXITCODE -ne 0) { throw "PartyJoinedEventTests failed" }
 
       - name: Executar testes de Highlights

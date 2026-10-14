@@ -14,6 +14,8 @@ public class CharacterEquipmentChangedEvent
 {
     public long? ObjectId { get; private set; }
     public CharacterEquipment CharacterEquipment { get; } = new();
+    // Slot positions from Photon key 7, including missing (-1) entries.
+    public IReadOnlyList<int> SelectedSpellIndices { get; private set; } = Array.Empty<int>();
 
     public CharacterEquipmentChangedEvent(Dictionary<byte, object> parameters)
     {
@@ -65,6 +67,7 @@ public class CharacterEquipmentChangedEvent
             return;
         }
 
+        SelectedSpellIndices = Array.AsReadOnly((int[])spells.Clone());
         AddSpell(SlotType.MainHand, GetSpellValue(spells, 0));
         AddSpell(SlotType.MainHand, GetSpellValue(spells, 1));
         AddSpell(SlotType.MainHand, GetSpellValue(spells, 2));

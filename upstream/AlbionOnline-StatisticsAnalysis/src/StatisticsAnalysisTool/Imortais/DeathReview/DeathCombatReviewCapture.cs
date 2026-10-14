@@ -31,7 +31,11 @@ internal static class DeathCombatReviewCapture
     public static string? LastError => Volatile.Read(ref _lastError);
     public static string Folder => Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics", "DeathReview");
 
-    public static void Reset() => Timeline.Reset();
+    public static void Reset()
+    {
+        Timeline.Reset();
+        CombatSkillEvidenceCapture.Reset();
+    }
 
     public static void ObserveLocalHealthChange(
         long localObjectId, long affectedObjectId, long causerId, string? causerName,
@@ -54,6 +58,10 @@ internal static class DeathCombatReviewCapture
             DateTime.UtcNow, victim, victimObjectId, killer, killerObjectId,
             cluster, SnapshotEquipment(equipment));
         if (snapshot is null) return;
+        var skillEvidence = CombatSkillEvidenceCapture.FreezeAtDeath(
+            snapshot.DeathUtc, snapshot.VictimObjectId,
+            snapshot.IncomingHealthChanges.Select(x => x.CausingSpellIndex).ToArray());
+        snapshot = snapshot with { SkillEvidence = skillEvidence };
 
         // Bound queued I/O. Never serialize or touch the filesystem inside packet handlers.
         if (Interlocked.Increment(ref _pending) > 2)

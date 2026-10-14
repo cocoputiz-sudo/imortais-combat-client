@@ -25,13 +25,22 @@ internal sealed class AlbionParser : PhotonParser
             return;
         }
 
-        try
+        // Execute each subscriber independently: a failed observer must not
+        // prevent diagnostics or subsequent observers from receiving the event.
+        var observers = EventObserver;
+        if (observers != null)
         {
-            EventObserver?.Invoke(eventCode, parameters);
-        }
-        catch
-        {
-            // Observação isolada: nunca quebrar handlers de eventos.
+            foreach (Action<short, Dictionary<byte, object>> observer in observers.GetInvocationList())
+            {
+                try
+                {
+                    observer(eventCode, parameters);
+                }
+                catch
+                {
+                    // Observação isolada: nunca quebrar outros observers nem os handlers.
+                }
+            }
         }
 
         var eventPacket = new EventPacket(eventCode, parameters);

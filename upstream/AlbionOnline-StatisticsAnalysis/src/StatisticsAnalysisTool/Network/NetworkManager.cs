@@ -5,6 +5,7 @@ using StatisticsAnalysisTool.Common.UserSettings;
 using StatisticsAnalysisTool.Diagnostics;
 using StatisticsAnalysisTool.Localization;
 using StatisticsAnalysisTool.Imortais;
+using StatisticsAnalysisTool.Imortais.DeathReview;
 using StatisticsAnalysisTool.Network.Handler;
 using StatisticsAnalysisTool.Network.Manager;
 using StatisticsAnalysisTool.Network.PacketProviders;
@@ -48,6 +49,8 @@ public class NetworkManager
         ReceiverBuilder builder = ReceiverBuilder.Create();
         // Não usa EventCodes; inclui códigos desconhecidos após patches do Albion.
         builder.AddEventObserver(ImortaisPhotonEventDiagnostics.Observe);
+        // Metadata-only cast shape samples for post-death investigation (opt-in, local).
+        builder.AddEventObserver(CombatSkillEvidenceCapture.ObservePacketShape);
 
         // Event
         builder.AddEventHandler(new NewEquipmentItemEventHandler(trackingController));

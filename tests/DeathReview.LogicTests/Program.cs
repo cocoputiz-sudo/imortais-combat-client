@@ -53,3 +53,56 @@ Check(invalid.FreezeAtDeath(now, "Unknown", 9, "Enemy", 1, null, null)?.Incoming
     "invalid numeric or zero victim data must be ignored");
 Console.WriteLine("OK: invalid numbers and unknown identity");
 Console.WriteLine("Death Combat Timeline logic tests passed.");
+
+
+// Unified PR #42+#43: skill selection and cast-observation evidence logic.
+var skills = new SkillEvidenceCollector(TimeSpan.FromSeconds(45), 2);
+var skillSlots = new int[14] { 101, -1, 303, 404, 505, 606, -1, -1, -1, -1, -1, -1, 1202, -1 };
+skills.ObserveOwnSelection(88, skillSlots, now.AddSeconds(-20));
+skills.ObserveCastShape(15, "CastStart", now.AddSeconds(-50),
+    new Dictionary<string,string> { ["0"] = "number", ["1"] = "byte[16]" });
+skills.ObserveCastShape(15, "CastStart", now.AddSeconds(-8),
+    new Dictionary<string,string> { ["0"] = "number", ["1"] = "byte[16]" });
+skills.ObserveCastShape(20, "CastSpell", now.AddSeconds(-2),
+    new Dictionary<string,string> { ["0"] = "number" });
+skills.ObserveCastShape(21, "CastHit", now.AddSeconds(-1),
+    new Dictionary<string,string> { ["0"] = "number" });
+var review = skills.Freeze(now, 88, new[] { 9, 9, 10 },
+    index => index == 9 ? "SPELL_CATALOG_CANDIDATE" : "");
+Check(review.OwnSelectedSkills.Count == 7, "all seven Q/W/E/armor/helmet/boots/potion slots must exist");
+Check(review.OwnSelectedSkills[0].Slot == "Q" && review.OwnSelectedSkills[0].SelectedSpellIndex == 101,
+    "Q must preserve slot position");
+Check(review.OwnSelectedSkills[1].Slot == "W" && review.OwnSelectedSkills[1].SelectedSpellIndex == null,
+    "W -1 must remain unknown instead of shifting E");
+Check(review.OwnSelectedSkills[2].Slot == "E" && review.OwnSelectedSkills[2].SelectedSpellIndex == 303,
+    "E must remain mapped to index 2");
+Check(review.OwnSelectedSkills[3].SelectedSpellIndex == 404, "armor skill must match position 3");
+Check(review.OwnSelectedSkills[4].SelectedSpellIndex == 505, "helmet skill must match position 4");
+Check(review.OwnSelectedSkills[5].SelectedSpellIndex == 606, "boots skill must match position 5");
+Check(review.OwnSelectedSkills[6].SelectedSpellIndex == 1202, "potion must match position 12");
+Check(review.OwnSelectedSkills.All(x => x.Availability == "indeterminado"),
+    "no slot may be reported available without verified cooldown evidence");
+Check(review.CastPacketShapes.Count == 2 && review.CastSamplesTruncated,
+    "old captures must expire and overflow must be explicit");
+Check(review.CastAttributionStatus.StartsWith("indeterminado"),
+    "metadata-only cast shapes must never claim an enemy was identified");
+Check(review.DamageSpellCatalogCandidates.Count == 2
+      && review.DamageSpellCatalogCandidates[0].Status == "candidato_catalogo_nao_validado"
+      && review.DamageSpellCatalogCandidates[1].Status == "indice_sem_correspondencia",
+    "game file candidate resolution must never claim validation");
+Console.WriteLine("OK: cast shape cap, Q/W/E and defensive slots, no fictional cooldown");
+
+var afterDeath = skills.Freeze(now.AddSeconds(10), 88, Array.Empty<int>(), _ => "");
+Check(afterDeath.OwnSelectedSkills.All(x => x.SelectedSpellIndex is null)
+      && afterDeath.CastPacketShapes.Count == 0,
+    "new life must not inherit stale equipment selections or prior cast samples");
+Console.WriteLine("OK: clear evidence after death");
+
+skills.ObserveOwnSelection(88, skillSlots, now.AddSeconds(15));
+var switchedActor = skills.Freeze(now.AddSeconds(20), 89, Array.Empty<int>(), _ => "");
+Check(switchedActor.OwnSelectedSkills.All(x => x.SelectedSpellIndex is null),
+    "local selected skills must not leak to a second object id");
+Console.WriteLine("OK: character object identity check");
+
+skills.Reset();
+Console.WriteLine("Skill Evidence combined feasibility logic tests passed.");
