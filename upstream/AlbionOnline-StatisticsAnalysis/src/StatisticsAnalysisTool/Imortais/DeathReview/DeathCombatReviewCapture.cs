@@ -26,7 +26,9 @@ internal static class DeathCombatReviewCapture
     private static string? _lastSavedPath;
     private static string? _lastError;
 
-    public static bool IsEnabled => SettingsController.CurrentSettings.IsImortaisDeathReviewEnabled;
+    // One-time notice must be acknowledged before collecting any pilot report.
+    public static bool IsEnabled => SettingsController.CurrentSettings.IsImortaisDeathReviewEnabled
+        && SettingsController.CurrentSettings.HasSeenImortaisDeathReviewCorePilotNotice;
     public static string? LastSavedPath => Volatile.Read(ref _lastSavedPath);
     public static string? LastError => Volatile.Read(ref _lastError);
     public static string Folder => Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics", "DeathReview");

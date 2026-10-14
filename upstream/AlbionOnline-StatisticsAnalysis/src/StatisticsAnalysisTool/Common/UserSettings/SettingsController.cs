@@ -140,29 +140,46 @@ public static class SettingsController
         }
     }
 
-    private const int CurrentImortaisSettingsSchemaVersion = 1;
+    private const int CurrentImortaisSettingsSchemaVersion = 2;
+
+    // Pure one-time migration so that explicit OFF remains OFF on every later startup.
+    internal static bool ApplyImortaisSettingsMigration(SettingsObject settings)
+    {
+        if (settings.ImortaisSettingsSchemaVersion >= CurrentImortaisSettingsSchemaVersion)
+        {
+            return false;
+        }
+
+        // Original v0.6.0 safety migration: never reset the user's recording setting
+        // when upgrading an already-migrated v0.6.2 installation.
+        if (settings.ImortaisSettingsSchemaVersion < 1)
+        {
+            settings.IsImortaisBackgroundRecordingEnabled = false;
+        }
+
+        // Core pilot v0.6.3: automatically enable LOCAL death review once.
+        // An explicit choice to turn it off after migration is never overwritten.
+        settings.IsImortaisDeathReviewEnabled = true;
+        settings.HasSeenImortaisDeathReviewCorePilotNotice = false;
+        settings.ImortaisSettingsSchemaVersion = CurrentImortaisSettingsSchemaVersion;
+        return true;
+    }
 
     private static async Task MigrateImortaisSettingsIfNeededAsync()
     {
-        if (CurrentSettings.ImortaisSettingsSchemaVersion >= CurrentImortaisSettingsSchemaVersion)
+        if (!ApplyImortaisSettingsMigration(CurrentSettings))
         {
             return;
         }
 
-        // v0.6.0 é a primeira release pública com Highlights. Builds de teste anteriores
-        // podiam ter persistido GRAVAÇÃO=SIM; não herde isso para a versão estável.
-        // Depois desta migração one-shot, a escolha do usuário volta a ser persistida normalmente.
-        CurrentSettings.IsImortaisBackgroundRecordingEnabled = false;
-        CurrentSettings.ImortaisSettingsSchemaVersion = CurrentImortaisSettingsSchemaVersion;
-
         var ok = await FileController.SaveAsync(CurrentSettings, SettingsFilePath, ValidateSettings).ConfigureAwait(false);
         if (!ok)
         {
-            Log.Warning("Failed to persist IMORTAIS v0.6.0 settings migration.");
+            Log.Warning("Failed to persist IMORTAIS core pilot settings migration.");
         }
         else
         {
-            Log.Information("IMORTAIS settings migrated to schema {Schema}; background recording forced OFF once.",
+            Log.Information("IMORTAIS settings migrated to schema {Schema}; local Death Review pilot enabled once, user can disable it.",
                 CurrentImortaisSettingsSchemaVersion);
         }
     }
