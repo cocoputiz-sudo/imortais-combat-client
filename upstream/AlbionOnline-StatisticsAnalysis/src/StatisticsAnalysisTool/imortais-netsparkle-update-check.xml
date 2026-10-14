@@ -5,10 +5,10 @@
     <description>Atualizações oficiais do IMORTAIS Combat Client.</description>
     <language>pt-BR</language>
     <item>
-      <title>IMORTAIS Combat Client v0.6.4</title>
-      <description><![CDATA[<a href="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.6.4">Ver notas da versão no GitHub</a>]]></description>
-      <pubDate>Wed, 14 Oct 2026 07:05:06 GMT</pubDate>
-      <enclosure url="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.4/IMORTAIS-Combat-Client-Setup-v0.6.4.exe" sparkle:version="0.6.4" sparkle:shortVersionString="0.6.4" sparkle:os="windows-x64" length="113690134" type="application/octet-stream" sparkle:edSignature="/XtRfdIHafDCOG2BhTpuox5OmjNHedlR/1931Aop+HQRjV+QdtsvST5YEwwJ2uLI9afoxk2K6ghIURjgIc/vAg==" sparkle:signature="/XtRfdIHafDCOG2BhTpuox5OmjNHedlR/1931Aop+HQRjV+QdtsvST5YEwwJ2uLI9afoxk2K6ghIURjgIc/vAg==" />
+      <title>IMORTAIS Combat Client v0.6.5</title>
+      <description><![CDATA[<a href="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.6.5">Ver notas da versão no GitHub</a>]]></description>
+      <pubDate>Wed, 14 Oct 2026 08:08:56 GMT</pubDate>
+      <enclosure url="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.5/IMORTAIS-Combat-Client-Setup-v0.6.5.exe" sparkle:version="0.6.5" sparkle:shortVersionString="0.6.5" sparkle:os="windows-x64" length="113665283" type="application/octet-stream" sparkle:edSignature="ubqILRWSdxTRYBaTHNyhQVcbXc3moRVckmgXBf0WI9JeA2uaCH/nBa3TnOL49HG1HJo2QXn/qOU9ma1E4fosCA==" sparkle:signature="ubqILRWSdxTRYBaTHNyhQVcbXc3moRVckmgXBf0WI9JeA2uaCH/nBa3TnOL49HG1HJo2QXn/qOU9ma1E4fosCA==" />
     </item>
   </channel>
 </rss>
