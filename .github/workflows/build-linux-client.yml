@@ -5,6 +5,8 @@ on:
   pull_request:
     branches:
       - main
+      - feat/linux-alpha-dragonfire-20261013
+      - fix/linux-export-updater-session-20261013
     paths:
       - "src/Imortais.LinuxClient/**"
       - "src/Imortais.LinuxClient.ContractTests/**"
@@ -61,12 +63,12 @@ jobs:
         run: dotnet build src/Imortais.LinuxClient/Imortais.LinuxClient.csproj -c Release --no-restore
 
       - name: Build .deb
-        run: bash scripts/build-linux-deb.sh '0.2.0~alpha1' '0.2.0-alpha.1'
+        run: bash scripts/build-linux-deb.sh '0.2.0~alpha2' '0.2.0-alpha.2'
 
       - name: Upload Linux package
         uses: actions/upload-artifact@v4
         with:
-          name: IMORTAIS-Combat-Client-v0.2.0-alpha.1-linux-x64
+          name: IMORTAIS-Combat-Client-v0.2.0-alpha.2-linux-x64
           path: |
             dist/linux/*.deb
             dist/linux/*.sha256
@@ -80,12 +82,14 @@ jobs:
           DEB="$(find . -maxdepth 1 -type f -name '*.deb' -print -quit)"
           test -n "$DEB"
           test "$(dpkg-deb -f "$DEB" Package)" = "imortais-combat-client"
-          test "$(dpkg-deb -f "$DEB" Version)" = "0.2.0~alpha1"
+          test "$(dpkg-deb -f "$DEB" Version)" = "0.2.0~alpha2"
           sudo apt-get install -y "./${DEB#./}"
           test -x /opt/imortais-combat-client/IMORTAIS-Combat-Client
           getcap /opt/imortais-combat-client/IMORTAIS-Combat-Client | grep -q "cap_net_raw"
           getcap /opt/imortais-combat-client/IMORTAIS-Combat-Client | grep -q "cap_net_admin"
           test -f /usr/share/applications/imortais-combat-client.desktop
+          test -f /opt/imortais-combat-client/linux-build.json
+          grep -q \"buildNumber\" /opt/imortais-combat-client/linux-build.json
           echo "PASS: Debian alpha installed with capabilities and desktop shortcut"
 
       - name: Smoke-test GUI as normal user on virtual desktop
@@ -115,7 +119,9 @@ jobs:
 
           **Dragonfire Patch 3 (Albion 12/10/2026):** realinha os códigos Photon com o Windows; corrige recepção via parâmetro 252, party, dano/cura, mortes e loot.
           - GUI Avalonia: Início, Registros, Medidor de dano, Party, Configurações
-          - Diagnóstico Photon anônimo exportável diretamente pela interface
+          - Diagnóstico Photon anônimo: exportação com fallback sem XDG portal
+          - Verificação, download SHA-256 e instalação de atualizações diretamente na GUI
+          - Painel de sessão com contadores de PT, loot, mortes e eventos Photon
           - Captura libpcap com IPv4 fragmentado, SLL/SLL2 e permissões aplicadas durante instalação
           - Party atualizada atomicamente e republicada ao trocar CTA
           - Dados e pareamento preservados em ~/.config/imortais-combat-client e ~/.local/state/imortais-combat-client
