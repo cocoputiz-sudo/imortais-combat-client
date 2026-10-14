@@ -31,6 +31,9 @@ public partial class MainWindow
     private readonly SystemTrayService _systemTrayService;
     private readonly AlbionGameProcessMonitor _albionGameProcessMonitor;
     private readonly HighlightRecorderService _highlightRecorder;
+    private bool _imortaisPilotSplashClosed;
+    private bool _imortaisPilotNoticeQueued;
+    private bool _imortaisPilotNoticeShowing;
 
     public MainWindow(MainWindowViewModel mainWindowViewModel)
     {
@@ -103,6 +106,8 @@ public partial class MainWindow
     {
         var windowStateForPersistence = _systemTrayService.WindowStateForPersistence;
         Loaded -= MainWindow_OnLoaded;
+        IsVisibleChanged -= ImortaisPilotWindow_OnIsVisibleChanged;
+        StateChanged -= ImortaisPilotWindow_OnStateChanged;
         _applicationUptimeTimer.Stop();
         _imortaisStatusTimer.Stop();
         _albionGameProcessMonitor.GameStarted -= AlbionGameProcessMonitor_OnGameStarted;
@@ -132,11 +137,6 @@ public partial class MainWindow
                 settings.IsImortaisAutoSaveMassAbatesEnabled);
         }
         UpdateImortaisBackgroundRecordingUi();
-        // Never show a modal notice inside Loaded: App.OnStartup still needs
-        // to return from MainWindow.Show() to close the 100% tracking splash.
-        // The deferred callback runs after the initial UI startup unwinds.
-        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle,
-            new Action(() => _ = ShowImortaisDeathReviewPilotNoticeIfNeededAsync()));
 
         var shouldRemainVisibleForRunningGame = settings.IsOpenWithGameActive
                                                 && _albionGameProcessMonitor.IsGameRunning;
@@ -640,14 +640,56 @@ public partial class MainWindow
         }
     }
 
+    // Called by App.OnStartup only AFTER toolLoadingWindow.Close() in its finally.
+    // No modal is launched from Loaded or from a hidden/minimized tray window.
+    public void ScheduleImortaisDeathReviewPilotNoticeAfterStartup()
+    {
+        if (_imortaisPilotSplashClosed) return;
+        _imortaisPilotSplashClosed = true;
+        if (SettingsController.CurrentSettings.HasSeenImortaisDeathReviewCorePilotNotice) return;
+
+        IsVisibleChanged += ImortaisPilotWindow_OnIsVisibleChanged;
+        StateChanged += ImortaisPilotWindow_OnStateChanged;
+        QueueImortaisPilotNoticeWhenVisible();
+    }
+
+    private void ImortaisPilotWindow_OnIsVisibleChanged(object sender,
+        DependencyPropertyChangedEventArgs args) => QueueImortaisPilotNoticeWhenVisible();
+
+    private void ImortaisPilotWindow_OnStateChanged(object? sender, EventArgs args) =>
+        QueueImortaisPilotNoticeWhenVisible();
+
+    private bool CanPresentImortaisPilotNotice() =>
+        DeathReviewStartupNoticePolicy.CanShow(
+            _imortaisPilotSplashClosed, IsVisible,
+            WindowState == WindowState.Minimized,
+            SettingsController.CurrentSettings.HasSeenImortaisDeathReviewCorePilotNotice);
+
+    private void QueueImortaisPilotNoticeWhenVisible()
+    {
+        if (_imortaisPilotNoticeQueued || _imortaisPilotNoticeShowing ||
+            !CanPresentImortaisPilotNotice()) return;
+
+        _imortaisPilotNoticeQueued = true;
+        Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
+        {
+            _imortaisPilotNoticeQueued = false;
+            if (!CanPresentImortaisPilotNotice() || _imortaisPilotNoticeShowing) return;
+            _ = ShowImortaisDeathReviewPilotNoticeIfNeededAsync();
+        }));
+    }
+
     private async System.Threading.Tasks.Task ShowImortaisDeathReviewPilotNoticeIfNeededAsync()
     {
         var settings = SettingsController.CurrentSettings;
-        if (settings.HasSeenImortaisDeathReviewCorePilotNotice) return;
+        if (!CanPresentImortaisPilotNotice() || _imortaisPilotNoticeShowing) return;
+        _imortaisPilotNoticeShowing = true;
 
         try
         {
-            Log.Information("IMORTAIS core pilot notice opened after main window startup.");
+            // Bring the parent window to the foreground before its owned dialog.
+            Activate();
+            Log.Information("IMORTAIS core pilot notice opened after splash closure.");
             var choice = MessageBox.Show(
                 this,
                 "PILOTO CORE - DEATH REVIEW PRÉ-HABILITADO\n\n" +
@@ -680,6 +722,15 @@ public partial class MainWindow
             // Failure must not hold up the main window or mark the notice accepted.
             Log.Error(ex, "IMORTAIS core pilot notice failed after startup.");
             UpdateImortaisDeathReviewUi();
+        }
+        finally
+        {
+            _imortaisPilotNoticeShowing = false;
+            if (SettingsController.CurrentSettings.HasSeenImortaisDeathReviewCorePilotNotice)
+            {
+                IsVisibleChanged -= ImortaisPilotWindow_OnIsVisibleChanged;
+                StateChanged -= ImortaisPilotWindow_OnStateChanged;
+            }
         }
     }
 
