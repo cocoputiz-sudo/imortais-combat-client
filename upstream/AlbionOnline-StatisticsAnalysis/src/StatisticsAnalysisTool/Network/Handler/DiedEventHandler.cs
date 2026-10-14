@@ -48,7 +48,8 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
                     : value.DiedObjectId;
                 var reviewVictimName = string.IsNullOrWhiteSpace(value.Died) ? localName : value.Died;
                 var equipped = reviewVictimId > 0
-                    ? trackingController.EntityController.GetEntity(reviewVictimId)?.Value.CharacterEquipment
+                    ? trackingController.EntityController.GetLastLocalCharacterEquipment()
+                        ?? trackingController.EntityController.GetEntity(reviewVictimId)?.Value.CharacterEquipment
                     : null;
                 DeathCombatReviewCapture.OnOwnLethalDeath(
                     reviewVictimName, reviewVictimId, value.KilledBy, value.KillerObjectId,
