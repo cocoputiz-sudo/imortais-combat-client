@@ -75,13 +75,10 @@ jobs:
           $notes = Get-Content ".\\docs\\releases\\v0.6.4-startup-fix.md" -Raw
           # Regressão do travamento em Rastreando 100% provocado por MessageBox no evento Loaded.
           $startupUi = Get-Content "$root\\Views\\MainWindow.xaml.cs" -Raw
-          if ($startupUi -notmatch 'Dispatcher\.BeginInvoke\(DispatcherPriority\.ContextIdle'
-              -or $startupUi -notmatch 'ShowImortaisDeathReviewPilotNoticeIfNeededAsync'
-              -or $startupUi -notmatch 'await SettingsController\.SaveSettingsAsync\(\)') {
+          if (($startupUi -notmatch 'Dispatcher\.BeginInvoke\(DispatcherPriority\.ContextIdle') -or ($startupUi -notmatch 'ShowImortaisDeathReviewPilotNoticeIfNeededAsync') -or ($startupUi -notmatch 'await SettingsController\.SaveSettingsAsync\(\)')) {
             throw "Aviso do Death Review deve ser adiado até depois de MainWindow.Show e salvar async"
           }
-          if ($startupUi -match 'ShowImortaisDeathReviewPilotNoticeIfNeeded\(\)'
-              -or $startupUi -match 'SettingsController\.SaveSettings\(\);') {
+          if (($startupUi -match 'ShowImortaisDeathReviewPilotNoticeIfNeeded\(\)') -or ($startupUi -match 'SettingsController\.SaveSettings\(\);')) {
             throw "Regressão: aviso síncrono do Death Review pode reter splash Rastreando 100%"
           }
 
