@@ -670,10 +670,13 @@ public partial class MainWindow
     private void UpdateImortaisDeathReviewUi()
     {
         if (ImortaisDeathReviewToggleButton == null) return;
+        var settings = SettingsController.CurrentSettings;
+        var awaitingNotice = settings.IsImortaisDeathReviewEnabled
+                             && !settings.HasSeenImortaisDeathReviewCorePilotNotice;
         var enabled = DeathCombatReviewCapture.IsEnabled;
-        ImortaisDeathReviewToggleButton.Content = enabled
-            ? "DEATH REVIEW: LIGADO"
-            : "DEATH REVIEW: DESLIGADO";
+        ImortaisDeathReviewToggleButton.Content = awaitingNotice
+            ? "DEATH REVIEW: AVISO PENDENTE"
+            : enabled ? "DEATH REVIEW: LIGADO" : "DEATH REVIEW: DESLIGADO";
         ImortaisDeathReviewToggleButton.Foreground = enabled ? Brushes.LightGreen : Brushes.Gold;
     }
 
