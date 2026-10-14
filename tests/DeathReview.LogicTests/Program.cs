@@ -138,12 +138,12 @@ Check(soloSnapshot?.TerminalEvidence?.LastObservedHealth == 11 &&
     "killer damage candidate is evidence, never a verified final blow");
 
 var burst = new SkillEvidenceCollector(TimeSpan.FromSeconds(45), 256);
-var castStart = zvzDeath.AddSeconds(-44);
+var castStart = new DateTime(2026, 10, 14, 18, 51, 40, DateTimeKind.Utc);
 for (var second = 0; second < 45; second++)
 {
     for (var sample = 0; sample < 800; sample++)
     {
-        var at = castStart.AddSeconds(second).AddMilliseconds(sample / 2d);
+        var at = castStart.AddSeconds(second).AddMilliseconds(sample / 4d);
         burst.ObserveCastShape((short)(sample % 7 + 16),
             sample % 7 == 0 ? "CastSpell" : "CastHit", at,
             new Dictionary<string, string> { ["0"] = "number", ["252"] = "number" });
