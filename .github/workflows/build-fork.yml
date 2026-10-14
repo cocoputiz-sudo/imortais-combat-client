@@ -8,6 +8,7 @@ on:
   pull_request:
     branches:
       - main
+      - feat/death-combat-timeline-phase1-20261013 # PR encadeado de habilidades, remover ao incorporar na main
   workflow_dispatch:
 
 permissions:
