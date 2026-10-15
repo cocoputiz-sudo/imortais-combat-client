@@ -30,6 +30,19 @@ Assert(snap.UserRescans == 1 && snap.NetworkChanges == 1 && snap.RecoveryAttempt
     "A manual request must be distinguishable from network changes and actual recovery attempts");
 Assert(snap.SelectedAdapter == "adapter-a", "Report selected adapter");
 
+Assert(VpnCaptureRecoveryPolicy.IsAlbionProcessName("Albion-Online")
+       && VpnCaptureRecoveryPolicy.IsAlbionProcessName("AlbionOnline")
+       && VpnCaptureRecoveryPolicy.IsAlbionProcessName("Albion-Online-Client"),
+    "Allow independently observed Albion process even without Photon packets");
+Assert(!VpnCaptureRecoveryPolicy.IsAlbionProcessName("steam")
+       && !VpnCaptureRecoveryPolicy.IsAlbionProcessName(null),
+    "Do not treat unrelated network activity as Albion running");
+Assert(VpnCaptureRecoveryPolicy.HasGamePresence(false, true)
+       && VpnCaptureRecoveryPolicy.HasGamePresence(true, false)
+       && !VpnCaptureRecoveryPolicy.HasGamePresence(false, false),
+    "Absence of decoded Photon must not hide a running Albion client");
+Console.WriteLine("PASS: initially blind VPN capture can recover if game process is running");
+
 var packets = new VpnCandidateTrafficWindow();
 for (var i = 0; i < 7; i++)
     packets.Observe(now.AddSeconds(-70 + i * 10));
