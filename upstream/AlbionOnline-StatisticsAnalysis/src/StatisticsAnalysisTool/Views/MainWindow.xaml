@@ -449,6 +449,28 @@
                                         <TextBlock Text="PILOTO CORE v0.6.4: Death Review começa LIGADO após o aviso inicial. Salva apenas neste PC relatórios das suas mortes (até 30 JSONs), com nomes/IDs, dano, habilidades e equipamento. Nada é enviado automaticamente. Clique em DEATH REVIEW para desligar."
                                                    TextWrapping="Wrap" Margin="0,6,0,2" FontSize="11"
                                                    Foreground="LightSkyBlue" />
+                                        <StackPanel Margin="0,14,0,8">
+                                            <TextBlock Text="CAPTURA VPN / EXITLAG / NOPING / WARP"
+                                                       FontWeight="SemiBold" Foreground="LightSkyBlue" />
+                                            <TextBlock Text="Se utiliza VPN ou acelerador de rota, informe aqui. O modo registra somente contadores locais e evita recuperações automáticas baseadas em silêncio de rede. Não cria VPN nem garante decodificar tráfego criptografado."
+                                                       TextWrapping="Wrap" Margin="0,5,0,7" FontSize="11"
+                                                       Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button x:Name="ImortaisVpnAssistToggleButton"
+                                                        Content="USO VPN: NÃO"
+                                                        Height="34" MinWidth="150" Margin="0,0,10,0"
+                                                        Click="ImortaisVpnAssistToggle_Click" />
+                                                <Button x:Name="ImortaisVpnRescanButton"
+                                                        Content="REEXAMINAR INTERFACES"
+                                                        Height="34" MinWidth="190"
+                                                        Click="ImortaisVpnRescan_Click"
+                                                        ToolTip="Somente quando solicitado: pede ao capturador Npcap reexaminar as interfaces. Pode interromper momentaneamente os eventos." />
+                                            </StackPanel>
+                                            <TextBlock x:Name="ImortaisVpnCaptureStatusText"
+                                                       Text="VPN: aguardando diagnóstico"
+                                                       TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"
+                                                       Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                                        </StackPanel>
                                         <Button Content="EXPORTAR DIAGNÓSTICO DE EVENTOS"
                                                 Height="34"
                                                 MinWidth="260"
