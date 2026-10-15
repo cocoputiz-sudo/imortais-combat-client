@@ -8,6 +8,7 @@ using Libpcap;
 using Serilog;
 using StatisticsAnalysisTool.Abstractions;
 using StatisticsAnalysisTool.Common.UserSettings;
+using StatisticsAnalysisTool.Imortais;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -23,6 +24,7 @@ public class LibpcapPacketProvider : PacketProvider
     private readonly IPhotonReceiver _photonReceiver;
     private readonly AlbionServerDetectionService _albionServerDetectionService;
     private readonly NetworkChangeMonitor _networkChangeMonitor;
+    private static LibpcapPacketProvider? _runningInstance;
     private PcapDispatcher? _dispatcher;
     private CancellationTokenSource? _cts;
     private Thread? _thread;
@@ -31,6 +33,13 @@ public class LibpcapPacketProvider : PacketProvider
     private readonly Lock _dispatcherLock = new();
     private readonly Lock _ipv4FragmentsLock = new();
     private readonly Dictionary<Pcap, int> _pcapScores = new();
+    private readonly Dictionary<Pcap, VpnCandidateTrafficWindow> _vpnCandidates = new();
+    private DateTime _vpnSessionStartedUtc;
+    private DateTime? _vpnLastProbeUtc;
+    private readonly Queue<DateTime> _vpnProbeTimes = new();
+    private Pcap? _vpnProbePreviousPcap;
+    private DateTime _vpnProbeStartedUtc;
+    private long _vpnDecodedBaseline;
     private readonly Dictionary<IPv4FragmentKey, IPv4FragmentBuffer> _ipv4Fragments = new();
     private readonly NpcapCaptureDiagnostics _captureDiagnostics = new();
     private DateTime _lastValidPacketUtc = DateTime.MinValue;
@@ -79,6 +88,9 @@ public class LibpcapPacketProvider : PacketProvider
 
         ResetGameDataDetectedState();
         ResetAdapterSelection();
+        _vpnSessionStartedUtc = DateTime.UtcNow;
+        _vpnProbeTimes.Clear();
+        _vpnLastProbeUtc = null;
         _captureDiagnostics.Reset();
         Interlocked.Exchange(ref _captureRefreshRequested, 0);
         _captureRecoveryPending = false;
@@ -128,6 +140,7 @@ public class LibpcapPacketProvider : PacketProvider
             IsBackground = true
         };
         _thread.Start();
+        Volatile.Write(ref _runningInstance, this);
         _networkChangeMonitor.Start();
 
         var filter = GetEffectiveFilter();
@@ -246,7 +259,8 @@ public class LibpcapPacketProvider : PacketProvider
     private void Dispatch(Pcap pcap, ref Packet packet)
     {
         var current = _activePcap;
-        if (current is not null && !ReferenceEquals(current, pcap))
+        if (current is not null && !ReferenceEquals(current, pcap)
+            && !SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
         {
             return;
         }
@@ -338,7 +352,7 @@ public class LibpcapPacketProvider : PacketProvider
         var sourceIp = new IPAddress(bytes.Slice(12, 4).ToArray()).ToString();
         var destinationIp = new IPAddress(bytes.Slice(16, 4).ToArray()).ToString();
         var fragmentPayload = bytes.Slice(header.HeaderLength, header.PayloadLength);
-        var reassembledPayload = AddIPv4Fragment(new IPv4FragmentKey(sourceIp, destinationIp, header.Identification, header.Protocol), header, fragmentPayload);
+        var reassembledPayload = AddIPv4Fragment(new IPv4FragmentKey(pcap.Name, sourceIp, destinationIp, header.Identification, header.Protocol), header, fragmentPayload);
 
         if (reassembledPayload == null)
         {
@@ -556,6 +570,11 @@ public class LibpcapPacketProvider : PacketProvider
         }
 
         var isAlbionGameData = _albionServerDetectionService.TryDetectFromSourceIp(sourceIp);
+        if (SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
+        {
+            VpnCaptureAssistDiagnostics.ObserveCandidate(pcap.Name);
+            ObserveVpnCandidate(pcap, DateTime.UtcNow);
+        }
 
         if (!TrySelectAdapter(pcap))
         {
@@ -576,9 +595,92 @@ public class LibpcapPacketProvider : PacketProvider
         }
     }
 
+    private void ObserveVpnCandidate(Pcap pcap, DateTime nowUtc)
+    {
+        lock (_lockObj)
+        {
+            if (!_vpnCandidates.TryGetValue(pcap, out var window))
+            {
+                window = new VpnCandidateTrafficWindow();
+                _vpnCandidates.Add(pcap, window);
+            }
+            window.Observe(nowUtc);
+        }
+    }
+
+    private void CheckVpnAdaptiveProbe(DateTime nowUtc)
+    {
+        var enabled = SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled;
+        var gameDetected = ImortaisEventBridge.GetStatus().GameDetected == true;
+        var metrics = VpnCaptureAssistDiagnostics.Snapshot(enabled, gameDetected);
+        lock (_lockObj)
+        {
+            if (_vpnProbePreviousPcap is not null)
+            {
+                if (enabled && VpnCaptureRecoveryPolicy.TrialSucceeded(
+                    _vpnDecodedBaseline, metrics.DecodedEvents))
+                {
+                    VpnCaptureAssistDiagnostics.ObserveProbeConfirmed();
+                    Log.Information("VPN: Photon decoded on alternate interface; promoted");
+                    _vpnProbePreviousPcap = null;
+                    return;
+                }
+
+                if (!enabled || VpnCaptureRecoveryPolicy.TrialExpired(nowUtc, _vpnProbeStartedUtc))
+                {
+                    _activePcap = _vpnProbePreviousPcap;
+                    VpnCaptureAssistDiagnostics.ObserveSelectedAdapter(_activePcap.Name);
+                    VpnCaptureAssistDiagnostics.ObserveProbeReverted();
+                    Log.Information("VPN: no decoded Photon after trial; restored previous interface");
+                    _vpnProbePreviousPcap = null;
+                }
+                return;
+            }
+
+            if (!enabled || !gameDetected || _activePcap is null)
+                return;
+
+            // Sliding per-hour cap is evaluated BEFORE candidate selection.
+            while (_vpnProbeTimes.Count > 0 && nowUtc - _vpnProbeTimes.Peek() >= TimeSpan.FromHours(1))
+                _vpnProbeTimes.Dequeue();
+            var active = _activePcap;
+            var alternative = _vpnCandidates
+                .Where(x => !ReferenceEquals(x.Key, active))
+                .OrderByDescending(x => x.Value.Count)
+                .FirstOrDefault(x => VpnCaptureRecoveryPolicy.CanProbe(
+                    enabled, nowUtc, _vpnSessionStartedUtc,
+                    metrics.LastDecodedEventUtc, _vpnLastProbeUtc,
+                    x.Value.LastSeenUtc, x.Value.Count, _vpnProbeTimes.Count));
+
+            if (alternative.Key is null) return;
+            _vpnProbePreviousPcap = active;
+            _vpnProbeStartedUtc = nowUtc;
+            _vpnDecodedBaseline = metrics.DecodedEvents;
+            _vpnLastProbeUtc = nowUtc;
+            _vpnProbeTimes.Enqueue(nowUtc);
+            _activePcap = alternative.Key;
+            _lastValidPacketUtc = nowUtc;
+            VpnCaptureAssistDiagnostics.ObserveSelectedAdapter(alternative.Key.Name);
+            VpnCaptureAssistDiagnostics.ObserveProbeStarted();
+            Log.Information("VPN: bounded 8s single-interface probe started after no decoded Photon");
+        }
+    }
+
     private void RequestCaptureRefresh()
     {
+        VpnCaptureAssistDiagnostics.ObserveNetworkChange();
         Interlocked.Exchange(ref _captureRefreshRequested, 1);
+    }
+
+    // User-initiated only. The existing worker performs a bounded reopen,
+    // never on UI thread and never merely due to silence in the Photon feed.
+    public static bool RequestUserCaptureRescan()
+    {
+        var provider = Volatile.Read(ref _runningInstance);
+        if (provider is null || !provider.IsRunning) return false;
+        VpnCaptureAssistDiagnostics.ObserveUserRescan();
+        Interlocked.Exchange(ref provider._captureRefreshRequested, 1);
+        return true;
     }
 
     private bool TrySelectAdapter(Pcap pcap)
@@ -607,7 +709,8 @@ public class LibpcapPacketProvider : PacketProvider
 
             _activePcap = pcap;
             _lastValidPacketUtc = DateTime.UtcNow;
-            Log.Information("Npcap: locked to adapter({Device}) after {Score} valid packets", pcap.Name, score);
+            VpnCaptureAssistDiagnostics.ObserveSelectedAdapter(pcap.Name);
+            Log.Information("Npcap: locked to adapter({Device}) after {Score} candidate packets", pcap.Name, score);
             return true;
         }
     }
@@ -624,6 +727,8 @@ public class LibpcapPacketProvider : PacketProvider
             Log.Information("Npcap: releasing locked adapter due to inactivity");
             _activePcap = null;
             _pcapScores.Clear();
+            VpnCaptureAssistDiagnostics.ObserveSelectedAdapter(null);
+            _vpnProbePreviousPcap = null;
         }
     }
 
@@ -650,6 +755,7 @@ public class LibpcapPacketProvider : PacketProvider
                 var utcNow = DateTime.UtcNow;
                 if (utcNow >= _nextAdapterLeaseCheckUtc)
                 {
+                    CheckVpnAdaptiveProbe(utcNow);
                     ReleaseInactiveAdapter(utcNow);
                     _captureDiagnostics.FlushIfDue();
                     _nextAdapterLeaseCheckUtc = utcNow + AdapterLeaseCheckInterval;
@@ -751,6 +857,7 @@ public class LibpcapPacketProvider : PacketProvider
 
     private bool TryRecoverDispatcher(PcapDispatcher? failedDispatcher)
     {
+        VpnCaptureAssistDiagnostics.ObserveRecoveryAttempt();
         var cts = _cts;
         if (cts is null || cts.IsCancellationRequested)
         {
@@ -847,6 +954,9 @@ public class LibpcapPacketProvider : PacketProvider
         {
             _activePcap = null;
             _pcapScores.Clear();
+            _vpnCandidates.Clear();
+            _vpnProbePreviousPcap = null;
+            VpnCaptureAssistDiagnostics.ObserveSelectedAdapter(null);
             _lastValidPacketUtc = DateTime.MinValue;
         }
 
@@ -875,6 +985,7 @@ public class LibpcapPacketProvider : PacketProvider
         try
         {
             _networkChangeMonitor.Stop();
+            Interlocked.CompareExchange(ref _runningInstance, null, this);
             _cts?.Cancel();
             Interlocked.Exchange(ref _captureRefreshRequested, 0);
 
@@ -955,7 +1066,7 @@ public class LibpcapPacketProvider : PacketProvider
             : packetFilter;
     }
 
-    private readonly record struct IPv4FragmentKey(string SourceIp, string DestinationIp, ushort Identification, byte Protocol);
+    private readonly record struct IPv4FragmentKey(string Adapter, string SourceIp, string DestinationIp, ushort Identification, byte Protocol);
 
     private readonly record struct IPv4HeaderInfo(
         byte Protocol,

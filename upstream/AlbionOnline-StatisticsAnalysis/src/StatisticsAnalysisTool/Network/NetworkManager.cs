@@ -49,6 +49,8 @@ public class NetworkManager
         ReceiverBuilder builder = ReceiverBuilder.Create();
         // Não usa EventCodes; inclui códigos desconhecidos após patches do Albion.
         builder.AddEventObserver(ImortaisPhotonEventDiagnostics.Observe);
+        // Counts *decoded* Photon events separately from candidate UDP packets.
+        builder.AddEventObserver(VpnCaptureAssistDiagnostics.ObserveDecodedEvent);
         // Metadata-only cast shape samples for post-death investigation (opt-in, local).
         builder.AddEventObserver(CombatSkillEvidenceCapture.ObservePacketShape);
 
