@@ -228,4 +228,20 @@ Check(deathReport?.HealthContinuity is not null
       && deathReport.TerminalEvidence?.KillerHadObservedNegativeDelta == false,
     "one terminal HP and unmatched killer credit must never invent a final blow");
 
+var serializedV3 = System.Text.Json.JsonSerializer.Serialize(deathReport,
+    new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    });
+using (var parsedV3 = System.Text.Json.JsonDocument.Parse(serializedV3))
+{
+    var reportRoot = parsedV3.RootElement;
+    Check(reportRoot.GetProperty("schemaVersion").GetInt32() == 3
+          && reportRoot.TryGetProperty("healthContinuity", out var continuityJson)
+          && continuityJson.GetProperty("status").GetString() ==
+             "insufficient_comparable_health_observations"
+          && reportRoot.TryGetProperty("terminalEvidence", out _)
+          && reportRoot.TryGetProperty("incomingHealthChanges", out _),
+        "serialized forensic v3 must add health continuity without removing old fields");
+}
 Console.WriteLine("PASS: forensic v3 HP gaps, multi-delta transitions, rounding, budgets and unknown killer");
