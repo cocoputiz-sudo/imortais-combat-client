@@ -352,7 +352,7 @@ public class LibpcapPacketProvider : PacketProvider
         var sourceIp = new IPAddress(bytes.Slice(12, 4).ToArray()).ToString();
         var destinationIp = new IPAddress(bytes.Slice(16, 4).ToArray()).ToString();
         var fragmentPayload = bytes.Slice(header.HeaderLength, header.PayloadLength);
-        var reassembledPayload = AddIPv4Fragment(new IPv4FragmentKey(sourceIp, destinationIp, header.Identification, header.Protocol), header, fragmentPayload);
+        var reassembledPayload = AddIPv4Fragment(new IPv4FragmentKey(pcap.Name, sourceIp, destinationIp, header.Identification, header.Protocol), header, fragmentPayload);
 
         if (reassembledPayload == null)
         {
@@ -1068,7 +1068,7 @@ public class LibpcapPacketProvider : PacketProvider
             : packetFilter;
     }
 
-    private readonly record struct IPv4FragmentKey(string SourceIp, string DestinationIp, ushort Identification, byte Protocol);
+    private readonly record struct IPv4FragmentKey(string Adapter, string SourceIp, string DestinationIp, ushort Identification, byte Protocol);
 
     private readonly record struct IPv4HeaderInfo(
         byte Protocol,
