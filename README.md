@@ -2,10 +2,10 @@
 
 Cliente desktop da guilda **I M O R T A I S** para Albion Online, baseado no projeto open source **AlbionOnline-StatisticsAnalysis** e integrado ao **IMORTAIS War Room**.
 
-> **Versão estável atual:** v0.6.6  
+> **Versão estável atual:** v0.6.7  
 > **Plataforma estável:** Windows 10/11 x64  
 > **Runtime:** .NET 10 / WPF  
-> **Release oficial:** `IMORTAIS-Combat-Client-Setup-v0.6.6.exe`
+> **Release oficial:** `IMORTAIS-Combat-Client-Setup-v0.6.7.exe`
 
 O Combat Client reaproveita a captura passiva e os parsers Photon do Statistics Analysis para transformar dados observados no Albion em telemetria operacional da guilda. O cliente **não injeta código no Albion, não controla o personagem e não automatiza ações dentro do jogo**.
 
@@ -352,13 +352,13 @@ A release v0.5.9 e seus assets permanecem disponíveis para fallback manual. Se 
 Para jogadores, use o instalador oficial da release:
 
 ```text
-IMORTAIS-Combat-Client-Setup-v0.6.6.exe
+IMORTAIS-Combat-Client-Setup-v0.6.7.exe
 ```
 
 Também são publicados:
 
 ```text
-IMORTAIS-Combat-Client-Setup-v0.6.6.exe.sha256
+IMORTAIS-Combat-Client-Setup-v0.6.7.exe.sha256
 IMORTAIS-Combat-Client-v0.6.0-win-x64.zip
 ```
 
