@@ -72,3 +72,5 @@ Critérios obrigatórios:
 A coleta de pacotes e interpretação Photon já existe no cliente, mas precisamos revisar as regras vigentes da SBI antes da distribuição de melhorias de inspeção. Este estudo não autoriza captura de conteúdo de outros aplicativos, nem qualquer tentativa de descriptografar VPN. Não inclui dados de combate enviados automaticamente a novo backend, replay maior, IA, ou mudanças em imagens/UI alheias.
 
 **Fase 1 integrada à sondagem v0.6.7.** Ainda é necessária homologação no Windows real antes de distribuição irrestrita.
+
+- Correção de dependência circular: `ImortaisEventBridge.GetStatus().GameDetected` reflete `MainStatusBindings.IsGameDataDetected`, que depende do fluxo Photon. Em VPN ativa desde a inicialização, esse valor pode permanecer falso. O modo assistido consulta também a existência de processo com nome Albion, com cache de cinco segundos. **A presença do processo não confirma captura nem é gatilho suficiente sem tráfego alternativo fresco.**

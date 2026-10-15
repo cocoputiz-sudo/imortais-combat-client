@@ -45,6 +45,17 @@ internal static class VpnCaptureRecoveryPolicy
         return lastProbeUtc is null || nowUtc - lastProbeUtc.Value >= ProbeCooldown;
     }
 
+    // This check must NOT be based only on IsGameDataDetected, because
+    // that status itself depends on successfully decoded network packets.
+    internal static bool IsAlbionProcessName(string? processName)
+    {
+        return !string.IsNullOrWhiteSpace(processName) &&
+               processName.StartsWith("Albion", StringComparison.OrdinalIgnoreCase);
+    }
+
+    internal static bool HasGamePresence(bool photonAlreadyDetected, bool clientProcessRunning) =>
+        photonAlreadyDetected || clientProcessRunning;
+
     internal static bool TrialSucceeded(long decodedEventsBefore, long decodedEventsNow) =>
         decodedEventsNow > decodedEventsBefore;
 

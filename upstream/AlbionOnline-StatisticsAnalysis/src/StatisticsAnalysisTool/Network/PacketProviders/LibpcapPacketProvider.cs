@@ -12,6 +12,7 @@ using StatisticsAnalysisTool.Imortais;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -40,6 +41,8 @@ public class LibpcapPacketProvider : PacketProvider
     private Pcap? _vpnProbePreviousPcap;
     private DateTime _vpnProbeStartedUtc;
     private long _vpnDecodedBaseline;
+    private DateTime _vpnNextGameProcessProbeUtc;
+    private bool _vpnCachedGameProcessPresent;
     private readonly Dictionary<IPv4FragmentKey, IPv4FragmentBuffer> _ipv4Fragments = new();
     private readonly NpcapCaptureDiagnostics _captureDiagnostics = new();
     private DateTime _lastValidPacketUtc = DateTime.MinValue;
@@ -91,6 +94,8 @@ public class LibpcapPacketProvider : PacketProvider
         _vpnSessionStartedUtc = DateTime.UtcNow;
         _vpnProbeTimes.Clear();
         _vpnLastProbeUtc = null;
+        _vpnNextGameProcessProbeUtc = DateTime.MinValue;
+        _vpnCachedGameProcessPresent = false;
         _captureDiagnostics.Reset();
         Interlocked.Exchange(ref _captureRefreshRequested, 0);
         _captureRecoveryPending = false;
@@ -608,10 +613,49 @@ public class LibpcapPacketProvider : PacketProvider
         }
     }
 
+    private bool AlbionProcessVisible(DateTime nowUtc)
+    {
+        if (nowUtc < _vpnNextGameProcessProbeUtc)
+            return _vpnCachedGameProcessPresent;
+
+        _vpnNextGameProcessProbeUtc = nowUtc.AddSeconds(5);
+        _vpnCachedGameProcessPresent = false;
+        Process[]? processes = null;
+        try
+        {
+            processes = Process.GetProcesses();
+            foreach (var process in processes)
+            {
+                try
+                {
+                    if (VpnCaptureRecoveryPolicy.IsAlbionProcessName(process.ProcessName))
+                        _vpnCachedGameProcessPresent = true;
+                }
+                catch (InvalidOperationException) { /* process already exited */ }
+                catch (System.ComponentModel.Win32Exception) { /* access denied */ }
+            }
+        }
+        catch (Exception e)
+        {
+            Log.Debug(e, "VPN capture: could not inspect running Albion process");
+        }
+        finally
+        {
+            if (processes is not null)
+                foreach (var process in processes)
+                    process.Dispose();
+        }
+
+        return _vpnCachedGameProcessPresent;
+    }
+
     private void CheckVpnAdaptiveProbe(DateTime nowUtc)
     {
         var enabled = SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled;
-        var gameDetected = ImortaisEventBridge.GetStatus().GameDetected == true;
+        var photonGameDetected = ImortaisEventBridge.GetStatus().GameDetected == true;
+        var gameDetected = VpnCaptureRecoveryPolicy.HasGamePresence(
+            photonGameDetected,
+            enabled && !photonGameDetected && AlbionProcessVisible(nowUtc));
         var metrics = VpnCaptureAssistDiagnostics.Snapshot(enabled, gameDetected);
         lock (_lockObj)
         {
