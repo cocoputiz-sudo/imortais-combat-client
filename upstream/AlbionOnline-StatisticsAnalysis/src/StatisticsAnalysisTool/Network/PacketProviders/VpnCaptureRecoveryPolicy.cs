@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Generic;
 
 namespace StatisticsAnalysisTool.Network.PacketProviders;
 
@@ -49,4 +50,21 @@ internal static class VpnCaptureRecoveryPolicy
 
     internal static bool TrialExpired(DateTime nowUtc, DateTime startedUtc) =>
         nowUtc - startedUtc >= ProbeDuration;
+}
+
+internal sealed class VpnCandidateTrafficWindow
+{
+    private readonly Queue<DateTime> _recent = new();
+    public int Count => _recent.Count;
+    public DateTime LastSeenUtc { get; private set; }
+    public void Observe(DateTime nowUtc)
+    {
+        LastSeenUtc = nowUtc;
+        _recent.Enqueue(nowUtc);
+        while (_recent.Count > 0 &&
+               nowUtc - _recent.Peek() > VpnCaptureRecoveryPolicy.CandidateFreshness)
+            _recent.Dequeue();
+        while (_recent.Count > 64)
+            _recent.Dequeue();
+    }
 }
