@@ -30,6 +30,18 @@ Assert(snap.UserRescans == 1 && snap.NetworkChanges == 1 && snap.RecoveryAttempt
     "A manual request must be distinguishable from network changes and actual recovery attempts");
 Assert(snap.SelectedAdapter == "adapter-a", "Report selected adapter");
 
+var packets = new VpnCandidateTrafficWindow();
+for (var i = 0; i < 7; i++)
+    packets.Observe(now.AddSeconds(-70 + i * 10));
+Assert(packets.Count < VpnCaptureRecoveryPolicy.MinAlternateCandidates,
+    "Sparse traffic over a minute cannot qualify for VPN failover");
+for (var i = 0; i < 7; i++)
+    packets.Observe(now.AddMilliseconds(-600 + i * 75));
+Assert(packets.Count >= VpnCaptureRecoveryPolicy.MinAlternateCandidates
+       && packets.LastSeenUtc <= now,
+    "Real six-packet burst within the sliding 12s window qualifies");
+Console.WriteLine("PASS: actual rolling 12s candidate window prevents sparse false positives");
+
 Assert(VpnCaptureRecoveryPolicy.CanProbe(true, now, now.AddSeconds(-90),
     now.AddSeconds(-35), null, now.AddSeconds(-1), 7, 0),
     "Eligible: prior decoded stream silent 35s and alternate has new candidates");
