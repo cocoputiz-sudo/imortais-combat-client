@@ -23,6 +23,7 @@ public class LibpcapPacketProvider : PacketProvider
     private readonly IPhotonReceiver _photonReceiver;
     private readonly AlbionServerDetectionService _albionServerDetectionService;
     private readonly NetworkChangeMonitor _networkChangeMonitor;
+    private static LibpcapPacketProvider? _runningInstance;
     private PcapDispatcher? _dispatcher;
     private CancellationTokenSource? _cts;
     private Thread? _thread;
@@ -128,6 +129,7 @@ public class LibpcapPacketProvider : PacketProvider
             IsBackground = true
         };
         _thread.Start();
+        Volatile.Write(ref _runningInstance, this);
         _networkChangeMonitor.Start();
 
         var filter = GetEffectiveFilter();
@@ -556,6 +558,8 @@ public class LibpcapPacketProvider : PacketProvider
         }
 
         var isAlbionGameData = _albionServerDetectionService.TryDetectFromSourceIp(sourceIp);
+        if (SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
+            VpnCaptureAssistDiagnostics.ObserveCandidate(pcap.Name);
 
         if (!TrySelectAdapter(pcap))
         {
@@ -578,7 +582,19 @@ public class LibpcapPacketProvider : PacketProvider
 
     private void RequestCaptureRefresh()
     {
+        VpnCaptureAssistDiagnostics.ObserveNetworkChange();
         Interlocked.Exchange(ref _captureRefreshRequested, 1);
+    }
+
+    // User-initiated only. The existing worker performs a bounded reopen,
+    // never on UI thread and never merely due to silence in the Photon feed.
+    public static bool RequestUserCaptureRescan()
+    {
+        var provider = Volatile.Read(ref _runningInstance);
+        if (provider is null || !provider.IsRunning) return false;
+        VpnCaptureAssistDiagnostics.ObserveUserRescan();
+        Interlocked.Exchange(ref provider._captureRefreshRequested, 1);
+        return true;
     }
 
     private bool TrySelectAdapter(Pcap pcap)
@@ -607,7 +623,8 @@ public class LibpcapPacketProvider : PacketProvider
 
             _activePcap = pcap;
             _lastValidPacketUtc = DateTime.UtcNow;
-            Log.Information("Npcap: locked to adapter({Device}) after {Score} valid packets", pcap.Name, score);
+            VpnCaptureAssistDiagnostics.ObserveSelectedAdapter(pcap.Name);
+            Log.Information("Npcap: locked to adapter({Device}) after {Score} candidate packets", pcap.Name, score);
             return true;
         }
     }
@@ -751,6 +768,7 @@ public class LibpcapPacketProvider : PacketProvider
 
     private bool TryRecoverDispatcher(PcapDispatcher? failedDispatcher)
     {
+        VpnCaptureAssistDiagnostics.ObserveRecoveryAttempt();
         var cts = _cts;
         if (cts is null || cts.IsCancellationRequested)
         {
@@ -847,6 +865,7 @@ public class LibpcapPacketProvider : PacketProvider
         {
             _activePcap = null;
             _pcapScores.Clear();
+            VpnCaptureAssistDiagnostics.ObserveSelectedAdapter(null);
             _lastValidPacketUtc = DateTime.MinValue;
         }
 
@@ -875,6 +894,7 @@ public class LibpcapPacketProvider : PacketProvider
         try
         {
             _networkChangeMonitor.Stop();
+            Interlocked.CompareExchange(ref _runningInstance, null, this);
             _cts?.Cancel();
             Interlocked.Exchange(ref _captureRefreshRequested, 0);
 
