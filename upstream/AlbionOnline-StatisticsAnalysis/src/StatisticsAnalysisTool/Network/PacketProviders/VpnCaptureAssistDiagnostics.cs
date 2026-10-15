@@ -36,7 +36,10 @@ internal sealed record VpnCaptureDiagnosticsSnapshot(
     long DecodedEvents,
     long NetworkChanges,
     long UserRescans,
-    long RecoveryAttempts);
+    long RecoveryAttempts,
+    long ProbeStarts,
+    long ProbeConfirmed,
+    long ProbeReverted);
 
 /// <summary>
 /// Local aggregate diagnostics only. No packet contents, addresses, player IDs
@@ -53,6 +56,9 @@ internal static class VpnCaptureAssistDiagnostics
     private static long _networkChanges;
     private static long _userRescans;
     private static long _recoveryAttempts;
+    private static long _probeStarts;
+    private static long _probeConfirmed;
+    private static long _probeReverted;
     private static string? _selectedAdapter;
 
     public static void ObserveCandidate(string adapter)
@@ -83,6 +89,9 @@ internal static class VpnCaptureAssistDiagnostics
     public static void ObserveNetworkChange() => Interlocked.Increment(ref _networkChanges);
     public static void ObserveUserRescan() => Interlocked.Increment(ref _userRescans);
     public static void ObserveRecoveryAttempt() => Interlocked.Increment(ref _recoveryAttempts);
+    public static void ObserveProbeStarted() => Interlocked.Increment(ref _probeStarts);
+    public static void ObserveProbeConfirmed() => Interlocked.Increment(ref _probeConfirmed);
+    public static void ObserveProbeReverted() => Interlocked.Increment(ref _probeReverted);
 
     public static VpnCaptureDiagnosticsSnapshot Snapshot(bool enabled, bool gameDetected)
     {
@@ -107,7 +116,10 @@ internal static class VpnCaptureAssistDiagnostics
             Interlocked.Read(ref _decodedEvents),
             Interlocked.Read(ref _networkChanges),
             Interlocked.Read(ref _userRescans),
-            Interlocked.Read(ref _recoveryAttempts));
+            Interlocked.Read(ref _recoveryAttempts),
+            Interlocked.Read(ref _probeStarts),
+            Interlocked.Read(ref _probeConfirmed),
+            Interlocked.Read(ref _probeReverted));
     }
 
     private static DateTime? ReadUtc(ref long ticks)
