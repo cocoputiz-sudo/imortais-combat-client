@@ -36,7 +36,8 @@ internal static class VpnCaptureRecoveryPolicy
 
         // If no event has decoded yet, give the session at least 25s to
         // establish its first live route. Never probe immediately on startup.
-        var baseline = lastDecodedUtc ?? sessionStartedUtc;
+        var baseline = lastDecodedUtc.HasValue && lastDecodedUtc.Value > sessionStartedUtc
+            ? lastDecodedUtc.Value : sessionStartedUtc;
         if (nowUtc - baseline < SilentBeforeProbe)
             return false;
 
