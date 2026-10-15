@@ -33,23 +33,7 @@ public class LibpcapPacketProvider : PacketProvider
     private readonly Lock _dispatcherLock = new();
     private readonly Lock _ipv4FragmentsLock = new();
     private readonly Dictionary<Pcap, int> _pcapScores = new();
-    private sealed class CandidateTraffic
-    {
-        private readonly Queue<DateTime> _recent = new();
-        public int Count => _recent.Count;
-        public DateTime LastSeenUtc { get; private set; }
-        public void Observe(DateTime nowUtc)
-        {
-            LastSeenUtc = nowUtc;
-            _recent.Enqueue(nowUtc);
-            while (_recent.Count > 0 &&
-                   nowUtc - _recent.Peek() > VpnCaptureRecoveryPolicy.CandidateFreshness)
-                _recent.Dequeue();
-            while (_recent.Count > 64)
-                _recent.Dequeue();
-        }
-    }
-    private readonly Dictionary<Pcap, CandidateTraffic> _vpnCandidates = new();
+    private readonly Dictionary<Pcap, VpnCandidateTrafficWindow> _vpnCandidates = new();
     private DateTime _vpnSessionStartedUtc;
     private DateTime? _vpnLastProbeUtc;
     private readonly Queue<DateTime> _vpnProbeTimes = new();
@@ -617,7 +601,7 @@ public class LibpcapPacketProvider : PacketProvider
         {
             if (!_vpnCandidates.TryGetValue(pcap, out var window))
             {
-                window = new CandidateTraffic();
+                window = new VpnCandidateTrafficWindow();
                 _vpnCandidates.Add(pcap, window);
             }
             window.Observe(nowUtc);
