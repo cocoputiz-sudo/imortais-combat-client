@@ -898,7 +898,8 @@ public partial class MainWindow
             $" · interface ativa: {capture.SelectedAdapter ?? "não definida"}" +
             $" · interfaces candidatas: {capture.CandidateAdapterCount}" +
             $" · eventos decodificados: {capture.DecodedEvents}" +
-            $" · reexames manuais: {capture.UserRescans}";
+            $" · reexames manuais: {capture.UserRescans}" +
+            $" · sondagens VPN: {capture.ProbeStarts} · confirmadas: {capture.ProbeConfirmed} · revertidas: {capture.ProbeReverted}";
     }
 
     private async void ImortaisVpnAssistToggle_Click(object sender, RoutedEventArgs e)
@@ -946,7 +947,7 @@ public partial class MainWindow
             status.GameDetected == true);
         builder.AppendLine($"Captura VPN: {(vpn.Enabled ? "MODO ASSISTIDO" : "NORMAL")} · {vpn.State}");
         builder.AppendLine($"Npcap: adaptador {vpn.SelectedAdapter ?? "não identificado"} · candidatos {vpn.CandidateAdapterCount} · pacotes candidatos {vpn.CandidatePackets} · eventos Photon decodificados {vpn.DecodedEvents}");
-        builder.AppendLine($"Recuperação Npcap: mudanças de rede {vpn.NetworkChanges} · reexames solicitados {vpn.UserRescans} · tentativas de reabertura {vpn.RecoveryAttempts}");
+        builder.AppendLine($"Recuperação Npcap: mudanças de rede {vpn.NetworkChanges} · reexames solicitados {vpn.UserRescans} · tentativas de reabertura {vpn.RecoveryAttempts} · testes de outra interface {vpn.ProbeStarts} · confirmados por Photon {vpn.ProbeConfirmed} · revertidos {vpn.ProbeReverted}");
         builder.AppendLine($"Último pacote candidato: {(vpn.LastCandidateUtc.HasValue ? vpn.LastCandidateUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")} · último evento decodificado: {(vpn.LastDecodedEventUtc.HasValue ? vpn.LastDecodedEventUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
         builder.AppendLine($"Updater: {AutoUpdateController.LastUpdateCheckStatus}");
