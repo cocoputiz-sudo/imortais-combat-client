@@ -2,6 +2,7 @@ using Serilog;
 using StatisticsAnalysisTool.Common;
 using StatisticsAnalysisTool.Common.UserSettings;
 using StatisticsAnalysisTool.Network.Manager;
+using StatisticsAnalysisTool.Network.PacketProviders;
 using StatisticsAnalysisTool.ViewModels;
 using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Imortais.Highlights;
@@ -70,6 +71,7 @@ public partial class MainWindow
         UpdateImortaisBackgroundRecordingUi();
         UpdateImortaisGuildDumpUi();
         UpdateImortaisDeathReviewUi();
+        UpdateImortaisVpnUi();
         if (ImortaisBuildIdentityLabel != null) ImortaisBuildIdentityLabel.Text = "BUILD: " + ImortaisBuildIdentity.Display;
         _applicationUptimeTimer.Start();
         _imortaisStatusTimer.Start();
@@ -225,6 +227,7 @@ public partial class MainWindow
         }
         UpdateImortaisStatus();
         UpdateImortaisBackgroundRecordingUi();
+        UpdateImortaisVpnUi();
     }
 
     private void UpdateImortaisStatus()
@@ -881,6 +884,52 @@ public partial class MainWindow
         }
     }
 
+    private void UpdateImortaisVpnUi()
+    {
+        if (ImortaisVpnAssistToggleButton is null) return;
+        var enabled = SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled;
+        var capture = VpnCaptureAssistDiagnostics.Snapshot(
+            enabled, ImortaisEventBridge.GetStatus().GameDetected == true);
+        ImortaisVpnAssistToggleButton.Content = enabled ? "USO VPN: SIM" : "USO VPN: NÃO";
+        ImortaisVpnAssistToggleButton.Foreground = enabled ? Brushes.LightGreen : Brushes.Gold;
+        ImortaisVpnRescanButton.IsEnabled = enabled;
+        ImortaisVpnCaptureStatusText.Text =
+            capture.State +
+            $" · interface ativa: {capture.SelectedAdapter ?? "não definida"}" +
+            $" · interfaces candidatas: {capture.CandidateAdapterCount}" +
+            $" · eventos decodificados: {capture.DecodedEvents}" +
+            $" · reexames manuais: {capture.UserRescans}";
+    }
+
+    private async void ImortaisVpnAssistToggle_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = SettingsController.CurrentSettings;
+        settings.IsImortaisVpnCaptureAssistEnabled = !settings.IsImortaisVpnCaptureAssistEnabled;
+        try
+        {
+            await SettingsController.SaveSettingsAsync();
+        }
+        catch (Exception error)
+        {
+            settings.IsImortaisVpnCaptureAssistEnabled = !settings.IsImortaisVpnCaptureAssistEnabled;
+            Log.Error(error, "Failed to persist local VPN capture assist setting");
+        }
+        UpdateImortaisVpnUi();
+    }
+
+    private void ImortaisVpnRescan_Click(object sender, RoutedEventArgs e)
+    {
+        if (!SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled) return;
+        var accepted = LibpcapPacketProvider.RequestUserCaptureRescan();
+        UpdateImortaisVpnUi();
+        MessageBox.Show(this,
+            accepted
+                ? "Solicitado reexame das interfaces Npcap. O cliente tentará reabrir a captura sem reiniciar o aplicativo. Aguarde alguns segundos antes de verificar os eventos."
+                : "A captura Npcap não está ativa. Abra o Albion e inicie o rastreamento antes de solicitar um reexame.",
+            "IMORTAIS - Captura com VPN", MessageBoxButton.OK,
+            accepted ? MessageBoxImage.Information : MessageBoxImage.Warning);
+    }
+
     private void CopyImortaisDiagnostics_Click(object sender, RoutedEventArgs e)
     {
         var status = ImortaisEventBridge.GetStatus();
@@ -892,6 +941,13 @@ public partial class MainWindow
         builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
         builder.AppendLine($"Death Review local: {(DeathCombatReviewCapture.IsEnabled ? "ATIVADO" : "DESLIGADO")} · último relatório {DeathCombatReviewCapture.LastSavedPath ?? "nenhum"} · erro {DeathCombatReviewCapture.LastError ?? "nenhum"}");
         builder.AppendLine($"Guild Might: enviados {status.GuildMightSentAttempts} · aceitos pelo servidor {status.GuildMightServerAccepted} · rejeitados/erros {status.GuildMightRejectedAttempts} · pendentes {status.GuildMightPending}");
+        var vpn = VpnCaptureAssistDiagnostics.Snapshot(
+            SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled,
+            status.GameDetected == true);
+        builder.AppendLine($"Captura VPN: {(vpn.Enabled ? "MODO ASSISTIDO" : "NORMAL")} · {vpn.State}");
+        builder.AppendLine($"Npcap: adaptador {vpn.SelectedAdapter ?? "não identificado"} · candidatos {vpn.CandidateAdapterCount} · pacotes candidatos {vpn.CandidatePackets} · eventos Photon decodificados {vpn.DecodedEvents}");
+        builder.AppendLine($"Recuperação Npcap: mudanças de rede {vpn.NetworkChanges} · reexames solicitados {vpn.UserRescans} · tentativas de reabertura {vpn.RecoveryAttempts}");
+        builder.AppendLine($"Último pacote candidato: {(vpn.LastCandidateUtc.HasValue ? vpn.LastCandidateUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")} · último evento decodificado: {(vpn.LastDecodedEventUtc.HasValue ? vpn.LastDecodedEventUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");
         builder.AppendLine($"Updater: {AutoUpdateController.LastUpdateCheckStatus}");
         builder.AppendLine($"Última checagem: {(AutoUpdateController.LastUpdateCheckUtc.HasValue ? AutoUpdateController.LastUpdateCheckUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "não realizada")}");
