@@ -8,6 +8,7 @@ using Libpcap;
 using Serilog;
 using StatisticsAnalysisTool.Abstractions;
 using StatisticsAnalysisTool.Common.UserSettings;
+using StatisticsAnalysisTool.Imortais;
 using System;
 using System.Buffers.Binary;
 using System.Collections.Generic;
@@ -614,7 +615,8 @@ public class LibpcapPacketProvider : PacketProvider
     private void CheckVpnAdaptiveProbe(DateTime nowUtc)
     {
         var enabled = SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled;
-        var metrics = VpnCaptureAssistDiagnostics.Snapshot(enabled, true);
+        var gameDetected = ImortaisEventBridge.GetStatus().GameDetected == true;
+        var metrics = VpnCaptureAssistDiagnostics.Snapshot(enabled, gameDetected);
         lock (_lockObj)
         {
             if (_vpnProbePreviousPcap is not null)
@@ -639,7 +641,7 @@ public class LibpcapPacketProvider : PacketProvider
                 return;
             }
 
-            if (!enabled || _activePcap is null)
+            if (!enabled || !gameDetected || _activePcap is null)
                 return;
 
             // Sliding per-hour cap is evaluated BEFORE candidate selection.
