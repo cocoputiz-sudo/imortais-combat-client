@@ -205,7 +205,8 @@ internal sealed class DeathCombatTimeline
         foreach (var current in changes)
         {
             if (!double.IsFinite(current.HealthDelta)) continue;
-            var hasAbsolute = current.HealthAfter is double value && double.IsFinite(value);
+            var value = current.HealthAfter.GetValueOrDefault();
+            var hasAbsolute = current.HealthAfter.HasValue && double.IsFinite(value);
             if (anchor is null)
             {
                 if (hasAbsolute)
