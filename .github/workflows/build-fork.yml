@@ -210,6 +210,17 @@ jobs:
           if ((Get-Item $exe).VersionInfo.FileVersion -notlike '0.6.8*') { throw "Version not embedded" }
           "APP_DIR=$out" >> $env:GITHUB_ENV
 
+      # A portable build uses an AppInstance ID derived from its own executable
+      # directory, so it does not overwrite the installed v0.6.7 executable or
+      # the stable application's per-instance Settings.json.
+      - name: Anexar pacote PORTATIL v0.6.8 para piloto ExitLag sem instalacao
+        uses: actions/upload-artifact@v4
+        with:
+          name: IMORTAIS-Combat-Client-PORTATIL-v0.6.8-ExitLag-TESTE
+          path: ${{ env.APP_DIR }}\\*
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Gerar instalador normal v0.6.8
         shell: pwsh
         run: |
