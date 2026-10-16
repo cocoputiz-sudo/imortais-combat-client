@@ -39,7 +39,15 @@ internal sealed record VpnCaptureDiagnosticsSnapshot(
     long RecoveryAttempts,
     long ProbeStarts,
     long ProbeConfirmed,
-    long ProbeReverted);
+    long ProbeReverted,
+    long CapturedFrames,
+    long CapturedUdp,
+    long CapturedNonStandardUdpPorts,
+    long CapturedTcp,
+    DateTime? LastCapturedFrameUtc,
+    int OpenedInterfaces,
+    bool PacketFilterConfigured,
+    bool? AlbionProcessPresent);
 
 /// <summary>
 /// Local aggregate diagnostics only. No packet contents, addresses, player IDs
@@ -60,6 +68,61 @@ internal static class VpnCaptureAssistDiagnostics
     private static long _probeConfirmed;
     private static long _probeReverted;
     private static string? _selectedAdapter;
+    private static long _ingressFrames;
+    private static long _ingressUdp;
+    private static long _ingressOtherUdpPorts;
+    private static long _ingressTcp;
+    private static long _lastIngressTicks;
+    private static int _openedInterfaces;
+    private static int _packetFilterConfigured;
+    // 0 = not checked, 1 = checked without process, 2 = Albion process observed.
+    private static int _albionProcessPresence;
+
+    /// <summary>Local, content-free ingress counts. No IP, MAC, payload or routes.</summary>
+    public static void ResetIngress()
+    {
+        Interlocked.Exchange(ref _ingressFrames, 0);
+        Interlocked.Exchange(ref _ingressUdp, 0);
+        Interlocked.Exchange(ref _ingressOtherUdpPorts, 0);
+        Interlocked.Exchange(ref _ingressTcp, 0);
+        Interlocked.Exchange(ref _lastIngressTicks, 0);
+        Interlocked.Exchange(ref _openedInterfaces, 0);
+        Interlocked.Exchange(ref _packetFilterConfigured, 0);
+        Interlocked.Exchange(ref _albionProcessPresence, 0);
+    }
+
+    public static void ObserveOpenedInterfaces(int count) =>
+        Interlocked.Exchange(ref _openedInterfaces, Math.Max(0, count));
+    public static void ObservePacketFilter(bool configured) =>
+        Interlocked.Exchange(ref _packetFilterConfigured, configured ? 1 : 0);
+    public static void ObserveAlbionProcessPresence(bool observed) =>
+        Interlocked.Exchange(ref _albionProcessPresence, observed ? 2 : 1);
+    public static void ObserveIngressFrame()
+    {
+        Interlocked.Increment(ref _ingressFrames);
+        Interlocked.Exchange(ref _lastIngressTicks, DateTime.UtcNow.Ticks);
+    }
+    public static void ObserveIngressUdp(bool usesKnownPhotonPort)
+    {
+        Interlocked.Increment(ref _ingressUdp);
+        if (!usesKnownPhotonPort) Interlocked.Increment(ref _ingressOtherUdpPorts);
+    }
+    public static void ObserveIngressTcp() => Interlocked.Increment(ref _ingressTcp);
+
+    internal static string DescribeIngress(VpnCaptureDiagnosticsSnapshot snap)
+    {
+        if (!snap.Enabled) return "Contagem de entrada Npcap desativada (USO VPN: NÃO)";
+        if (snap.OpenedInterfaces == 0) return "Nenhuma interface Npcap aberta; verificar configuração e driver";
+        if (snap.CapturedFrames == 0)
+            return "Nenhum quadro entrou no Npcap; verificar interfaces/filtro, sem inferir criptografia";
+        if (snap.CapturedUdp == 0)
+            return "Npcap vê quadros, mas nenhum UDP no parser; pode ser rota, encapsulamento ou filtro";
+        if (snap.CandidatePackets == 0)
+            return "Npcap vê UDP, mas nenhum candidato Photon; porta diversa/túnel é hipótese, não prova";
+        if (snap.DecodedEvents == 0)
+            return "Há candidatos UDP, mas nenhum evento Photon decodificado";
+        return "Entradas Npcap e Photon observadas; conferir horário do último evento";
+    }
 
     public static void ObserveCandidate(string adapter)
     {
@@ -105,9 +168,12 @@ internal static class VpnCaptureAssistDiagnostics
             selected = _selectedAdapter;
             count = CandidateAdapters.Count;
         }
+        var processState = Volatile.Read(ref _albionProcessPresence);
+        bool? gameProcess = processState == 0 ? null : processState == 2;
         return new VpnCaptureDiagnosticsSnapshot(
             enabled,
-            VpnCaptureHealthPolicy.Describe(enabled, gameDetected, now, candidate, decoded),
+            VpnCaptureHealthPolicy.Describe(enabled, gameDetected || (enabled && gameProcess == true),
+                now, candidate, decoded),
             selected,
             candidate,
             decoded,
@@ -119,7 +185,15 @@ internal static class VpnCaptureAssistDiagnostics
             Interlocked.Read(ref _recoveryAttempts),
             Interlocked.Read(ref _probeStarts),
             Interlocked.Read(ref _probeConfirmed),
-            Interlocked.Read(ref _probeReverted));
+            Interlocked.Read(ref _probeReverted),
+            Interlocked.Read(ref _ingressFrames),
+            Interlocked.Read(ref _ingressUdp),
+            Interlocked.Read(ref _ingressOtherUdpPorts),
+            Interlocked.Read(ref _ingressTcp),
+            ReadUtc(ref _lastIngressTicks),
+            Volatile.Read(ref _openedInterfaces),
+            Volatile.Read(ref _packetFilterConfigured) == 1,
+            gameProcess);
     }
 
     private static DateTime? ReadUtc(ref long ticks)

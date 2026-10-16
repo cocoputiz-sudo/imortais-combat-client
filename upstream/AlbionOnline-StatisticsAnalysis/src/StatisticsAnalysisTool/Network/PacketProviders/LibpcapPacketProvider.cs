@@ -97,6 +97,8 @@ public class LibpcapPacketProvider : PacketProvider
         _vpnNextGameProcessProbeUtc = DateTime.MinValue;
         _vpnCachedGameProcessPresent = false;
         _captureDiagnostics.Reset();
+        VpnCaptureAssistDiagnostics.ResetIngress();
+        VpnCaptureAssistDiagnostics.ObservePacketFilter(!string.IsNullOrWhiteSpace(GetEffectiveFilter()));
         Interlocked.Exchange(ref _captureRefreshRequested, 0);
         _captureRecoveryPending = false;
         _nextCaptureRecoveryUtc = DateTime.MinValue;
@@ -126,6 +128,7 @@ public class LibpcapPacketProvider : PacketProvider
             throw;
         }
 
+        VpnCaptureAssistDiagnostics.ObserveOpenedInterfaces(opened);
         if (opened == 0)
         {
             dispatcher.Dispose();
@@ -263,9 +266,12 @@ public class LibpcapPacketProvider : PacketProvider
 
     private void Dispatch(Pcap pcap, ref Packet packet)
     {
+        var vpnEnabled = SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled;
+        if (vpnEnabled)
+            VpnCaptureAssistDiagnostics.ObserveIngressFrame();
         var current = _activePcap;
         if (current is not null && !ReferenceEquals(current, pcap)
-            && !SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
+            && !vpnEnabled)
         {
             return;
         }
@@ -311,6 +317,7 @@ public class LibpcapPacketProvider : PacketProvider
                     return;
 
                 case ProtocolType.Tcp:
+                    if (vpnEnabled) VpnCaptureAssistDiagnostics.ObserveIngressTcp();
                     return;
 
                 default:
@@ -333,6 +340,7 @@ public class LibpcapPacketProvider : PacketProvider
                     return;
 
                 case ProtocolType.Tcp:
+                    if (vpnEnabled) VpnCaptureAssistDiagnostics.ObserveIngressTcp();
                     return;
 
                 default:
@@ -568,6 +576,8 @@ public class LibpcapPacketProvider : PacketProvider
         }
 
         bool isPhotonPort = PhotonPorts.Udp.Contains(udp.SourcePort) || PhotonPorts.Udp.Contains(udp.DestinationPort);
+        if (SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
+            VpnCaptureAssistDiagnostics.ObserveIngressUdp(isPhotonPort);
         bool looksPhoton = isPhotonPort || LooksLikePhoton(udp.Payload);
         if (!looksPhoton || udp.Payload.Length == 0)
         {
@@ -646,6 +656,7 @@ public class LibpcapPacketProvider : PacketProvider
                     process.Dispose();
         }
 
+        VpnCaptureAssistDiagnostics.ObserveAlbionProcessPresence(_vpnCachedGameProcessPresent);
         return _vpnCachedGameProcessPresent;
     }
 
@@ -966,6 +977,8 @@ public class LibpcapPacketProvider : PacketProvider
         }
 
         dispatcherToDispose?.Dispose();
+        VpnCaptureAssistDiagnostics.ObserveOpenedInterfaces(opened);
+        VpnCaptureAssistDiagnostics.ObservePacketFilter(!string.IsNullOrWhiteSpace(GetEffectiveFilter()));
 
         _lastRecoveryFailureLogUtc = DateTime.MinValue;
         Log.Information("Npcap: capture recovered on {Opened} device(s)", opened);

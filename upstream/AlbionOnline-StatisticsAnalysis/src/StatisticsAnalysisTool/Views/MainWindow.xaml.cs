@@ -904,6 +904,7 @@ public partial class MainWindow
             $" · interface ativa: {capture.SelectedAdapter ?? "não definida"}" +
             $" · interfaces candidatas: {capture.CandidateAdapterCount}" +
             $" · eventos decodificados: {capture.DecodedEvents}" +
+            $" · quadros Npcap: {capture.CapturedFrames} · UDP: {capture.CapturedUdp}" +
             $" · reexames manuais: {capture.UserRescans}" +
             $" · sondagens VPN: {capture.ProbeStarts} · confirmadas: {capture.ProbeConfirmed} · revertidas: {capture.ProbeReverted}";
     }
@@ -955,6 +956,8 @@ public partial class MainWindow
         builder.AppendLine("VPN/acelerador observado (não prova rota ativa): " +
             VpnEnvironmentDetector.Snapshot().Describe());
         builder.AppendLine($"Npcap: adaptador {vpn.SelectedAdapter ?? "não identificado"} · candidatos {vpn.CandidateAdapterCount} · pacotes candidatos {vpn.CandidatePackets} · eventos Photon decodificados {vpn.DecodedEvents}");
+        builder.AppendLine($"Entrada Npcap (contadores locais): interfaces abertas {vpn.OpenedInterfaces} · filtro configurado {(vpn.PacketFilterConfigured ? "SIM" : "NÃO")} · quadros {vpn.CapturedFrames} · UDP {vpn.CapturedUdp} · UDP outras portas {vpn.CapturedNonStandardUdpPorts} · TCP {vpn.CapturedTcp}");
+        builder.AppendLine($"Último quadro Npcap: {(vpn.LastCapturedFrameUtc.HasValue ? vpn.LastCapturedFrameUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")} · processo Albion observado: {(vpn.AlbionProcessPresent.HasValue ? (vpn.AlbionProcessPresent.Value ? "SIM" : "NÃO") : "não verificado")} · diagnóstico: {VpnCaptureAssistDiagnostics.DescribeIngress(vpn)}");
         builder.AppendLine($"Recuperação Npcap: mudanças de rede {vpn.NetworkChanges} · reexames solicitados {vpn.UserRescans} · tentativas de reabertura {vpn.RecoveryAttempts} · testes de outra interface {vpn.ProbeStarts} · confirmados por Photon {vpn.ProbeConfirmed} · revertidos {vpn.ProbeReverted}");
         builder.AppendLine($"Último pacote candidato: {(vpn.LastCandidateUtc.HasValue ? vpn.LastCandidateUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")} · último evento decodificado: {(vpn.LastDecodedEventUtc.HasValue ? vpn.LastDecodedEventUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");

@@ -137,6 +137,35 @@ Assert(providerMatrix.Describe().Contains("uso pelo Albion NÃO confirmado"),
     "Combined known process and tunnel adapter must not be called an active Albion route");
 Console.WriteLine("PASS: known tunnel labels cannot establish Albion route");
 
+// Real ExitLag reproducer: 0 Photon and 0 candidates with game process running.
+VpnCaptureAssistDiagnostics.ResetIngress();
+VpnCaptureAssistDiagnostics.ObserveOpenedInterfaces(2);
+VpnCaptureAssistDiagnostics.ObserveAlbionProcessPresence(true);
+var ingressEmpty = VpnCaptureAssistDiagnostics.Snapshot(true, false);
+Assert(ingressEmpty.AlbionProcessPresent == true &&
+       ingressEmpty.State.Contains("aguardando pacotes"),
+    "Albion process must be independent of missing Photon");
+Assert(ingressEmpty.OpenedInterfaces == 2 && ingressEmpty.CapturedFrames == 0 &&
+       VpnCaptureAssistDiagnostics.DescribeIngress(ingressEmpty).Contains("Nenhum quadro"),
+    "Open Npcap with zero ingress must not masquerade as encrypted Photon");
+VpnCaptureAssistDiagnostics.ObserveIngressFrame();
+VpnCaptureAssistDiagnostics.ObserveIngressTcp();
+VpnCaptureAssistDiagnostics.ObserveIngressFrame();
+VpnCaptureAssistDiagnostics.ObserveIngressUdp(false);
+VpnCaptureAssistDiagnostics.ObserveIngressFrame();
+VpnCaptureAssistDiagnostics.ObserveIngressUdp(true);
+var ingressObserved = VpnCaptureAssistDiagnostics.Snapshot(true, false);
+Assert(ingressObserved.CapturedFrames == 3 && ingressObserved.CapturedTcp == 1 &&
+       ingressObserved.CapturedUdp == 2 && ingressObserved.CapturedNonStandardUdpPorts == 1 &&
+       ingressObserved.LastCapturedFrameUtc.HasValue,
+    "Content-free UDP and TCP layer counters must be independent of Photon");
+VpnCaptureAssistDiagnostics.ResetIngress();
+var ingressReset = VpnCaptureAssistDiagnostics.Snapshot(true, false);
+Assert(ingressReset.CapturedFrames == 0 && ingressReset.OpenedInterfaces == 0 &&
+       ingressReset.AlbionProcessPresent is null && ingressReset.LastCapturedFrameUtc is null,
+    "Ingress counters and Albion observation must reset for new sessions");
+Console.WriteLine("PASS: zero-Photon ExitLag ingress diagnosis is distinct from game process presence");
+
 Console.WriteLine("PASS: bounded passive VPN recognition; capture policy unchanged");
 
 static void Assert(bool okay, string explanation)
