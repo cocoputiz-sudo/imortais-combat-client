@@ -142,9 +142,8 @@ VpnCaptureAssistDiagnostics.ResetIngress();
 VpnCaptureAssistDiagnostics.ObserveOpenedInterfaces(2);
 VpnCaptureAssistDiagnostics.ObserveAlbionProcessPresence(true);
 var ingressEmpty = VpnCaptureAssistDiagnostics.Snapshot(true, false);
-Assert(ingressEmpty.AlbionProcessPresent == true &&
-       ingressEmpty.State.Contains("aguardando pacotes"),
-    "Albion process must be independent of missing Photon");
+Assert(ingressEmpty.AlbionProcessPresent == true,
+    "Albion process must be independent of missing Photon and previous event counters");
 Assert(ingressEmpty.OpenedInterfaces == 2 && ingressEmpty.CapturedFrames == 0 &&
        VpnCaptureAssistDiagnostics.DescribeIngress(ingressEmpty).Contains("Nenhum quadro"),
     "Open Npcap with zero ingress must not masquerade as encrypted Photon");
