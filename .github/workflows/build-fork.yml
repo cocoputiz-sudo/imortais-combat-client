@@ -1,4 +1,4 @@
-name: Build v0.6.7 Candidate (sem publicacao)
+name: Build v0.6.8 Candidate (sem publicacao)
 
 on:
   push:
@@ -27,7 +27,7 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Conferir versao v0.6.7 e proteger feed publico
+      - name: Conferir versao v0.6.8 e proteger feed publico
         shell: pwsh
         run: |
           $root = "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool"
@@ -35,9 +35,9 @@ jobs:
           $assembly = Get-Content "$root/Properties/AssemblyInfo.cs" -Raw
           $bridge = Get-Content "$root/Imortais/ImortaisEventBridge.cs" -Raw
           $feed = Get-Content "$root/imortais-netsparkle-update-check.xml" -Raw
-          if ($project -notmatch '<ApplicationVersion>0\.6\.7\.0</ApplicationVersion>') { throw "csproj is not v0.6.7" }
-          if ($assembly -notmatch 'AssemblyFileVersion\("0\.6\.7\.0"\)') { throw "assembly is not v0.6.7" }
-          if ($bridge -notmatch 'ClientVersion = "0\.6\.7"') { throw "telemetry version mismatch" }
+          if ($project -notmatch '<ApplicationVersion>0\.6\.8\.0</ApplicationVersion>') { throw "csproj is not v0.6.8" }
+          if ($assembly -notmatch 'AssemblyFileVersion\("0\.6\.8\.0"\)') { throw "assembly is not v0.6.8" }
+          if ($bridge -notmatch 'ClientVersion = "0\.6\.8"') { throw "telemetry version mismatch" }
           # Refuse any appcast modification, regardless of public release version.
           git fetch origin main --depth=1
           if ($LASTEXITCODE -ne 0) { throw "Failed to fetch main" }
@@ -156,7 +156,7 @@ jobs:
           if ($sha -ne $env:EXPECTED_SHA.ToLowerInvariant()) { throw "Checkout does not match event SHA" }
           if ($sha -notmatch '^[a-f0-9]{40}$') { throw "Invalid Git SHA" }
           $target = "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisBuildIdentity.cs"
-          $code = 'namespace StatisticsAnalysisTool.Imortais; public static class ImortaisBuildIdentity { public const string Version = "v0.6.7"; public const string Commit = "PLACEHOLDER_SHA"; public static string Display => Version + " commit " + Commit; }'
+          $code = 'namespace StatisticsAnalysisTool.Imortais; public static class ImortaisBuildIdentity { public const string Version = "v0.6.8"; public const string Commit = "PLACEHOLDER_SHA"; public static string Display => Version + " commit " + Commit; }'
           $code = $code.Replace("PLACEHOLDER_SHA",$sha)
           [System.IO.File]::WriteAllText($target,$code,[System.Text.UTF8Encoding]::new($false))
           Write-Host "BUILD_SHA=$sha"
@@ -198,37 +198,37 @@ jobs:
           dotnet run --project .\tests\DeathReview.LogicTests\DeathReview.LogicTests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw "Death Combat Timeline logic tests failed" }
 
-      - name: Publicar executavel v0.6.7 autocontido (nao distribuido)
+      - name: Publicar executavel v0.6.8 autocontido (nao distribuido)
         shell: pwsh
         run: |
           $project = ".\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\StatisticsAnalysisTool.csproj"
-          $out = Join-Path $env:RUNNER_TEMP "imortais-v067-app"
+          $out = Join-Path $env:RUNNER_TEMP "imortais-v068-app"
           dotnet publish $project -c Release -r win-x64 --self-contained true -p:LocalInstallerBuild=true -o $out
           if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
           $exe = Join-Path $out "IMORTAIS-Combat-Client.exe"
           if (-not (Test-Path $exe)) { throw "No executable published" }
-          if ((Get-Item $exe).VersionInfo.FileVersion -notlike '0.6.7*') { throw "Version not embedded" }
+          if ((Get-Item $exe).VersionInfo.FileVersion -notlike '0.6.8*') { throw "Version not embedded" }
           "APP_DIR=$out" >> $env:GITHUB_ENV
 
-      - name: Gerar instalador normal v0.6.7
+      - name: Gerar instalador normal v0.6.8
         shell: pwsh
         run: |
-          $package = Join-Path $env:RUNNER_TEMP "imortais-v067-setup"
-          .\scripts\build-icc-v067-candidate.ps1 -AppDir "$env:APP_DIR" -OutDir $package
+          $package = Join-Path $env:RUNNER_TEMP "imortais-v068-setup"
+          .\scripts\build-icc-v068-candidate.ps1 -AppDir "$env:APP_DIR" -OutDir $package
           if ($LASTEXITCODE -ne 0) { throw "Inno setup failed" }
           "PACKAGE_DIR=$package" >> $env:GITHUB_ENV
 
-      - name: Testar atualização real v0.6.6 -> v0.6.7 e preservar pareamento
+      - name: Testar atualização real v0.6.7 -> v0.6.8 e preservar pareamento
         shell: pwsh
         run: |
-          $setup = Join-Path $env:PACKAGE_DIR "IMORTAIS-Combat-Client-Setup-v0.6.7.exe"
-          .\scripts\test-icc-v067-upgrade.ps1 -CandidateSetup $setup
+          $setup = Join-Path $env:PACKAGE_DIR "IMORTAIS-Combat-Client-Setup-v0.6.8.exe"
+          .\scripts\test-icc-v068-upgrade.ps1 -CandidateSetup $setup
           # PowerShell throws on failures; LASTEXITCODE may be stale from Inno Setup.
 
-      - name: Anexar instalador v0.6.7 para conferência, sem Release
+      - name: Anexar instalador v0.6.8 para conferência, sem Release
         uses: actions/upload-artifact@v4
         with:
-          name: IMORTAIS-Combat-Client-Setup-v0.6.7
+          name: IMORTAIS-Combat-Client-Setup-v0.6.8
           path: ${{ env.PACKAGE_DIR }}\*
           if-no-files-found: error
           retention-days: 14
