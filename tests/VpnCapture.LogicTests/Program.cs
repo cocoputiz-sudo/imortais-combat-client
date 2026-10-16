@@ -92,6 +92,35 @@ Assert(detailed.ProbeStarts == 1 && detailed.ProbeConfirmed == 1 && detailed.Pro
     "Distinguish temporary interface trials from opening Npcap dispatcher");
 Console.WriteLine("PASS: VPN probes gated by opt-in, decoded silence, fresh candidates, cooldown and bounded retry");
 
+// Candidate v0.6.8: recognized software is NOT proof of an Albion VPN route.
+var detected = VpnEnvironmentDetector.Classify(
+    ["ExitLag", "exitlag", "NoPing", "warp-svc", "steam", "exitlagNotReal"],
+    [
+        new VpnInterfaceObservation("Cloudflare WARP", "Cloudflare WARP Adapter", true),
+        new VpnInterfaceObservation("WireGuard Tunnel", "Wintun Device", false),
+        new VpnInterfaceObservation("vEthernet", "Hyper-V Virtual Ethernet", true)
+    ], now);
+Assert(detected.HasSignals && detected.RunningProducts.Count == 3,
+    "Exact names, deduplication, independent products and no fuzzy false positives");
+Assert(detected.UpTunnelInterfaces.SequenceEqual(["Cloudflare WARP"]),
+    "Only Up recognized adapters; exclude unrelated virtual networks");
+Assert(detected.Describe().Contains("NÃO confirmado"),
+    "Do not report an active Albion tunnel without routed-traffic evidence");
+var absent = VpnEnvironmentDetector.Classify(["steam", "firefox"],
+    [new VpnInterfaceObservation("vEthernet", "Hyper-V Virtual Ethernet", true)], now);
+Assert(!absent.HasSignals && absent.Describe().Contains("VPN não descartada"),
+    "Missing signatures do not prove no VPN");
+var unavailable = VpnEnvironmentDetector.Classify([], [], now,
+    processInspectionAvailable: false, interfaceInspectionAvailable: true);
+Assert(unavailable.Describe().Contains("inspeção parcial"),
+    "Inspection denied must not be misclassified as a negative result");
+Assert(VpnEnvironmentDetector.Classify(["Cloudflare WARP"], [], now).HasSignals,
+    "WARP DNS-only process is a clue, not permission to recover or a route claim");
+Assert(!VpnCaptureRecoveryPolicy.CanProbe(false, now, now.AddSeconds(-90),
+    now.AddSeconds(-35), null, now.AddSeconds(-1), 7, 0),
+    "VPN recognition must not bypass the existing explicit opt-in gate");
+Console.WriteLine("PASS: bounded passive VPN recognition; capture policy unchanged");
+
 static void Assert(bool okay, string explanation)
 {
     if (!okay) throw new InvalidOperationException(explanation);

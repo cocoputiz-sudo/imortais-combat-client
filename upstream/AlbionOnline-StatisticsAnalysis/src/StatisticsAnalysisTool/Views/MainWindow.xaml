@@ -470,6 +470,10 @@
                                                        Text="VPN: aguardando diagnóstico"
                                                        TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"
                                                        Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                                            <TextBlock x:Name="ImortaisVpnEnvironmentText"
+                                                       Text="RECONHECIMENTO LOCAL: aguardando observações"
+                                                       TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"
+                                                       Foreground="LightSkyBlue" />
                                         </StackPanel>
                                         <Button Content="EXPORTAR DIAGNÓSTICO DE EVENTOS"
                                                 Height="34"
