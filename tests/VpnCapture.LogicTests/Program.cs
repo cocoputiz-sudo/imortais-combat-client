@@ -165,6 +165,24 @@ Assert(ingressReset.CapturedFrames == 0 && ingressReset.OpenedInterfaces == 0 &&
     "Ingress counters and Albion observation must reset for new sessions");
 Console.WriteLine("PASS: zero-Photon ExitLag ingress diagnosis is distinct from game process presence");
 
+Assert(VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, "standard", "standard"),
+    "Eligible diagnostic pilot can broaden an explicitly opted-in default filter");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(false, true, "standard", "standard"),
+    "Normal candidate must never broaden the filter");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(true, false, "standard", "standard"),
+    "No diagnostic override when VPN assist is disabled");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, "custom", "standard"),
+    "Do not override user-customized BPF");
+Assert(VpnIngressFilterPolicy.BroadUdpFilter.Contains("udp") &&
+       !VpnIngressFilterPolicy.BroadUdpFilter.Contains("tcp"),
+    "Diagnostic must only broaden UDP, never all TCP");
+VpnCaptureAssistDiagnostics.ObservePacketFilter(VpnIngressFilterPolicy.BroadUdpFilter);
+Assert(VpnCaptureAssistDiagnostics.CaptureFilterMode.Contains("PILOTO"),
+    "Expose real applied broad filter in diagnostics");
+VpnCaptureAssistDiagnostics.ObservePacketFilter("udp port 5056");
+Assert(VpnCaptureAssistDiagnostics.CaptureFilterMode.Contains("RESTRITO"),
+    "Distinguish unchanged restricted filter from pilot");
+Console.WriteLine("PASS: pilot-only opt-in UDP ingress without changing normal capture policy");
 Console.WriteLine("PASS: bounded passive VPN recognition; capture policy unchanged");
 
 static void Assert(bool okay, string explanation)

@@ -98,7 +98,7 @@ public class LibpcapPacketProvider : PacketProvider
         _vpnCachedGameProcessPresent = false;
         _captureDiagnostics.Reset();
         VpnCaptureAssistDiagnostics.ResetIngress();
-        VpnCaptureAssistDiagnostics.ObservePacketFilter(!string.IsNullOrWhiteSpace(GetEffectiveFilter()));
+        VpnCaptureAssistDiagnostics.ObservePacketFilter(GetEffectiveFilter());
         Interlocked.Exchange(ref _captureRefreshRequested, 0);
         _captureRecoveryPending = false;
         _nextCaptureRecoveryUtc = DateTime.MinValue;
@@ -578,6 +578,9 @@ public class LibpcapPacketProvider : PacketProvider
         bool isPhotonPort = PhotonPorts.Udp.Contains(udp.SourcePort) || PhotonPorts.Udp.Contains(udp.DestinationPort);
         if (SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
             VpnCaptureAssistDiagnostics.ObserveIngressUdp(isPhotonPort);
+        // Outside normal Photon ports: count UDP metadata, NEVER decode tunnel traffic.
+        if (VpnIngressFilterPolicy.IsDiagnosticPilotBinary && !isPhotonPort)
+            return;
         bool looksPhoton = isPhotonPort || LooksLikePhoton(udp.Payload);
         if (!looksPhoton || udp.Payload.Length == 0)
         {
@@ -978,7 +981,7 @@ public class LibpcapPacketProvider : PacketProvider
 
         dispatcherToDispose?.Dispose();
         VpnCaptureAssistDiagnostics.ObserveOpenedInterfaces(opened);
-        VpnCaptureAssistDiagnostics.ObservePacketFilter(!string.IsNullOrWhiteSpace(GetEffectiveFilter()));
+        VpnCaptureAssistDiagnostics.ObservePacketFilter(GetEffectiveFilter());
 
         _lastRecoveryFailureLogUtc = DateTime.MinValue;
         Log.Information("Npcap: capture recovered on {Opened} device(s)", opened);
@@ -1111,9 +1114,15 @@ public class LibpcapPacketProvider : PacketProvider
     private static string? GetEffectiveFilter()
     {
         var user = SettingsController.CurrentSettings.PacketFilter?.Trim();
-        return string.IsNullOrWhiteSpace(user)
-            ? null
-            : NormalizePacketFilter(user);
+        var configured = string.IsNullOrWhiteSpace(user) ? null : NormalizePacketFilter(user);
+        if (VpnIngressFilterPolicy.ShouldUseBroadFilter(
+            VpnIngressFilterPolicy.IsDiagnosticPilotBinary,
+            SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled,
+            configured, DefaultPacketFilter))
+        {
+            return VpnIngressFilterPolicy.BroadUdpFilter;
+        }
+        return configured;
     }
 
     private static string NormalizePacketFilter(string packetFilter)

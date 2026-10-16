@@ -75,6 +75,7 @@ internal static class VpnCaptureAssistDiagnostics
     private static long _lastIngressTicks;
     private static int _openedInterfaces;
     private static int _packetFilterConfigured;
+    private static int _captureFilterKind; // 0 none, 1 strict/custom, 2 broad UDP pilot
     // 0 = not checked, 1 = checked without process, 2 = Albion process observed.
     private static int _albionProcessPresence;
 
@@ -88,13 +89,27 @@ internal static class VpnCaptureAssistDiagnostics
         Interlocked.Exchange(ref _lastIngressTicks, 0);
         Interlocked.Exchange(ref _openedInterfaces, 0);
         Interlocked.Exchange(ref _packetFilterConfigured, 0);
+        Interlocked.Exchange(ref _captureFilterKind, 0);
         Interlocked.Exchange(ref _albionProcessPresence, 0);
     }
 
     public static void ObserveOpenedInterfaces(int count) =>
         Interlocked.Exchange(ref _openedInterfaces, Math.Max(0, count));
-    public static void ObservePacketFilter(bool configured) =>
+    public static void ObservePacketFilter(string? appliedFilter)
+    {
+        var configured = !string.IsNullOrWhiteSpace(appliedFilter);
         Interlocked.Exchange(ref _packetFilterConfigured, configured ? 1 : 0);
+        Interlocked.Exchange(ref _captureFilterKind,
+            !configured ? 0 :
+            string.Equals(appliedFilter, VpnIngressFilterPolicy.BroadUdpFilter,
+                StringComparison.OrdinalIgnoreCase) ? 2 : 1);
+    }
+    public static string CaptureFilterMode => Volatile.Read(ref _captureFilterKind) switch
+    {
+        0 => "SEM FILTRO",
+        2 => "UDP TODAS AS PORTAS (PILOTO, somente captura local)",
+        _ => "FILTRO RESTRITO/PERSONALIZADO"
+    };
     public static void ObserveAlbionProcessPresence(bool observed) =>
         Interlocked.Exchange(ref _albionProcessPresence, observed ? 2 : 1);
     public static void ObserveIngressFrame()

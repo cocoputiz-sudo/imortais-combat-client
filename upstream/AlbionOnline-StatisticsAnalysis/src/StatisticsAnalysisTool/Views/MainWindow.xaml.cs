@@ -956,6 +956,7 @@ public partial class MainWindow
         builder.AppendLine("VPN/acelerador observado (não prova rota ativa): " +
             VpnEnvironmentDetector.Snapshot().Describe());
         builder.AppendLine($"Npcap: adaptador {vpn.SelectedAdapter ?? "não identificado"} · candidatos {vpn.CandidateAdapterCount} · pacotes candidatos {vpn.CandidatePackets} · eventos Photon decodificados {vpn.DecodedEvents}");
+        builder.AppendLine("Filtro aplicado Npcap: " + VpnCaptureAssistDiagnostics.CaptureFilterMode);
         builder.AppendLine($"Entrada Npcap (contadores locais): interfaces abertas {vpn.OpenedInterfaces} · filtro configurado {(vpn.PacketFilterConfigured ? "SIM" : "NÃO")} · quadros {vpn.CapturedFrames} · UDP {vpn.CapturedUdp} · UDP outras portas {vpn.CapturedNonStandardUdpPorts} · TCP {vpn.CapturedTcp}");
         builder.AppendLine($"Último quadro Npcap: {(vpn.LastCapturedFrameUtc.HasValue ? vpn.LastCapturedFrameUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")} · processo Albion observado: {(vpn.AlbionProcessPresent.HasValue ? (vpn.AlbionProcessPresent.Value ? "SIM" : "NÃO") : "não verificado")} · diagnóstico: {VpnCaptureAssistDiagnostics.DescribeIngress(vpn)}");
         builder.AppendLine($"Recuperação Npcap: mudanças de rede {vpn.NetworkChanges} · reexames solicitados {vpn.UserRescans} · tentativas de reabertura {vpn.RecoveryAttempts} · testes de outra interface {vpn.ProbeStarts} · confirmados por Photon {vpn.ProbeConfirmed} · revertidos {vpn.ProbeReverted}");
