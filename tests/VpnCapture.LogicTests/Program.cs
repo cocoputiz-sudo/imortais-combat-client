@@ -119,6 +119,24 @@ Assert(VpnEnvironmentDetector.Classify(["Cloudflare WARP"], [], now).HasSignals,
 Assert(!VpnCaptureRecoveryPolicy.CanProbe(false, now, now.AddSeconds(-90),
     now.AddSeconds(-35), null, now.AddSeconds(-1), 7, 0),
     "VPN recognition must not bypass the existing explicit opt-in gate");
+// Additional compatibility matrix: a known process plus an Up adapter is still
+// merely a pair of local clues, never proof of an Albion VPN route.
+var providerMatrix = VpnEnvironmentDetector.Classify(
+    ["WireGuard", "OpenVPN-GUI", "ProtonVPN", "mullvad-vpn", "warp-svc", "exitlagNotReal"],
+    [
+        new VpnInterfaceObservation("NordLynx", "NordLynx Tunnel", true),
+        new VpnInterfaceObservation("TAP-Windows Adapter", "TAP-Windows Adapter", true),
+        new VpnInterfaceObservation("WireGuard", "WireGuard Adapter", false),
+        new VpnInterfaceObservation("DockerNAT", "Hyper-V Virtual Ethernet Adapter", true)
+    ], now);
+Assert(providerMatrix.RunningProducts.Count == 5,
+    "Recognize only exact known process names and exclude partial-name imitations");
+Assert(providerMatrix.UpTunnelInterfaces.SequenceEqual(["NordLynx", "TAP (genérico)"]),
+    "Only currently Up, recognized tunnel adapter labels should be exposed");
+Assert(providerMatrix.Describe().Contains("uso pelo Albion NÃO confirmado"),
+    "Combined known process and tunnel adapter must not be called an active Albion route");
+Console.WriteLine("PASS: known tunnel labels cannot establish Albion route");
+
 Console.WriteLine("PASS: bounded passive VPN recognition; capture policy unchanged");
 
 static void Assert(bool okay, string explanation)
