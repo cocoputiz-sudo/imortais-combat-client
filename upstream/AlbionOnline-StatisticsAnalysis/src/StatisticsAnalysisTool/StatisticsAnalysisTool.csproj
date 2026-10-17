@@ -17,7 +17,7 @@
     <UpdateRequired>false</UpdateRequired>
     <MapFileExtensions>true</MapFileExtensions>
     <ApplicationRevision>0</ApplicationRevision>
-    <ApplicationVersion>0.6.7.0</ApplicationVersion>
+    <ApplicationVersion>0.6.8.0</ApplicationVersion>
     <UseApplicationTrust>false</UseApplicationTrust>
     <BootstrapperEnabled>true</BootstrapperEnabled>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -44,6 +44,9 @@
     <AuthenticodePublisherThumbprint Condition="'$(AuthenticodePublisherThumbprint)' == ''">$(AUTHENTICODE_PUBLISHER_THUMBPRINT)</AuthenticodePublisherThumbprint>
     <RequireNetSparkleEd25519PublicKey Condition="'$(RequireNetSparkleEd25519PublicKey)' == ''">false</RequireNetSparkleEd25519PublicKey>
     <LocalInstallerBuild Condition="'$(LocalInstallerBuild)' == ''">false</LocalInstallerBuild>
+    <!-- Diagnostic only; opt-in and ONLY when compiling the portable LocalInstallerBuild. -->
+    <ImortaisVpnIngressProbe Condition="'$(ImortaisVpnIngressProbe)' == ''">false</ImortaisVpnIngressProbe>
+    <DefineConstants Condition="'$(ImortaisVpnIngressProbe)' == 'true' and '$(LocalInstallerBuild)' == 'true'">$(DefineConstants);IMORTAIS_VPN_UDP_INGRESS_DIAGNOSTIC</DefineConstants>
     <NetSparkleSignatureVerificationRequiredLiteral>false</NetSparkleSignatureVerificationRequiredLiteral>
     <NetSparkleSignatureVerificationRequiredLiteral Condition="'$(RequireNetSparkleEd25519PublicKey)' == 'true'">true</NetSparkleSignatureVerificationRequiredLiteral>
     <NetSparkleBackgroundUpdatesEnabledLiteral>true</NetSparkleBackgroundUpdatesEnabledLiteral>

@@ -9,5 +9,7 @@
   <ItemGroup>
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Network/PacketProviders/VpnCaptureAssistDiagnostics.cs" Link="VpnCaptureAssistDiagnostics.cs" />
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Network/PacketProviders/VpnCaptureRecoveryPolicy.cs" Link="VpnCaptureRecoveryPolicy.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Network/PacketProviders/VpnEnvironmentDetector.cs" Link="VpnEnvironmentDetector.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Network/PacketProviders/VpnIngressFilterPolicy.cs" Link="VpnIngressFilterPolicy.cs" />
   </ItemGroup>
 </Project>

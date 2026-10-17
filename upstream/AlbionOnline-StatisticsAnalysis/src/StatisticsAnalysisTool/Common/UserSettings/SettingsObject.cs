@@ -56,6 +56,8 @@ public class SettingsObject
     public bool IsImortaisAutoSaveMassAbatesEnabled { get; set; } = false;
     // User declares an existing VPN/route optimizer; it does not create a VPN.
     public bool IsImortaisVpnCaptureAssistEnabled { get; set; } = false;
+    // Explicit opt-in for unsigned portable UDP ingress pilot. Never used in public builds.
+    public bool IsImortaisVpnUdpProbePilotEnabled { get; set; } = false;
     public bool IsNavigationMenuOpen { get; set; } = true;
     public bool IsTrackingResetByMapChangeActive { get; set; } = false;
     public bool IsMainTrackerFilterSilver { get; set; } = false;

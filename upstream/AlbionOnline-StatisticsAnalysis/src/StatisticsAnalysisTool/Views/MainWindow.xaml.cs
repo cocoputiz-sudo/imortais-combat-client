@@ -890,14 +890,34 @@ public partial class MainWindow
         var enabled = SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled;
         var capture = VpnCaptureAssistDiagnostics.Snapshot(
             enabled, ImortaisEventBridge.GetStatus().GameDetected == true);
+        var vpnEnvironment = VpnEnvironmentDetector.Snapshot();
+        if (ImortaisVpnEnvironmentText is not null)
+            ImortaisVpnEnvironmentText.Text = "RECONHECIMENTO LOCAL: " + vpnEnvironment.Describe() +
+                (!enabled && vpnEnvironment.HasSignals
+                    ? " · Se perder a captura, ative USO VPN para permitir a sondagem reversível."
+                    : string.Empty);
         ImortaisVpnAssistToggleButton.Content = enabled ? "USO VPN: SIM" : "USO VPN: NÃO";
         ImortaisVpnAssistToggleButton.Foreground = enabled ? Brushes.LightGreen : Brushes.Gold;
         ImortaisVpnRescanButton.IsEnabled = enabled;
+        if (ImortaisVpnUdpPilotPanel is not null)
+            ImortaisVpnUdpPilotPanel.Visibility = VpnIngressFilterPolicy.IsDiagnosticPilotBinary
+                ? Visibility.Visible : Visibility.Collapsed;
+        if (ImortaisVpnUdpPilotButton is not null)
+        {
+            var pilotEnabled = SettingsController.CurrentSettings.IsImortaisVpnUdpProbePilotEnabled;
+            ImortaisVpnUdpPilotButton.Content = pilotEnabled
+                ? "PILOTO UDP AMPLO: LIGADO (reinicie para aplicar)"
+                : "PILOTO UDP AMPLO: DESLIGADO";
+            ImortaisVpnUdpPilotButton.IsEnabled =
+                VpnIngressFilterPolicy.IsDiagnosticPilotBinary && enabled;
+            ImortaisVpnUdpPilotButton.Foreground = pilotEnabled ? Brushes.LightGreen : Brushes.Gold;
+        }
         ImortaisVpnCaptureStatusText.Text =
             capture.State +
             $" · interface ativa: {capture.SelectedAdapter ?? "não definida"}" +
             $" · interfaces candidatas: {capture.CandidateAdapterCount}" +
             $" · eventos decodificados: {capture.DecodedEvents}" +
+            $" · quadros Npcap: {capture.CapturedFrames} · UDP: {capture.CapturedUdp}" +
             $" · reexames manuais: {capture.UserRescans}" +
             $" · sondagens VPN: {capture.ProbeStarts} · confirmadas: {capture.ProbeConfirmed} · revertidas: {capture.ProbeReverted}";
     }
@@ -916,6 +936,20 @@ public partial class MainWindow
             Log.Error(error, "Failed to persist local VPN capture assist setting");
         }
         UpdateImortaisVpnUi();
+    }
+
+    private async void ImortaisVpnUdpPilotToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (!VpnIngressFilterPolicy.IsDiagnosticPilotBinary ||
+            !SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
+            return;
+        var settings = SettingsController.CurrentSettings;
+        settings.IsImortaisVpnUdpProbePilotEnabled = !settings.IsImortaisVpnUdpProbePilotEnabled;
+        await SettingsController.SaveSettingsAsync();
+        UpdateImortaisVpnUi();
+        MessageBox.Show(this,
+            "Preferência do piloto UDP atualizada. Feche e abra novamente SOMENTE este cliente portátil para aplicar o filtro. Confira a linha 'Filtro aplicado Npcap' no diagnóstico antes do próximo teste. A configuração personalizada anterior não foi alterada.",
+            "IMORTAIS - Piloto UDP amplo", MessageBoxButton.OK, MessageBoxImage.Information);
     }
 
     private void ImortaisVpnRescan_Click(object sender, RoutedEventArgs e)
@@ -946,7 +980,24 @@ public partial class MainWindow
             SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled,
             status.GameDetected == true);
         builder.AppendLine($"Captura VPN: {(vpn.Enabled ? "MODO ASSISTIDO" : "NORMAL")} · {vpn.State}");
+        builder.AppendLine("VPN/acelerador observado (não prova rota ativa): " +
+            VpnEnvironmentDetector.Snapshot().Describe());
         builder.AppendLine($"Npcap: adaptador {vpn.SelectedAdapter ?? "não identificado"} · candidatos {vpn.CandidateAdapterCount} · pacotes candidatos {vpn.CandidatePackets} · eventos Photon decodificados {vpn.DecodedEvents}");
+        builder.AppendLine("Filtro aplicado Npcap: " + VpnCaptureAssistDiagnostics.CaptureFilterMode);
+        if (VpnIngressFilterPolicy.IsDiagnosticPilotBinary)
+        {
+            var pilotOptIn = SettingsController.CurrentSettings.IsImortaisVpnUdpProbePilotEnabled;
+            var configured = SettingsController.CurrentSettings.PacketFilter?.Trim();
+            var normalized = string.IsNullOrWhiteSpace(configured) ? null : configured;
+            var defaultFilter = LibpcapPacketProvider.DefaultPacketFilter;
+            var isDefault = string.Equals(normalized, defaultFilter, StringComparison.OrdinalIgnoreCase);
+            var configuredKind = isDefault ? "PADRÃO" :
+                string.IsNullOrWhiteSpace(normalized) ? "VAZIO" : "PERSONALIZADO/LEGADO";
+            builder.AppendLine($"Piloto UDP: consentimento explícito {(pilotOptIn ? "SIM" : "NÃO")} · filtro salvo {configuredKind} · opção VPN {(vpn.Enabled ? "SIM" : "NÃO")} · filtro efetivo depende da abertura do Npcap");
+        }
+        builder.AppendLine($"Entrada Npcap (contadores locais): interfaces abertas {vpn.OpenedInterfaces} · filtro configurado {(vpn.PacketFilterConfigured ? "SIM" : "NÃO")} · quadros {vpn.CapturedFrames} · UDP {vpn.CapturedUdp} · UDP outras portas {vpn.CapturedNonStandardUdpPorts} · TCP {vpn.CapturedTcp}");
+        builder.AppendLine("Entrada Npcap por interface (acumulada, top 5): " + VpnCaptureAssistDiagnostics.DescribeIngressInterfaces());
+        builder.AppendLine($"Último quadro Npcap: {(vpn.LastCapturedFrameUtc.HasValue ? vpn.LastCapturedFrameUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")} · processo Albion observado: {(vpn.AlbionProcessPresent.HasValue ? (vpn.AlbionProcessPresent.Value ? "SIM" : "NÃO") : "não verificado")} · diagnóstico: {VpnCaptureAssistDiagnostics.DescribeIngress(vpn)}");
         builder.AppendLine($"Recuperação Npcap: mudanças de rede {vpn.NetworkChanges} · reexames solicitados {vpn.UserRescans} · tentativas de reabertura {vpn.RecoveryAttempts} · testes de outra interface {vpn.ProbeStarts} · confirmados por Photon {vpn.ProbeConfirmed} · revertidos {vpn.ProbeReverted}");
         builder.AppendLine($"Último pacote candidato: {(vpn.LastCandidateUtc.HasValue ? vpn.LastCandidateUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")} · último evento decodificado: {(vpn.LastDecodedEventUtc.HasValue ? vpn.LastDecodedEventUtc.Value.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss") : "nenhum")}");
         builder.AppendLine($"Versão: v{GetCombatClientVersion()}");

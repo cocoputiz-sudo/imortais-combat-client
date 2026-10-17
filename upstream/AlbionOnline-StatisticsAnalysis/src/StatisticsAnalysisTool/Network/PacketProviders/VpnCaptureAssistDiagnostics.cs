@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -39,7 +40,15 @@ internal sealed record VpnCaptureDiagnosticsSnapshot(
     long RecoveryAttempts,
     long ProbeStarts,
     long ProbeConfirmed,
-    long ProbeReverted);
+    long ProbeReverted,
+    long CapturedFrames,
+    long CapturedUdp,
+    long CapturedNonStandardUdpPorts,
+    long CapturedTcp,
+    DateTime? LastCapturedFrameUtc,
+    int OpenedInterfaces,
+    bool PacketFilterConfigured,
+    bool? AlbionProcessPresent);
 
 /// <summary>
 /// Local aggregate diagnostics only. No packet contents, addresses, player IDs
@@ -49,6 +58,20 @@ internal static class VpnCaptureAssistDiagnostics
 {
     private static readonly object Gate = new();
     private static readonly Dictionary<string, DateTime> CandidateAdapters = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxIngressAdapters = 24;
+    private static readonly ConcurrentDictionary<string, InterfaceIngress> IngressByAdapter =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object IngressRegistrationGate = new();
+    private static int _nextIngressAdapterId;
+
+    private sealed class InterfaceIngress(int number, string label)
+    {
+        public int Number { get; } = number;
+        public string Label { get; } = label;
+        public long Frames;
+        public long Udp;
+        public long NonPhotonUdp;
+    }
     private static long _lastCandidateTicks;
     private static long _lastDecodedTicks;
     private static long _candidatePackets;
@@ -60,6 +83,121 @@ internal static class VpnCaptureAssistDiagnostics
     private static long _probeConfirmed;
     private static long _probeReverted;
     private static string? _selectedAdapter;
+    private static long _ingressFrames;
+    private static long _ingressUdp;
+    private static long _ingressOtherUdpPorts;
+    private static long _ingressTcp;
+    private static long _lastIngressTicks;
+    private static int _openedInterfaces;
+    private static int _packetFilterConfigured;
+    private static int _captureFilterKind; // 0 none, 1 strict/custom, 2 broad UDP pilot
+    // 0 = not checked, 1 = checked without process, 2 = Albion process observed.
+    private static int _albionProcessPresence;
+
+    /// <summary>Local, content-free ingress counts. No IP, MAC, payload or routes.</summary>
+    public static void ResetIngress()
+    {
+        lock (IngressRegistrationGate)
+        {
+            IngressByAdapter.Clear();
+            _nextIngressAdapterId = 0;
+        }
+        Interlocked.Exchange(ref _ingressFrames, 0);
+        Interlocked.Exchange(ref _ingressUdp, 0);
+        Interlocked.Exchange(ref _ingressOtherUdpPorts, 0);
+        Interlocked.Exchange(ref _ingressTcp, 0);
+        Interlocked.Exchange(ref _lastIngressTicks, 0);
+        Interlocked.Exchange(ref _openedInterfaces, 0);
+        Interlocked.Exchange(ref _packetFilterConfigured, 0);
+        Interlocked.Exchange(ref _captureFilterKind, 0);
+        Interlocked.Exchange(ref _albionProcessPresence, 0);
+    }
+
+    public static void ObserveOpenedInterfaces(int count) =>
+        Interlocked.Exchange(ref _openedInterfaces, Math.Max(0, count));
+    public static void ObservePacketFilter(string? appliedFilter)
+    {
+        var configured = !string.IsNullOrWhiteSpace(appliedFilter);
+        Interlocked.Exchange(ref _packetFilterConfigured, configured ? 1 : 0);
+        Interlocked.Exchange(ref _captureFilterKind,
+            !configured ? 0 :
+            string.Equals(appliedFilter, VpnIngressFilterPolicy.BroadUdpFilter,
+                StringComparison.OrdinalIgnoreCase) ? 2 : 1);
+    }
+    public static string CaptureFilterMode => Volatile.Read(ref _captureFilterKind) switch
+    {
+        0 => "SEM FILTRO",
+        2 => "UDP TODAS AS PORTAS (PILOTO, somente captura local)",
+        _ => "FILTRO RESTRITO/PERSONALIZADO"
+    };
+    public static void ObserveAlbionProcessPresence(bool observed) =>
+        Interlocked.Exchange(ref _albionProcessPresence, observed ? 2 : 1);
+    public static void RegisterIngressInterface(string adapterName, string? description)
+    {
+        if (string.IsNullOrWhiteSpace(adapterName)) return;
+        lock (IngressRegistrationGate)
+        {
+            if (IngressByAdapter.ContainsKey(adapterName) || IngressByAdapter.Count >= MaxIngressAdapters)
+                return;
+            var number = ++_nextIngressAdapterId;
+            var label = string.IsNullOrWhiteSpace(description)
+                ? "sem descrição" : description.Trim();
+            // Diagnostic metadata remains local. Descriptions can be user-controlled.
+            if (label.Length > 72) label = label[..72];
+            IngressByAdapter.TryAdd(adapterName, new InterfaceIngress(number, label));
+        }
+    }
+
+    public static void ObserveIngressFrame(string? adapterName = null)
+    {
+        Interlocked.Increment(ref _ingressFrames);
+        Interlocked.Exchange(ref _lastIngressTicks, DateTime.UtcNow.Ticks);
+        if (adapterName is not null && IngressByAdapter.TryGetValue(adapterName, out var meter))
+            Interlocked.Increment(ref meter.Frames);
+    }
+    public static void ObserveIngressUdp(bool usesKnownPhotonPort, string? adapterName = null)
+    {
+        Interlocked.Increment(ref _ingressUdp);
+        if (!usesKnownPhotonPort) Interlocked.Increment(ref _ingressOtherUdpPorts);
+        if (adapterName is not null && IngressByAdapter.TryGetValue(adapterName, out var meter))
+        {
+            Interlocked.Increment(ref meter.Udp);
+            if (!usesKnownPhotonPort) Interlocked.Increment(ref meter.NonPhotonUdp);
+        }
+    }
+
+    internal static string DescribeIngressInterfaces()
+    {
+        // Highest-volume adapters only, bounded to five. No IP, MAC, packet
+        // contents or process-to-flow attribution are collected or retained.
+        var entries = IngressByAdapter.Values
+            .Select(m => new {
+                m.Number, m.Label,
+                Frames = Interlocked.Read(ref m.Frames),
+                Udp = Interlocked.Read(ref m.Udp),
+                OtherUdp = Interlocked.Read(ref m.NonPhotonUdp)
+            })
+            .OrderByDescending(m => m.Udp).ThenBy(m => m.Number).Take(5)
+            .Select(m => $"IF#{m.Number} ({m.Label}): quadros {m.Frames}, UDP {m.Udp}, UDP outras portas {m.OtherUdp}")
+            .ToArray();
+        return entries.Length == 0 ? "nenhuma interface registrada" : string.Join(" | ", entries);
+    }
+    public static void ObserveIngressTcp() => Interlocked.Increment(ref _ingressTcp);
+
+    internal static string DescribeIngress(VpnCaptureDiagnosticsSnapshot snap)
+    {
+        if (!snap.Enabled) return "Contagem de entrada Npcap desativada (USO VPN: NÃO)";
+        if (snap.OpenedInterfaces == 0) return "Nenhuma interface Npcap aberta; verificar configuração e driver";
+        if (snap.CapturedFrames == 0)
+            return "Nenhum quadro entrou no Npcap; verificar interfaces/filtro, sem inferir criptografia";
+        if (snap.CapturedUdp == 0)
+            return "Npcap vê quadros, mas nenhum UDP no parser; pode ser rota, encapsulamento ou filtro";
+        if (snap.CandidatePackets == 0)
+            return "Npcap vê UDP, mas nenhum candidato Photon; porta diversa/túnel é hipótese, não prova";
+        if (snap.DecodedEvents == 0)
+            return "Há candidatos UDP, mas nenhum evento Photon decodificado";
+        return "Entradas Npcap e Photon observadas; conferir horário do último evento";
+    }
 
     public static void ObserveCandidate(string adapter)
     {
@@ -105,9 +243,12 @@ internal static class VpnCaptureAssistDiagnostics
             selected = _selectedAdapter;
             count = CandidateAdapters.Count;
         }
+        var processState = Volatile.Read(ref _albionProcessPresence);
+        bool? gameProcess = processState == 0 ? null : processState == 2;
         return new VpnCaptureDiagnosticsSnapshot(
             enabled,
-            VpnCaptureHealthPolicy.Describe(enabled, gameDetected, now, candidate, decoded),
+            VpnCaptureHealthPolicy.Describe(enabled, gameDetected || (enabled && gameProcess == true),
+                now, candidate, decoded),
             selected,
             candidate,
             decoded,
@@ -119,7 +260,15 @@ internal static class VpnCaptureAssistDiagnostics
             Interlocked.Read(ref _recoveryAttempts),
             Interlocked.Read(ref _probeStarts),
             Interlocked.Read(ref _probeConfirmed),
-            Interlocked.Read(ref _probeReverted));
+            Interlocked.Read(ref _probeReverted),
+            Interlocked.Read(ref _ingressFrames),
+            Interlocked.Read(ref _ingressUdp),
+            Interlocked.Read(ref _ingressOtherUdpPorts),
+            Interlocked.Read(ref _ingressTcp),
+            ReadUtc(ref _lastIngressTicks),
+            Volatile.Read(ref _openedInterfaces),
+            Volatile.Read(ref _packetFilterConfigured) == 1,
+            gameProcess);
     }
 
     private static DateTime? ReadUtc(ref long ticks)

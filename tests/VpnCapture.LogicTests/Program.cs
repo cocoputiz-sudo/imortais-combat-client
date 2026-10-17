@@ -92,6 +92,132 @@ Assert(detailed.ProbeStarts == 1 && detailed.ProbeConfirmed == 1 && detailed.Pro
     "Distinguish temporary interface trials from opening Npcap dispatcher");
 Console.WriteLine("PASS: VPN probes gated by opt-in, decoded silence, fresh candidates, cooldown and bounded retry");
 
+// Candidate v0.6.8: recognized software is NOT proof of an Albion VPN route.
+var detected = VpnEnvironmentDetector.Classify(
+    ["ExitLag", "exitlag", "NoPing", "warp-svc", "steam", "exitlagNotReal"],
+    [
+        new VpnInterfaceObservation("Cloudflare WARP", "Cloudflare WARP Adapter", true),
+        new VpnInterfaceObservation("WireGuard Tunnel", "Wintun Device", false),
+        new VpnInterfaceObservation("vEthernet", "Hyper-V Virtual Ethernet", true)
+    ], now);
+Assert(detected.HasSignals && detected.RunningProducts.Count == 3,
+    "Exact names, deduplication, independent products and no fuzzy false positives");
+Assert(detected.UpTunnelInterfaces.SequenceEqual(["Cloudflare WARP"]),
+    "Only Up recognized adapters; exclude unrelated virtual networks");
+Assert(detected.Describe().Contains("NÃO confirmado"),
+    "Do not report an active Albion tunnel without routed-traffic evidence");
+var absent = VpnEnvironmentDetector.Classify(["steam", "firefox"],
+    [new VpnInterfaceObservation("vEthernet", "Hyper-V Virtual Ethernet", true)], now);
+Assert(!absent.HasSignals && absent.Describe().Contains("VPN não descartada"),
+    "Missing signatures do not prove no VPN");
+var unavailable = VpnEnvironmentDetector.Classify([], [], now,
+    processInspectionAvailable: false, interfaceInspectionAvailable: true);
+Assert(unavailable.Describe().Contains("inspeção parcial"),
+    "Inspection denied must not be misclassified as a negative result");
+Assert(VpnEnvironmentDetector.Classify(["Cloudflare WARP"], [], now).HasSignals,
+    "WARP DNS-only process is a clue, not permission to recover or a route claim");
+Assert(!VpnCaptureRecoveryPolicy.CanProbe(false, now, now.AddSeconds(-90),
+    now.AddSeconds(-35), null, now.AddSeconds(-1), 7, 0),
+    "VPN recognition must not bypass the existing explicit opt-in gate");
+// Additional compatibility matrix: a known process plus an Up adapter is still
+// merely a pair of local clues, never proof of an Albion VPN route.
+var providerMatrix = VpnEnvironmentDetector.Classify(
+    ["WireGuard", "OpenVPN-GUI", "ProtonVPN", "mullvad-vpn", "warp-svc", "exitlagNotReal"],
+    [
+        new VpnInterfaceObservation("NordLynx", "NordLynx Tunnel", true),
+        new VpnInterfaceObservation("TAP-Windows Adapter", "TAP-Windows Adapter", true),
+        new VpnInterfaceObservation("WireGuard", "WireGuard Adapter", false),
+        new VpnInterfaceObservation("DockerNAT", "Hyper-V Virtual Ethernet Adapter", true)
+    ], now);
+Assert(providerMatrix.RunningProducts.Count == 5,
+    "Recognize only exact known process names and exclude partial-name imitations");
+Assert(providerMatrix.UpTunnelInterfaces.SequenceEqual(["NordLynx", "TAP (genérico)"]),
+    "Only currently Up, recognized tunnel adapter labels should be exposed");
+Assert(providerMatrix.Describe().Contains("uso pelo Albion NÃO confirmado"),
+    "Combined known process and tunnel adapter must not be called an active Albion route");
+Console.WriteLine("PASS: known tunnel labels cannot establish Albion route");
+
+// Real ExitLag reproducer: 0 Photon and 0 candidates with game process running.
+VpnCaptureAssistDiagnostics.ResetIngress();
+VpnCaptureAssistDiagnostics.ObserveOpenedInterfaces(2);
+VpnCaptureAssistDiagnostics.ObserveAlbionProcessPresence(true);
+var ingressEmpty = VpnCaptureAssistDiagnostics.Snapshot(true, false);
+Assert(ingressEmpty.AlbionProcessPresent == true,
+    "Albion process must be independent of missing Photon and previous event counters");
+Assert(ingressEmpty.OpenedInterfaces == 2 && ingressEmpty.CapturedFrames == 0 &&
+       VpnCaptureAssistDiagnostics.DescribeIngress(ingressEmpty).Contains("Nenhum quadro"),
+    "Open Npcap with zero ingress must not masquerade as encrypted Photon");
+VpnCaptureAssistDiagnostics.ObserveIngressFrame();
+VpnCaptureAssistDiagnostics.ObserveIngressTcp();
+VpnCaptureAssistDiagnostics.ObserveIngressFrame();
+VpnCaptureAssistDiagnostics.ObserveIngressUdp(false);
+VpnCaptureAssistDiagnostics.ObserveIngressFrame();
+VpnCaptureAssistDiagnostics.ObserveIngressUdp(true);
+var ingressObserved = VpnCaptureAssistDiagnostics.Snapshot(true, false);
+Assert(ingressObserved.CapturedFrames == 3 && ingressObserved.CapturedTcp == 1 &&
+       ingressObserved.CapturedUdp == 2 && ingressObserved.CapturedNonStandardUdpPorts == 1 &&
+       ingressObserved.LastCapturedFrameUtc.HasValue,
+    "Content-free UDP and TCP layer counters must be independent of Photon");
+VpnCaptureAssistDiagnostics.ResetIngress();
+var ingressReset = VpnCaptureAssistDiagnostics.Snapshot(true, false);
+Assert(ingressReset.CapturedFrames == 0 && ingressReset.OpenedInterfaces == 0 &&
+       ingressReset.AlbionProcessPresent is null && ingressReset.LastCapturedFrameUtc is null,
+    "Ingress counters and Albion observation must reset for new sessions");
+Console.WriteLine("PASS: zero-Photon ExitLag ingress diagnosis is distinct from game process presence");
+
+Assert(VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, "standard", "standard"),
+    "Eligible diagnostic pilot can broaden an explicitly opted-in default filter");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(false, true, "standard", "standard"),
+    "Normal candidate must never broaden the filter");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(true, false, "standard", "standard"),
+    "No diagnostic override when VPN assist is disabled");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, "custom", "standard"),
+    "Do not override user-customized BPF WITHOUT specific consent");
+Assert(VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, "custom", "standard", true),
+    "Explicit consent in portable pilot must permit temporary broadening despite custom BPF");
+Assert(VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, null, "standard", true),
+    "Explicit consent also permits a previously empty saved filter");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(false, true, "custom", "standard", true),
+    "Opt-in never broadens the production build");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(true, false, "custom", "standard", true),
+    "Opt-in never broadens when VPN assist is off");
+Assert(VpnIngressFilterPolicy.BroadUdpFilter.Contains("udp") &&
+       !VpnIngressFilterPolicy.BroadUdpFilter.Contains("tcp"),
+    "Diagnostic must only broaden UDP, never all TCP");
+VpnCaptureAssistDiagnostics.ObservePacketFilter(VpnIngressFilterPolicy.BroadUdpFilter);
+Assert(VpnCaptureAssistDiagnostics.CaptureFilterMode.Contains("PILOTO"),
+    "Expose real applied broad filter in diagnostics");
+VpnCaptureAssistDiagnostics.ObservePacketFilter("udp port 5056");
+Assert(VpnCaptureAssistDiagnostics.CaptureFilterMode.Contains("RESTRITO"),
+    "Distinguish unchanged restricted filter from pilot");
+VpnCaptureAssistDiagnostics.ResetIngress();
+VpnCaptureAssistDiagnostics.RegisterIngressInterface("fake-adapter-A", "Realtek teste");
+VpnCaptureAssistDiagnostics.RegisterIngressInterface("fake-adapter-B", "Tunel teste");
+// The dispatcher registration key must be the same canonical Pcap.Name
+// that callback traffic uses; distinct device-level identifiers are not equivalent.
+VpnCaptureAssistDiagnostics.ObserveIngressFrame("fake-adapter-A");
+VpnCaptureAssistDiagnostics.ObserveIngressUdp(false, "fake-adapter-A");
+VpnCaptureAssistDiagnostics.ObserveIngressFrame("fake-adapter-B");
+VpnCaptureAssistDiagnostics.ObserveIngressUdp(true, "fake-adapter-B");
+var interfaceStats = VpnCaptureAssistDiagnostics.DescribeIngressInterfaces();
+Assert(interfaceStats.Contains("Realtek teste") && interfaceStats.Contains("Tunel teste") &&
+       interfaceStats.Contains("UDP outras portas 1") &&
+       interfaceStats.Contains("UDP outras portas 0"),
+    "Bounded local per-interface ingress aggregation must separate known and nonstandard ports");
+for (int i = 0; i < 40; i++)
+    VpnCaptureAssistDiagnostics.RegisterIngressInterface($"fake-if-{i}", $"Adapter {i}");
+var boundedInterfaceStats = VpnCaptureAssistDiagnostics.DescribeIngressInterfaces();
+Assert(boundedInterfaceStats.Split("IF#").Length - 1 <= 5 &&
+       boundedInterfaceStats.Contains("Realtek teste"),
+    "Limit tracked interfaces and diagnostic output regardless of adapter churn");
+VpnCaptureAssistDiagnostics.ResetIngress();
+Assert(VpnCaptureAssistDiagnostics.DescribeIngressInterfaces() == "nenhuma interface registrada",
+    "Interface diagnostic history must be cleared between capture sessions");
+Console.WriteLine("PASS: bounded per-interface UDP ingress diagnostic with no network identifiers");
+
+Console.WriteLine("PASS: pilot-only opt-in UDP ingress without changing normal capture policy");
+Console.WriteLine("PASS: bounded passive VPN recognition; capture policy unchanged");
+
 static void Assert(bool okay, string explanation)
 {
     if (!okay) throw new InvalidOperationException(explanation);
