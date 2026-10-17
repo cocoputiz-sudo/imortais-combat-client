@@ -19,7 +19,8 @@ internal static class VpnIngressFilterPolicy
 
     internal static bool ShouldUseBroadFilter(
         bool diagnosticPilotBinary, bool vpnAssistEnabled,
-        string? effectiveFilter, string defaultFilter) =>
+        string? effectiveFilter, string defaultFilter, bool explicitPilotConsent = false) =>
         diagnosticPilotBinary && vpnAssistEnabled &&
-        string.Equals(effectiveFilter, defaultFilter, StringComparison.OrdinalIgnoreCase);
+        (explicitPilotConsent ||
+         string.Equals(effectiveFilter, defaultFilter, StringComparison.OrdinalIgnoreCase));
 }

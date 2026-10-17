@@ -172,7 +172,15 @@ Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(false, true, "standard", "st
 Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(true, false, "standard", "standard"),
     "No diagnostic override when VPN assist is disabled");
 Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, "custom", "standard"),
-    "Do not override user-customized BPF");
+    "Do not override user-customized BPF WITHOUT specific consent");
+Assert(VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, "custom", "standard", true),
+    "Explicit consent in portable pilot must permit temporary broadening despite custom BPF");
+Assert(VpnIngressFilterPolicy.ShouldUseBroadFilter(true, true, null, "standard", true),
+    "Explicit consent also permits a previously empty saved filter");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(false, true, "custom", "standard", true),
+    "Opt-in never broadens the production build");
+Assert(!VpnIngressFilterPolicy.ShouldUseBroadFilter(true, false, "custom", "standard", true),
+    "Opt-in never broadens when VPN assist is off");
 Assert(VpnIngressFilterPolicy.BroadUdpFilter.Contains("udp") &&
        !VpnIngressFilterPolicy.BroadUdpFilter.Contains("tcp"),
     "Diagnostic must only broaden UDP, never all TCP");
@@ -185,6 +193,8 @@ Assert(VpnCaptureAssistDiagnostics.CaptureFilterMode.Contains("RESTRITO"),
 VpnCaptureAssistDiagnostics.ResetIngress();
 VpnCaptureAssistDiagnostics.RegisterIngressInterface("fake-adapter-A", "Realtek teste");
 VpnCaptureAssistDiagnostics.RegisterIngressInterface("fake-adapter-B", "Tunel teste");
+// The dispatcher registration key must be the same canonical Pcap.Name
+// that callback traffic uses; distinct device-level identifiers are not equivalent.
 VpnCaptureAssistDiagnostics.ObserveIngressFrame("fake-adapter-A");
 VpnCaptureAssistDiagnostics.ObserveIngressUdp(false, "fake-adapter-A");
 VpnCaptureAssistDiagnostics.ObserveIngressFrame("fake-adapter-B");

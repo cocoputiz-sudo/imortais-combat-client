@@ -466,6 +466,20 @@
                                                         Click="ImortaisVpnRescan_Click"
                                                         ToolTip="Somente quando solicitado: pede ao capturador Npcap reexaminar as interfaces. Pode interromper momentaneamente os eventos." />
                                             </StackPanel>
+                                            <StackPanel x:Name="ImortaisVpnUdpPilotPanel"
+                                                        Visibility="Collapsed"
+                                                        Margin="0,8,0,0">
+                                                <Button x:Name="ImortaisVpnUdpPilotButton"
+                                                        Content="PILOTO UDP AMPLO: DESLIGADO"
+                                                        Height="32"
+                                                        MinWidth="245"
+                                                        HorizontalAlignment="Left"
+                                                        Click="ImortaisVpnUdpPilotToggle_Click"
+                                                        ToolTip="Somente neste pacote portátil experimental. Autoriza substituir temporariamente o filtro de captura por UDP em todas as portas; reinicie o portátil para aplicar." />
+                                                <TextBlock Text="EXCLUSIVO DO PILOTO: permite observar metadados UDP em outras portas sem substituir o filtro personalizado salvo. Reinicie este cliente para aplicar. Não usar durante CTA/ZvZ."
+                                                           TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"
+                                                           Foreground="LightSkyBlue" />
+                                            </StackPanel>
                                             <TextBlock x:Name="ImortaisVpnCaptureStatusText"
                                                        Text="VPN: aguardando diagnóstico"
                                                        TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"

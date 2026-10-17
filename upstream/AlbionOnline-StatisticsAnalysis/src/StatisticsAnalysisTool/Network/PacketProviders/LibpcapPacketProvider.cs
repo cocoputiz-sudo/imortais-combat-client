@@ -227,6 +227,9 @@ public class LibpcapPacketProvider : PacketProvider
                 dispatcher.OpenDevice(device, pcap =>
                 {
                     pcap.NonBlocking = true;
+                    // Use the callback's canonical Pcap.Name. Device.Name is
+                    // not necessarily the same identifier as Dispatch(pcap).
+                    VpnCaptureAssistDiagnostics.RegisterIngressInterface(pcap.Name, device.Description);
                 });
 
                 if (hasFilter)
@@ -246,7 +249,6 @@ public class LibpcapPacketProvider : PacketProvider
                 }
 
                 opened++;
-                VpnCaptureAssistDiagnostics.RegisterIngressInterface(device.Name, device.Description);
             }
             catch (Exception ex)
             {
@@ -1119,7 +1121,8 @@ public class LibpcapPacketProvider : PacketProvider
         if (VpnIngressFilterPolicy.ShouldUseBroadFilter(
             VpnIngressFilterPolicy.IsDiagnosticPilotBinary,
             SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled,
-            configured, DefaultPacketFilter))
+            configured, DefaultPacketFilter,
+            SettingsController.CurrentSettings.IsImortaisVpnUdpProbePilotEnabled))
         {
             return VpnIngressFilterPolicy.BroadUdpFilter;
         }
