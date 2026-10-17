@@ -182,6 +182,29 @@ Assert(VpnCaptureAssistDiagnostics.CaptureFilterMode.Contains("PILOTO"),
 VpnCaptureAssistDiagnostics.ObservePacketFilter("udp port 5056");
 Assert(VpnCaptureAssistDiagnostics.CaptureFilterMode.Contains("RESTRITO"),
     "Distinguish unchanged restricted filter from pilot");
+VpnCaptureAssistDiagnostics.ResetIngress();
+VpnCaptureAssistDiagnostics.RegisterIngressInterface("fake-adapter-A", "Realtek teste");
+VpnCaptureAssistDiagnostics.RegisterIngressInterface("fake-adapter-B", "Tunel teste");
+VpnCaptureAssistDiagnostics.ObserveIngressFrame("fake-adapter-A");
+VpnCaptureAssistDiagnostics.ObserveIngressUdp(false, "fake-adapter-A");
+VpnCaptureAssistDiagnostics.ObserveIngressFrame("fake-adapter-B");
+VpnCaptureAssistDiagnostics.ObserveIngressUdp(true, "fake-adapter-B");
+var interfaceStats = VpnCaptureAssistDiagnostics.DescribeIngressInterfaces();
+Assert(interfaceStats.Contains("Realtek teste") && interfaceStats.Contains("Tunel teste") &&
+       interfaceStats.Contains("UDP outras portas 1") &&
+       interfaceStats.Contains("UDP outras portas 0"),
+    "Bounded local per-interface ingress aggregation must separate known and nonstandard ports");
+for (int i = 0; i < 40; i++)
+    VpnCaptureAssistDiagnostics.RegisterIngressInterface($"fake-if-{i}", $"Adapter {i}");
+var boundedInterfaceStats = VpnCaptureAssistDiagnostics.DescribeIngressInterfaces();
+Assert(boundedInterfaceStats.Split("IF#").Length - 1 <= 5 &&
+       boundedInterfaceStats.Contains("Realtek teste"),
+    "Limit tracked interfaces and diagnostic output regardless of adapter churn");
+VpnCaptureAssistDiagnostics.ResetIngress();
+Assert(VpnCaptureAssistDiagnostics.DescribeIngressInterfaces() == "nenhuma interface registrada",
+    "Interface diagnostic history must be cleared between capture sessions");
+Console.WriteLine("PASS: bounded per-interface UDP ingress diagnostic with no network identifiers");
+
 Console.WriteLine("PASS: pilot-only opt-in UDP ingress without changing normal capture policy");
 Console.WriteLine("PASS: bounded passive VPN recognition; capture policy unchanged");
 

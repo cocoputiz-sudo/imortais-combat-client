@@ -1,5 +1,6 @@
 #nullable enable
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -57,6 +58,20 @@ internal static class VpnCaptureAssistDiagnostics
 {
     private static readonly object Gate = new();
     private static readonly Dictionary<string, DateTime> CandidateAdapters = new(StringComparer.OrdinalIgnoreCase);
+    private const int MaxIngressAdapters = 24;
+    private static readonly ConcurrentDictionary<string, InterfaceIngress> IngressByAdapter =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly object IngressRegistrationGate = new();
+    private static int _nextIngressAdapterId;
+
+    private sealed class InterfaceIngress(int number, string label)
+    {
+        public int Number { get; } = number;
+        public string Label { get; } = label;
+        public long Frames;
+        public long Udp;
+        public long NonPhotonUdp;
+    }
     private static long _lastCandidateTicks;
     private static long _lastDecodedTicks;
     private static long _candidatePackets;
@@ -82,6 +97,11 @@ internal static class VpnCaptureAssistDiagnostics
     /// <summary>Local, content-free ingress counts. No IP, MAC, payload or routes.</summary>
     public static void ResetIngress()
     {
+        lock (IngressRegistrationGate)
+        {
+            IngressByAdapter.Clear();
+            _nextIngressAdapterId = 0;
+        }
         Interlocked.Exchange(ref _ingressFrames, 0);
         Interlocked.Exchange(ref _ingressUdp, 0);
         Interlocked.Exchange(ref _ingressOtherUdpPorts, 0);
@@ -112,15 +132,55 @@ internal static class VpnCaptureAssistDiagnostics
     };
     public static void ObserveAlbionProcessPresence(bool observed) =>
         Interlocked.Exchange(ref _albionProcessPresence, observed ? 2 : 1);
-    public static void ObserveIngressFrame()
+    public static void RegisterIngressInterface(string adapterName, string? description)
+    {
+        if (string.IsNullOrWhiteSpace(adapterName)) return;
+        lock (IngressRegistrationGate)
+        {
+            if (IngressByAdapter.ContainsKey(adapterName) || IngressByAdapter.Count >= MaxIngressAdapters)
+                return;
+            var number = ++_nextIngressAdapterId;
+            var label = string.IsNullOrWhiteSpace(description)
+                ? "sem descrição" : description.Trim();
+            // Diagnostic metadata remains local. Descriptions can be user-controlled.
+            if (label.Length > 72) label = label[..72];
+            IngressByAdapter.TryAdd(adapterName, new InterfaceIngress(number, label));
+        }
+    }
+
+    public static void ObserveIngressFrame(string? adapterName = null)
     {
         Interlocked.Increment(ref _ingressFrames);
         Interlocked.Exchange(ref _lastIngressTicks, DateTime.UtcNow.Ticks);
+        if (adapterName is not null && IngressByAdapter.TryGetValue(adapterName, out var meter))
+            Interlocked.Increment(ref meter.Frames);
     }
-    public static void ObserveIngressUdp(bool usesKnownPhotonPort)
+    public static void ObserveIngressUdp(bool usesKnownPhotonPort, string? adapterName = null)
     {
         Interlocked.Increment(ref _ingressUdp);
         if (!usesKnownPhotonPort) Interlocked.Increment(ref _ingressOtherUdpPorts);
+        if (adapterName is not null && IngressByAdapter.TryGetValue(adapterName, out var meter))
+        {
+            Interlocked.Increment(ref meter.Udp);
+            if (!usesKnownPhotonPort) Interlocked.Increment(ref meter.NonPhotonUdp);
+        }
+    }
+
+    internal static string DescribeIngressInterfaces()
+    {
+        // Highest-volume adapters only, bounded to five. No IP, MAC, packet
+        // contents or process-to-flow attribution are collected or retained.
+        var entries = IngressByAdapter.Values
+            .Select(m => new {
+                m.Number, m.Label,
+                Frames = Interlocked.Read(ref m.Frames),
+                Udp = Interlocked.Read(ref m.Udp),
+                OtherUdp = Interlocked.Read(ref m.NonPhotonUdp)
+            })
+            .OrderByDescending(m => m.Udp).ThenBy(m => m.Number).Take(5)
+            .Select(m => $"IF#{m.Number} ({m.Label}): quadros {m.Frames}, UDP {m.Udp}, UDP outras portas {m.OtherUdp}")
+            .ToArray();
+        return entries.Length == 0 ? "nenhuma interface registrada" : string.Join(" | ", entries);
     }
     public static void ObserveIngressTcp() => Interlocked.Increment(ref _ingressTcp);
 

@@ -246,6 +246,7 @@ public class LibpcapPacketProvider : PacketProvider
                 }
 
                 opened++;
+                VpnCaptureAssistDiagnostics.RegisterIngressInterface(device.Name, device.Description);
             }
             catch (Exception ex)
             {
@@ -268,7 +269,7 @@ public class LibpcapPacketProvider : PacketProvider
     {
         var vpnEnabled = SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled;
         if (vpnEnabled)
-            VpnCaptureAssistDiagnostics.ObserveIngressFrame();
+            VpnCaptureAssistDiagnostics.ObserveIngressFrame(pcap.Name);
         var current = _activePcap;
         if (current is not null && !ReferenceEquals(current, pcap)
             && !vpnEnabled)
@@ -577,7 +578,7 @@ public class LibpcapPacketProvider : PacketProvider
 
         bool isPhotonPort = PhotonPorts.Udp.Contains(udp.SourcePort) || PhotonPorts.Udp.Contains(udp.DestinationPort);
         if (SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
-            VpnCaptureAssistDiagnostics.ObserveIngressUdp(isPhotonPort);
+            VpnCaptureAssistDiagnostics.ObserveIngressUdp(isPhotonPort, pcap.Name);
         // Outside normal Photon ports: count UDP metadata, NEVER decode tunnel traffic.
         if (VpnIngressFilterPolicy.IsDiagnosticPilotBinary && !isPhotonPort)
             return;
