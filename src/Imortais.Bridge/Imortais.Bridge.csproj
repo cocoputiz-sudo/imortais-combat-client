@@ -8,4 +8,7 @@
     <AssemblyName>IMORTAIS.CombatClient</AssemblyName>
     <RootNamespace>Imortais.Bridge</RootNamespace>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisProductionEndpoint.cs" Link="ImortaisProductionEndpoint.cs" />
+  </ItemGroup>
 </Project>

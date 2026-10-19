@@ -31,7 +31,7 @@ try {
     # with the server, against the exact bound device ID, below.
     if ([string]$config.PlayerName -ine "BadMack") { exit 28 }
 
-    $uri = "https://cta-imortais.up.railway.app/api/telemetry/context?deviceId=" +
+    $uri = "https://imortais.macknacloud.com.br/api/telemetry/context?deviceId=" +
         [Uri]::EscapeDataString($deviceId)
     try {
         $data = Invoke-RestMethod -Uri $uri -Method Get -Headers @{

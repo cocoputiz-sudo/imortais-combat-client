@@ -1,7 +1,9 @@
 namespace Imortais.Bridge.Models;
 public sealed class BridgeSettings
 {
-    public string RailwayBaseUrl { get; set; } = "https://cta-imortais.up.railway.app";
+    public string RailwayBaseUrl { get; set; } = StatisticsAnalysisTool.Imortais.ImortaisProductionEndpoint.BaseUrl;
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? AdditionalSettings { get; set; }
     public string ApiKey { get; set; } = "";
     public string DeviceId { get; set; } = Environment.MachineName.ToLowerInvariant();
     public string PlayerName { get; set; } = "";
