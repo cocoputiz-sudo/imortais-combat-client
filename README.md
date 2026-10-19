@@ -5,13 +5,25 @@ Cliente desktop da guilda **I M O R T A I S** para Albion Online, baseado no pro
 > **Versão estável atual:** v0.6.8  
 > **Plataforma estável:** Windows 10/11 x64  
 > **Runtime:** .NET 10 / WPF  
-> **Release oficial:** `IMORTAIS-Combat-Client-Setup-v0.6.8.exe`
+> **Download Windows:** [Baixar instalador v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.6.8.exe)  
+> **Notas da versão:** [Release oficial v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.6.8)  
+> **War Room:** [imortais.macknacloud.com.br](https://imortais.macknacloud.com.br)
 
 O Combat Client reaproveita a captura passiva e os parsers Photon do Statistics Analysis para transformar dados observados no Albion em telemetria operacional da guilda. O cliente **não injeta código no Albion, não controla o personagem e não automatiza ações dentro do jogo**.
 
 ---
 
-## v0.6.0
+## Atualização v0.6.8
+
+A v0.6.8 passa a usar **https://imortais.macknacloud.com.br** nas instalações novas e migra automaticamente as configurações com o endereço HTTPS original do Railway. Preserva pareamento, identificação do dispositivo, preferências e fila de eventos; servidores personalizados permanecem como configurados.
+
+**Já tem o client instalado?** Use **VERIFICAR ATUALIZAÇÃO / ATUALIZAR AGORA** no aplicativo. Para instalar manualmente, [baixe o instalador oficial v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.6.8.exe).
+
+Esta release parte da v0.6.7 estável. Os ajustes experimentais de reconhecimento de VPN e Death Review v3 continuam em revisão e não fazem parte desta atualização. [Consulte as notas da v0.6.8](docs/releases/v0.6.8-debian-endpoint.md).
+
+---
+
+## Recursos incorporados desde a v0.6.0
 
 A v0.6.0 consolida três frentes principais:
 
@@ -129,7 +141,7 @@ outbox NDJSON persistente
     ↓ HTTPS
 /api/telemetry/ingest
     ↓
-Railway / PostgreSQL
+Debian / PostgreSQL
     ↓
 IMORTAIS War Room
 ```
@@ -349,18 +361,13 @@ A release v0.5.9 e seus assets permanecem disponíveis para fallback manual. Se 
 
 ## Instalação
 
-Para jogadores, use o instalador oficial da release:
+Para jogadores, use o **[instalador oficial v0.6.8 para Windows x64](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.6.8.exe)**.
 
-```text
-IMORTAIS-Combat-Client-Setup-v0.6.8.exe
-```
+Também estão disponíveis:
 
-Também são publicados:
-
-```text
-IMORTAIS-Combat-Client-Setup-v0.6.8.exe.sha256
-IMORTAIS-Combat-Client-v0.6.0-win-x64.zip
-```
+- [Checksum SHA-256 do instalador](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.6.8.exe.sha256).
+- [ZIP v0.6.8 Windows x64](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-v0.6.8-win-x64.zip).
+- [Notas e arquivos da release v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.6.8).
 
 O instalador é o caminho recomendado. O ZIP é destinado principalmente a diagnóstico/desenvolvimento.
 
@@ -370,7 +377,7 @@ O instalador é o caminho recomendado. O ZIP é destinado principalmente a diagn
 
 Existe uma linha nativa Linux em desenvolvimento/preview, separada da release Windows.
 
-Ela **não faz parte da v0.6.0 estável** e continua em validação real no Ubuntu antes de ser anunciada para uso geral.
+Ela **não faz parte da release Windows estável** e continua em validação real no Ubuntu antes de ser anunciada para uso geral.
 
 ---
 
@@ -416,32 +423,11 @@ Builds oficiais exigem a chave pública do updater.
 
 ## Publicação de release
 
-A última release publicada é a v0.6.1. A próxima versão foi preparada para assinatura
-com as **mesmas chaves Ed25519**, depois de homologação e integração do PR #36:
+A versão estável publicada é a **v0.6.8**, com instalador e feed assinados por **Ed25519**. O script usado nesta publicação foi `scripts/publi-icc-v068.ps1`, executado no Windows autorizado com as chaves existentes.
 
-```powershell
-.\scripts\publi-icc-v062.ps1
-```
+A v0.6.8 já foi publicada: não execute novamente esse publicador para gerar outra atualização. Uma próxima release deve usar uma versão superior, com código, testes, notas e script correspondentes. Preserve as mesmas chaves do updater e nunca sobrescreva os arquivos de uma release existente.
 
-Este script deve ser executado no computador autorizado que já possui
-`NetSparkle_Ed25519.priv` e `NetSparkle_Ed25519.pub`. Ele só publica a
-v0.6.2 depois de validar o enum Photon, os testes, a assinatura do instalador
-e a assinatura do feed. Não execute novamente publicadores antigos.
-
-O script oficial valida, entre outros pontos:
-
-- metadados de versão;
-- `ClientVersion` da telemetria;
-- gravação OFF por padrão;
-- Highlights e proteções de pressão;
-- refresh de contexto em 30 s;
-- backoff de ingest;
-- GuildMight request/response;
-- assinatura Ed25519;
-- tamanho/hash do instalador;
-- inexistência prévia da tag estável antes de publicar.
-
-O script histórico `publi-icc-v059.ps1` não deve ser usado para publicar a v0.6.0.
+Para obter ou atualizar o aplicativo, use os links de download acima ou o botão **ATUALIZAR AGORA** no client.
 
 ---
 
