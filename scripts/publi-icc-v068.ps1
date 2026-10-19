@@ -106,8 +106,8 @@ if(Test-Path -LiteralPath $WorkRoot){Remove-Item -LiteralPath $WorkRoot -Recurse
 if($LASTEXITCODE -ne 0){throw "Falha ao clonar main do repositório."}
 Push-Location $WorkRoot
 try{
-    $pr = & $gh pr view 36 --repo $Repo --json mergedAt,mergeCommit | ConvertFrom-Json
-    if($LASTEXITCODE -ne 0 -or -not $pr.mergedAt){throw "PR #36 ainda não foi mesclado. NÃO publicar."}
+    $pr = & $gh pr view 56 --repo $Repo --json mergedAt,mergeCommit | ConvertFrom-Json
+    if($LASTEXITCODE -ne 0 -or -not $pr.mergedAt){throw "PR #56 de migração do endpoint ainda não foi mesclado. NÃO publicar."}
     # Recusar publicacao sem a remocao especifica que realinha o enum Photon.
     $enumPath=Join-Path $WorkRoot "upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\Network\EventCodes.cs"
     $photonDiagnosticsPath=Join-Path $WorkRoot "upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\Imortais\ImortaisPhotonEventDiagnostics.cs"

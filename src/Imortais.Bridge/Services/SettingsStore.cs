@@ -27,7 +27,16 @@ public sealed class SettingsStore
     {
         settings.RailwayBaseUrl = StatisticsAnalysisTool.Imortais.ImortaisProductionEndpoint.Migrate(settings.RailwayBaseUrl);
         Directory.CreateDirectory(_dir);
-        File.WriteAllText(FilePath, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+        var temporary = FilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.WriteAllText(temporary, JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(temporary, FilePath, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
     }
 }
 
