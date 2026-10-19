@@ -1,5 +1,5 @@
 param(
-    [string]$ServerUrl = 'https://cta-imortais.up.railway.app',
+    [string]$ServerUrl = 'https://imortais.macknacloud.com.br',
     [Parameter(Mandatory=$true)][string]$AgentKey,
     [Parameter(Mandatory=$true)][string]$PlayerName,
     [string]$DeviceId = $env:COMPUTERNAME,

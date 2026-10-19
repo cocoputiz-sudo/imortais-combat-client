@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisProductionEndpoint.cs" Link="ImortaisProductionEndpoint.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisTelemetryConfig.cs" Link="ImortaisTelemetryConfig.cs" />
+    <Compile Include="../../src/Imortais.Bridge/Models/BridgeSettings.cs" Link="BridgeSettings.cs" />
+    <Compile Include="../../src/Imortais.Bridge/Services/SettingsStore.cs" Link="SettingsStore.cs" />
+  </ItemGroup>
+</Project>
