@@ -205,3 +205,10 @@ Execute este checklist **antes de mesclar o cliente Linux na main**:
 - [ ] Fechar e reabrir o cliente e confirmar persistência de ativação/configuração e reenvio do outbox pendente.
 
 Somente após esse teste real a integração deve ser mesclada.
+
+
+## Servidor Debian (candidata, não publicada)
+
+Novas instalações e configurações com o endereço HTTPS original do Railway usam `https://imortais.macknacloud.com.br`. Ao carregar as configurações, preserva token, dispositivo, jogador, CTA, autostart, consentimento de captura e campos desconhecidos. A migração não modifica autostart nem outbox; persistência atômica com diretório 0700 e arquivo 0600. Servidor personalizado permanece como configurado. Se salvar falhar, mantém credencial e destino novo em memória.
+
+Este patch parte da candidata Linux alpha 2 do PR #40 e depende de sua integração. CI desta branch não publica release. A release Linux publicada mais recente continua `v0.2.0-linux-alpha.29`. Validar instalação gráfica e envio autenticado direto em um Ubuntu pareado antes de encerrar a ponte. A distribuição da alpha 2 deve preservar o número incremental do pacote e o fluxo de atualização já preparado no PR #40.

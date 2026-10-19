@@ -10,6 +10,7 @@ on:
     paths:
       - "src/Imortais.LinuxClient/**"
       - "src/Imortais.LinuxClient.ContractTests/**"
+      - "tests/LinuxEndpoint.LogicTests/**"
       - "scripts/build-linux-deb.sh"
       - "scripts/generate-linux-world-map-names.mjs"
       - "docs/LINUX-CLIENT.md"
@@ -20,12 +21,14 @@ on:
       - ".github/workflows/build-linux-client.yml"
   push:
     branches:
+      - fix/linux-debian-endpoint-20261019
       - main
       - feat/linux-alpha-dragonfire-20261013
       - fix/linux-export-updater-session-20261013
     paths:
       - "src/Imortais.LinuxClient/**"
       - "src/Imortais.LinuxClient.ContractTests/**"
+      - "tests/LinuxEndpoint.LogicTests/**"
       - "scripts/build-linux-deb.sh"
       - "scripts/generate-linux-world-map-names.mjs"
       - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool.PhotonPackageParser/**"
@@ -53,6 +56,9 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libpcap-dev libcap2-bin dpkg-dev
+
+      - name: Validate Linux endpoint migration
+        run: dotnet run --project tests/LinuxEndpoint.LogicTests/LinuxEndpoint.LogicTests.csproj -c Release
 
       - name: Restore
         run: dotnet restore src/Imortais.LinuxClient/Imortais.LinuxClient.csproj

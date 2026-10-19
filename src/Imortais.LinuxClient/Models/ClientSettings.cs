@@ -2,7 +2,9 @@ namespace Imortais.LinuxClient.Models;
 
 public sealed class ClientSettings
 {
-    public string ServerUrl { get; set; } = "https://cta-imortais.up.railway.app";
+    public string ServerUrl { get; set; } = Imortais.LinuxClient.Services.ProductionEndpoint.BaseUrl;
+    [System.Text.Json.Serialization.JsonExtensionData]
+    public Dictionary<string, System.Text.Json.JsonElement>? AdditionalSettings { get; set; }
     public string AgentKey { get; set; } = string.Empty;
     public string DeviceId { get; set; } = BuildDeviceId();
     public string PlayerName { get; set; } = string.Empty;
