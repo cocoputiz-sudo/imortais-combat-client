@@ -10,7 +10,7 @@
         xmlns:glob="clr-namespace:System.Globalization;assembly=System.Runtime"
         mc:Ignorable="d"
         d:DesignHeight="850" d:DesignWidth="1150"
-        Title="IMORTAIS Combat Client"
+        Title="Guild Combat Client"
         Icon="../Assets/imortais-icon.png"
 	
         Closing="MainWindow_OnClosing"
@@ -70,7 +70,7 @@
                 </Grid.ColumnDefinitions>
                 <Image Grid.Column="0" Style="{StaticResource Image.ToolIcon}" />
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Height="38">
-                    <Label Content="IMORTAIS COMBAT CLIENT" Style="{StaticResource MainWindow.Title}" />
+                    <Label Content="GUILD COMBAT CLIENT" Style="{StaticResource MainWindow.Title}" />
                     <Grid Visibility="{Binding UnsupportedOsVisibility, FallbackValue=Collapsed}"
                           Height="20" Width="20" VerticalAlignment="Center" ToolTip="{Binding Translation.UnsupportedOs, FallbackValue='UNSUPPORTED_OS'}">
                         <fa:FontAwesomeImage Icon="SolidTriangleExclamation" Foreground="{StaticResource SolidColorBrush.Accent.Red.3}" />
@@ -208,291 +208,144 @@
         </Grid>
 
         <TabControl Style="{DynamicResource TabControlStyle}" SelectedIndex="0">
-            <TabItem Header="IMORTAIS" Tag="pack://application:,,,/Assets/imortais-icon.png">
+            <TabItem Header="GUILD" Tag="pack://application:,,,/Assets/imortais-icon.png">
                 <Grid Style="{StaticResource TabItemGridStyle}">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                        <Grid Margin="30,24,30,30">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                            </Grid.RowDefinitions>
+                    <Grid Style="{StaticResource BackgroundImageGridStyle}" />
+                    <ScrollViewer x:Name="GuildHomeScrollViewer" Padding="15,10,15,15" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
 
-                            <TextBlock Grid.Row="0"
-                                       Text="IMORTAIS COMBAT CLIENT"
-                                       FontSize="28"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                            <TextBlock Grid.Row="1"
-                                       Margin="0,4,0,0"
-                                       Text="Telemetria do Albion → CTA War Room"
-                                       FontSize="13"
-                                       Foreground="{StaticResource SolidColorBrush.Text.4}" />
-
-                            <Border Grid.Row="2"
-                                    Margin="0,18,0,0"
-                                    MinHeight="305"
-                                    Padding="18"
-                                    Background="{StaticResource SolidColorBrush.Background.3}"
-                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
-                                    BorderThickness="1"
-                                    CornerRadius="4">
+                            <!-- Cabeçalho: produto, guilda atendida e versão -->
+                            <Border Style="{StaticResource App.TopFilterCard}" Margin="0,0,0,10">
                                 <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="34" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                    </Grid.RowDefinitions>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="95" />
                                         <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-
-                                    <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
-                                               Text="STATUS"
-                                               FontSize="14"
-                                               FontWeight="Bold"
-                                               Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
-
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="WAR ROOM" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ImortaisHomeWarRoomStatusText" Text="● VERIFICANDO..." VerticalAlignment="Center" Foreground="Gold" />
-
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="ALBION" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ImortaisHomeAlbionStatusText" Text="● AGUARDANDO DADOS..." VerticalAlignment="Center" Foreground="Gold" />
-
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="PERSONAGEM" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="3" Grid.Column="1"
-                                               Text="{Binding UserTrackingBindings.Username, FallbackValue=AGUARDANDO}"
-                                               VerticalAlignment="Center"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource SolidColorBrush.Text.1}" />
-
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="GUILD" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="4" Grid.Column="1"
-                                               Text="{Binding UserTrackingBindings.GuildName, FallbackValue=AGUARDANDO}"
-                                               VerticalAlignment="Center"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource SolidColorBrush.Text.1}" />
-
-                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="MAPA" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <ContentControl Grid.Row="5" Grid.Column="1"
-                                                    VerticalAlignment="Center"
-                                                    Content="{Binding UserTrackingBindings.CurrentMapInfoBinding}"
-                                                    ContentTemplate="{StaticResource CurrentMapInfoTemplate}" />
-
-                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="CTA" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ImortaisHomeCtaStatusText" Text="NENHUM CTA ATIVO" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.4}" />
-
-                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="PARTY" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="7" Grid.Column="1" x:Name="ImortaisHomePartyStatusText" Text="0 detectados" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.4}" />
-
-                                    <TextBlock Grid.Row="8" Grid.Column="0" Text="TELEMETRIA" VerticalAlignment="Center" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="8" Grid.Column="1" x:Name="ImortaisHomeTelemetryStatusText" Text="● AGUARDANDO..." VerticalAlignment="Center" Foreground="Gold" />
+                                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                        <TextBlock Text="GUILD COMBAT CLIENT" FontSize="22" FontWeight="SemiBold"
+                                                   Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                        <TextBlock Margin="0,3,0,0" FontSize="12"
+                                                   Text="Telemetria do Albion para o War Room da sua guilda"
+                                                   Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Border Style="{StaticResource App.FilterGroup}">
+                                            <StackPanel>
+                                                <TextBlock Text="GUILDA" Style="{StaticResource App.FilterLabel}" />
+                                                <TextBlock x:Name="GuildHomeGuildNameText" Text="IMORTAIS" FontSize="15" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
+                                            </StackPanel>
+                                        </Border>
+                                        <StackPanel>
+                                            <TextBlock Text="VERSÃO" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsVersionText" Text="v0.6.8" FontSize="15" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                        </StackPanel>
+                                    </StackPanel>
                                 </Grid>
                             </Border>
 
-                            <Border Grid.Row="3"
-                                    Margin="0,18,0,0"
-                                    Padding="18"
-                                    Background="{StaticResource SolidColorBrush.Background.3}"
-                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
-                                    BorderThickness="1"
-                                    CornerRadius="4">
-                                <StackPanel>
-                                    <TextBlock Text="ATIVAÇÃO DA TELEMETRIA" FontSize="14" FontWeight="Bold"
-                                               Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
-                                    <TextBlock x:Name="ImortaisPairingHelpText" Margin="0,8,0,8"
-                                               Text="Se este computador ainda não estiver ativado, gere um código de 6 dígitos no War Room e informe abaixo."
-                                               TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBox x:Name="ImortaisPairingCodeTextBox" Width="180" Height="34"
-                                                 MaxLength="6" FontSize="16" VerticalContentAlignment="Center"
-                                                 ToolTip="Código de ativação de 6 dígitos" />
-                                        <Button x:Name="ImortaisPairingButton" Content="ATIVAR TELEMETRIA"
-                                                Height="34" MinWidth="180" Margin="10,0,0,0"
-                                                Click="ImortaisPairing_Click" />
+                            <!-- Situação em cartões, no mesmo padrão do Dashboard -->
+                            <UniformGrid Columns="4" Margin="0,0,-8,8">
+                                <Border Style="{StaticResource Dashboard.CombatMetricCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="WAR ROOM" Style="{StaticResource Dashboard.CombatMetricTitle}" />
+                                        <TextBlock x:Name="ImortaisHomeWarRoomStatusText" Margin="0,10,0,0" Text="● VERIFICANDO..."
+                                                   FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="Gold" />
                                     </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Dashboard.CombatMetricCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="TELEMETRIA" Style="{StaticResource Dashboard.CombatMetricTitle}" />
+                                        <TextBlock x:Name="ImortaisHomeTelemetryStatusText" Margin="0,10,0,0" Text="● AGUARDANDO..."
+                                                   FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="Gold" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Dashboard.CombatMetricCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="ALBION" Style="{StaticResource Dashboard.CombatMetricTitle}" />
+                                        <TextBlock x:Name="ImortaisHomeAlbionStatusText" Margin="0,10,0,0" Text="● AGUARDANDO DADOS..."
+                                                   FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="Gold" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Dashboard.CombatMetricCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="CTA" Style="{StaticResource Dashboard.CombatMetricTitle}" />
+                                        <TextBlock x:Name="ImortaisHomeCtaStatusText" Margin="0,10,0,0" Text="NENHUM CTA ATIVO"
+                                                   FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource SolidColorBrush.Text.4}" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+
+                            <UniformGrid Columns="4" Margin="0,0,-8,10">
+                                <Border Style="{StaticResource Dashboard.CombatMetricCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="PERSONAGEM" Style="{StaticResource Dashboard.CombatMetricTitle}" />
+                                        <TextBlock Margin="0,10,0,0" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                   Text="{Binding UserTrackingBindings.Username, FallbackValue=AGUARDANDO}"
+                                                   Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Dashboard.CombatMetricCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="GUILDA NO JOGO" Style="{StaticResource Dashboard.CombatMetricTitle}" />
+                                        <TextBlock Margin="0,10,0,0" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                                                   Text="{Binding UserTrackingBindings.GuildName, FallbackValue=AGUARDANDO}"
+                                                   Foreground="{StaticResource SolidColorBrush.Text.1}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Dashboard.CombatMetricCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="MAPA" Style="{StaticResource Dashboard.CombatMetricTitle}" />
+                                        <ContentControl Margin="0,10,0,0"
+                                                        Content="{Binding UserTrackingBindings.CurrentMapInfoBinding}"
+                                                        ContentTemplate="{StaticResource CurrentMapInfoTemplate}" />
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource Dashboard.CombatMetricCard}">
+                                    <StackPanel>
+                                        <TextBlock Text="PARTY" Style="{StaticResource Dashboard.CombatMetricTitle}" />
+                                        <TextBlock x:Name="ImortaisHomePartyStatusText" Margin="0,10,0,0" Text="0 detectados"
+                                                   FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource SolidColorBrush.Text.4}" />
+                                    </StackPanel>
+                                </Border>
+                            </UniformGrid>
+
+                            <!-- Ativação: escolher a guilda e informar o código -->
+                            <Border Style="{StaticResource Dashboard.Section}" Padding="16,12,16,14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Ativação na guilda" Style="{StaticResource Dashboard.SectionTitle}" />
+                                    <TextBlock x:Name="ImortaisPairingHelpText" Margin="0,6,0,10" TextWrapping="Wrap"
+                                               Text="Escolha a sua guilda (ou cole o endereço do War Room dela), gere um código de 6 dígitos no War Room e informe abaixo."
+                                               Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                                    <WrapPanel>
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="GUILDA" Style="{StaticResource App.FilterLabel}" />
+                                            <ComboBox x:Name="GuildServerComboBox" Width="260" Height="34" IsEditable="True"
+                                                      VerticalContentAlignment="Center"
+                                                      ToolTip="Guilda cadastrada ou endereço https do War Room da sua guilda" />
+                                        </StackPanel>
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="CÓDIGO" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBox x:Name="ImortaisPairingCodeTextBox" Width="150" Height="34"
+                                                     MaxLength="6" FontSize="16" VerticalContentAlignment="Center"
+                                                     ToolTip="Código de ativação de 6 dígitos" />
+                                        </StackPanel>
+                                        <StackPanel VerticalAlignment="Bottom">
+                                            <Button x:Name="ImortaisPairingButton" Content="ATIVAR TELEMETRIA"
+                                                    Height="34" MinWidth="180"
+                                                    Click="ImortaisPairing_Click" />
+                                        </StackPanel>
+                                    </WrapPanel>
                                     <TextBlock x:Name="ImortaisPairingStatusText" Margin="0,8,0,0"
                                                Text="Verificando estado do pareamento..." Foreground="{StaticResource SolidColorBrush.Text.4}" />
                                 </StackPanel>
                             </Border>
 
-                            <Border Grid.Row="4"
-                                    Margin="0,18,0,0"
-                                    Padding="18"
-                                    Background="{StaticResource SolidColorBrush.Background.3}"
-                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
-                                    BorderThickness="1"
-                                    CornerRadius="4">
-                                <Grid>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="34" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="28" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="Auto" />
-                                    </Grid.RowDefinitions>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="145" />
-                                        <ColumnDefinition Width="*" />
-                                    </Grid.ColumnDefinitions>
-
-                                    <TextBlock Grid.Row="0" Grid.ColumnSpan="2"
-                                               Text="DIAGNÓSTICO"
-                                               FontSize="14"
-                                               FontWeight="Bold"
-                                               Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
-
-                                    <TextBlock Grid.Row="1" Grid.Column="0" Text="VERSÃO" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="1" Grid.Column="1" x:Name="ImortaisDiagnosticsVersionText" Text="v0.4.9" FontWeight="SemiBold" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-
-                                    <TextBlock Grid.Row="2" Grid.Column="0" Text="UPDATER" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="2" Grid.Column="1" x:Name="ImortaisDiagnosticsUpdaterText" Text="AINDA NÃO VERIFICADO" Foreground="Gold" />
-
-                                    <TextBlock Grid.Row="3" Grid.Column="0" Text="ÚLTIMA CHECAGEM" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="3" Grid.Column="1" x:Name="ImortaisDiagnosticsLastCheckText" Text="ainda não realizada" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <TextBlock Grid.Row="4" Grid.Column="0" Text="ÚLTIMO CONTATO" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="4" Grid.Column="1" x:Name="ImortaisDiagnosticsLastContactText" Text="aguardando" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <TextBlock Grid.Row="5" Grid.Column="0" Text="OUTBOX" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="5" Grid.Column="1" x:Name="ImortaisDiagnosticsOutboxText" Text="0 eventos" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <TextBlock Grid.Row="6" Grid.Column="0" Text="HEARTBEAT" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="6" Grid.Column="1" x:Name="ImortaisDiagnosticsHeartbeatText" Text="aguardando" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <TextBlock Grid.Row="7" Grid.Column="0" Text="PARTY SNAPSHOT" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="7" Grid.Column="1" x:Name="ImortaisDiagnosticsPartyText" Text="nenhum snapshot" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <TextBlock Grid.Row="8" Grid.Column="0" Text="GUILD PRESENCE" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="8" Grid.Column="1" x:Name="ImortaisDiagnosticsGuildText" Text="aguardando eventos" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <TextBlock Grid.Row="9" Grid.Column="0" Text="GUILD MIGHT" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="9" Grid.Column="1" x:Name="ImortaisDiagnosticsMightText" Text="Enviados 0 · Aceitos 0 · Erros 0 · Pendentes 0" TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <TextBlock Grid.Row="10" Grid.Column="0" Text="ALBION DETECTADO" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="10" Grid.Column="1" x:Name="ImortaisDiagnosticsGameText" Text="aguardando" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <TextBlock Grid.Row="11" Grid.Column="0" Margin="0,4,0,0" Text="ÚLTIMO ERRO" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                    <TextBlock Grid.Row="11" Grid.Column="1" Margin="0,4,0,0" x:Name="ImortaisDiagnosticsErrorText"
-                                               Text="nenhum" TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" />
-
-                                    <StackPanel Grid.Row="12" Grid.ColumnSpan="2" Margin="0,12,0,0">
-                                        <TextBlock Text="ATIVIDADE RECENTE" FontWeight="SemiBold" Foreground="{StaticResource SolidColorBrush.Text.1}" />
-                                        <TextBlock x:Name="ImortaisDiagnosticsActivityText"
-                                                   Margin="0,6,0,0"
-                                                   Text="Nenhuma atividade registrada nesta sessão."
-                                                   TextWrapping="Wrap"
-                                                   FontFamily="Consolas"
-                                                   FontSize="11"
-                                                   Foreground="{StaticResource SolidColorBrush.Text.3}" />
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Row="13" Grid.ColumnSpan="2" Margin="0,14,0,0">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button x:Name="ImortaisCheckForUpdateButton"
-                                                    Content="VERIFICAR ATUALIZAÇÃO"
-                                                    Height="34"
-                                                    MinWidth="180"
-                                                    Margin="0,0,10,0"
-                                                    Click="ImortaisCheckForUpdate_Click" />
-                                            <Button Content="COPIAR DIAGNÓSTICO"
-                                                    Height="34"
-                                                    MinWidth="170"
-                                                    Click="CopyImortaisDiagnostics_Click" />
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                            <Button x:Name="ImortaisGuildDumpToggleButton"
-                                                    Content="GUILD DUMPS: DESLIGADO"
-                                                    Height="34"
-                                                    MinWidth="185"
-                                                    Margin="0,0,10,0"
-                                                    ToolTip="Cópia local de Might e Guild Challenge; Might também usa a telemetria normal"
-                                                    Click="ImortaisGuildDumpToggle_Click" />
-                                            <Button Content="ABRIR PASTA DE DUMPS"
-                                                    Height="34"
-                                                    MinWidth="170"
-                                                    Click="ImortaisOpenGuildDumps_Click" />
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                                            <Button x:Name="ImortaisDeathReviewToggleButton"
-                                                    Content="DEATH REVIEW: LIGADO"
-                                                    Height="34"
-                                                    MinWidth="205"
-                                                    Margin="0,0,10,0"
-                                                    ToolTip="Piloto core v0.6.3: inicia ativado na atualização. Registra localmente dados da própria morte, pode ser desligado. Não envia relatórios ao War Room."
-                                                    Click="ImortaisDeathReviewToggle_Click" />
-                                            <Button Content="ABRIR DEATH REVIEWS"
-                                                    Height="34"
-                                                    MinWidth="170"
-                                                    Click="ImortaisOpenDeathReviewFolder_Click" />
-                                        </StackPanel>
-                                        <TextBlock Text="PILOTO CORE v0.6.4: Death Review começa LIGADO após o aviso inicial. Salva apenas neste PC relatórios das suas mortes (até 30 JSONs), com nomes/IDs, dano, habilidades e equipamento. Nada é enviado automaticamente. Clique em DEATH REVIEW para desligar."
-                                                   TextWrapping="Wrap" Margin="0,6,0,2" FontSize="11"
-                                                   Foreground="LightSkyBlue" />
-                                        <StackPanel Margin="0,14,0,8">
-                                            <TextBlock Text="CAPTURA VPN / EXITLAG / NOPING / WARP"
-                                                       FontWeight="SemiBold" Foreground="LightSkyBlue" />
-                                            <TextBlock Text="Se utiliza VPN ou acelerador de rota, informe aqui. O modo registra somente contadores locais e evita recuperações automáticas baseadas em silêncio de rede. Não cria VPN nem garante decodificar tráfego criptografado."
-                                                       TextWrapping="Wrap" Margin="0,5,0,7" FontSize="11"
-                                                       Foreground="{StaticResource SolidColorBrush.Text.3}" />
-                                            <StackPanel Orientation="Horizontal">
-                                                <Button x:Name="ImortaisVpnAssistToggleButton"
-                                                        Content="USO VPN: NÃO"
-                                                        Height="34" MinWidth="150" Margin="0,0,10,0"
-                                                        Click="ImortaisVpnAssistToggle_Click" />
-                                                <Button x:Name="ImortaisVpnRescanButton"
-                                                        Content="REEXAMINAR INTERFACES"
-                                                        Height="34" MinWidth="190"
-                                                        Click="ImortaisVpnRescan_Click"
-                                                        ToolTip="Somente quando solicitado: pede ao capturador Npcap reexaminar as interfaces. Pode interromper momentaneamente os eventos." />
-                                            </StackPanel>
-                                            <TextBlock x:Name="ImortaisVpnCaptureStatusText"
-                                                       Text="VPN: aguardando diagnóstico"
-                                                       TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"
-                                                       Foreground="{StaticResource SolidColorBrush.Text.3}" />
-                                        </StackPanel>
-                                        <Button Content="EXPORTAR DIAGNÓSTICO DE EVENTOS"
-                                                Height="34"
-                                                MinWidth="260"
-                                                HorizontalAlignment="Left"
-                                                Margin="0,10,0,0"
-                                                ToolTip="Exporta contagens e formatos dos eventos Photon; não inclui nomes, IDs nem valores"
-                                                Click="ExportImortaisEventDiagnostics_Click" />
-                                        <TextBlock x:Name="ImortaisBuildIdentityLabel" Text="BUILD: verificando..." Foreground="LightSkyBlue" FontWeight="SemiBold" Margin="0,6,0,4" />
-                                        <TextBlock Text="Captura local dos rankings de Might e Challenge; desligado por padrão."
-                                                   Margin="0,8,0,0" FontSize="11"
-                                                   Foreground="{StaticResource SolidColorBrush.Text.3}" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-
-                            <Border Grid.Row="5"
-                                    Margin="0,18,0,0"
-                                    Padding="18"
-                                    Background="{StaticResource SolidColorBrush.Background.3}"
-                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
-                                    BorderThickness="1"
-                                    CornerRadius="4">
+                            <!-- Highlights -->
+                            <Border Style="{StaticResource Dashboard.Section}" Padding="16,12,16,14" Margin="0,0,0,10">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -503,87 +356,134 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,18,0">
-                                        <TextBlock Text="HIGHLIGHTS · REPLAY BUFFER"
-                                                   FontSize="14"
-                                                   FontWeight="Bold"
-                                                   Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
-                                        <TextBlock Margin="0,7,0,0"
+                                        <TextBlock Text="Highlights · replay buffer" Style="{StaticResource Dashboard.SectionTitle}" />
+                                        <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
                                                    Text="Quando ativada, captura somente a janela e o áudio do processo do Albion. Mantém até 150 s de vídeo H.264 e PCM em memória; o replay final usa H.264 + AAC. Não envia vídeo ao War Room."
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource SolidColorBrush.Text.3}" />
-                                        <TextBlock x:Name="ImortaisHighlightStatusText"
-                                                   Margin="0,7,0,0"
+                                                   Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                                        <TextBlock x:Name="ImortaisHighlightStatusText" Margin="0,7,0,0" TextWrapping="Wrap" FontSize="11"
                                                    Text="Gravação em segundo plano desligada."
-                                                   TextWrapping="Wrap"
-                                                   FontSize="11"
                                                    Foreground="{StaticResource SolidColorBrush.Text.4}" />
-                                        <TextBlock x:Name="ImortaisHighlightMetricsText"
-                                                   Margin="0,4,0,0"
-                                                   Text="Buffer: 0 s · 0 MiB"
-                                                   TextWrapping="Wrap"
-                                                   FontFamily="Consolas"
-                                                   FontSize="11"
+                                        <TextBlock x:Name="ImortaisHighlightMetricsText" Margin="0,4,0,0" TextWrapping="Wrap"
+                                                   FontFamily="Consolas" FontSize="11" Text="Buffer: 0 s · 0 MiB"
                                                    Foreground="{StaticResource SolidColorBrush.Text.4}" />
                                     </StackPanel>
                                     <StackPanel Grid.Row="0" Grid.Column="1" MinWidth="205">
-                                        <Button x:Name="ImortaisBackgroundRecordingButton"
-                                                MinWidth="205"
-                                                Height="42"
-                                                Content="GRAVAÇÃO: NÃO"
-                                                Click="ImortaisBackgroundRecording_Click" />
-                                        <ComboBox x:Name="ImortaisHighlightFpsCombo"
-                                                  Margin="0,8,0,0"
-                                                  MinWidth="205"
-                                                  Height="32"
+                                        <Button x:Name="ImortaisBackgroundRecordingButton" MinWidth="205" Height="42"
+                                                Content="GRAVAÇÃO: NÃO" Click="ImortaisBackgroundRecording_Click" />
+                                        <ComboBox x:Name="ImortaisHighlightFpsCombo" Margin="0,8,0,0" MinWidth="205" Height="32"
                                                   SelectionChanged="ImortaisHighlightFps_SelectionChanged">
                                             <ComboBoxItem Content="30 FPS · máquina fraca" Tag="30" />
                                             <ComboBoxItem Content="60 FPS · padrão" Tag="60" />
                                         </ComboBox>
-                                        <CheckBox x:Name="ImortaisAutoSaveAbatesCheckBox"
-                                                  Margin="0,9,0,0"
-                                                  Content="Salvar meus abates"
-                                                  Click="ImortaisAutoSaveOption_Click" />
-                                        <CheckBox x:Name="ImortaisAutoSaveDeathsCheckBox"
-                                                  Margin="0,6,0,0"
-                                                  IsChecked="False"
-                                                   Content="Salvar quando eu MORRER"
+                                        <CheckBox x:Name="ImortaisAutoSaveAbatesCheckBox" Margin="0,9,0,0"
+                                                  Content="Salvar meus abates" Click="ImortaisAutoSaveOption_Click" />
+                                        <CheckBox x:Name="ImortaisAutoSaveDeathsCheckBox" Margin="0,6,0,0" IsChecked="False"
+                                                  Content="Salvar quando eu MORRER"
                                                   ToolTip="Gatilho em DiedEvent letal do próprio personagem; morte tem prioridade sobre abates no mesmo replay."
                                                   Click="ImortaisAutoSaveOption_Click" />
-                                        <CheckBox x:Name="ImortaisAutoSaveMassAbatesCheckBox"
-                                                  Margin="0,6,0,0"
-                                                  IsChecked="False"
+                                        <CheckBox x:Name="ImortaisAutoSaveMassAbatesCheckBox" Margin="0,6,0,0" IsChecked="False"
                                                   Content="Salvar abates em massa"
                                                   ToolTip="Desativado por padrão: múltiplos abates ainda podem ser salvos por Salvar meus abates."
                                                   Click="ImortaisAutoSaveOption_Click" />
-                                        <Button x:Name="ImortaisSaveTestReplayButton"
-                                                Margin="0,8,0,0"
-                                                MinWidth="205"
-                                                Height="36"
-                                                IsEnabled="False"
-                                                Content="SALVAR REPLAY DE TESTE"
-                                                Click="ImortaisSaveTestReplay_Click" />
+                                        <Button x:Name="ImortaisSaveTestReplayButton" Margin="0,8,0,0" MinWidth="205" Height="36"
+                                                IsEnabled="False" Content="SALVAR REPLAY DE TESTE" Click="ImortaisSaveTestReplay_Click" />
                                     </StackPanel>
-                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2"
-                                               Margin="0,12,0,0"
+                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Margin="0,12,0,0" TextWrapping="Wrap" FontSize="10"
                                                Text="No Windows 10 a borda amarela de captura pode permanecer. No Windows 11 o cliente tenta remover a borda quando a API permitir. Se o modo tela cheia exclusivo não fornecer frames válidos, use Janela ou Tela Cheia sem Bordas."
-                                               TextWrapping="Wrap"
-                                               FontSize="10"
                                                Foreground="{StaticResource SolidColorBrush.Text.4}" />
                                 </Grid>
                             </Border>
 
-                            <Border Grid.Row="6"
-                                    Margin="0,18,0,0"
-                                    Padding="14"
-                                    Background="{StaticResource SolidColorBrush.Background.3}"
-                                    BorderBrush="{StaticResource SolidColorBrush.Text.7}"
-                                    BorderThickness="1"
-                                    CornerRadius="4">
-                                <TextBlock Text="Party, loot, dano, cura e mortes são observados passivamente. Nenhum CTA precisa estar aberto para usar o cliente; quando não houver CTA ativo, os eventos ficam sem vínculo de CTA."
-                                           TextWrapping="Wrap"
-                                           Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                            <!-- Diagnóstico -->
+                            <Border Style="{StaticResource Dashboard.Section}" Padding="16,12,16,14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Diagnóstico" Style="{StaticResource Dashboard.SectionTitle}" />
+                                    <Grid Margin="0,10,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                                            <TextBlock Text="UPDATER" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsUpdaterText" Text="AINDA NÃO VERIFICADO" Foreground="Gold" Margin="0,0,0,8" />
+                                            <TextBlock Text="ÚLTIMA CHECAGEM" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsLastCheckText" Text="ainda não realizada" Foreground="{StaticResource SolidColorBrush.Text.3}" Margin="0,0,0,8" />
+                                            <TextBlock Text="ÚLTIMO CONTATO" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsLastContactText" Text="aguardando" Foreground="{StaticResource SolidColorBrush.Text.3}" Margin="0,0,0,8" />
+                                            <TextBlock Text="OUTBOX" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsOutboxText" Text="0 eventos" Foreground="{StaticResource SolidColorBrush.Text.3}" Margin="0,0,0,8" />
+                                            <TextBlock Text="HEARTBEAT" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsHeartbeatText" Text="aguardando" Foreground="{StaticResource SolidColorBrush.Text.3}" Margin="0,0,0,8" />
+                                            <TextBlock Text="ALBION DETECTADO" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsGameText" Text="aguardando" Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="PARTY SNAPSHOT" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsPartyText" Text="nenhum snapshot" TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" Margin="0,0,0,8" />
+                                            <TextBlock Text="GUILD PRESENCE" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsGuildText" Text="aguardando eventos" TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" Margin="0,0,0,8" />
+                                            <TextBlock Text="GUILD MIGHT" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsMightText" Text="Enviados 0 · Aceitos 0 · Erros 0 · Pendentes 0" TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" Margin="0,0,0,8" />
+                                            <TextBlock Text="ÚLTIMO ERRO" Style="{StaticResource App.FilterLabel}" />
+                                            <TextBlock x:Name="ImortaisDiagnosticsErrorText" Text="nenhum" TextWrapping="Wrap" Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <TextBlock Text="ATIVIDADE RECENTE" Style="{StaticResource App.FilterLabel}" Margin="0,12,0,4" />
+                                    <Border Style="{StaticResource Dashboard.Card}" Padding="10,8">
+                                        <TextBlock x:Name="ImortaisDiagnosticsActivityText" TextWrapping="Wrap" FontFamily="Consolas" FontSize="11"
+                                                   Text="Nenhuma atividade registrada nesta sessão."
+                                                   Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                                    </Border>
+
+                                    <WrapPanel Margin="0,12,0,0">
+                                        <Button x:Name="ImortaisCheckForUpdateButton" Content="VERIFICAR ATUALIZAÇÃO" Height="34" MinWidth="180"
+                                                Margin="0,0,10,10" Click="ImortaisCheckForUpdate_Click" />
+                                        <Button Content="COPIAR DIAGNÓSTICO" Height="34" MinWidth="170" Margin="0,0,10,10"
+                                                Click="CopyImortaisDiagnostics_Click" />
+                                        <Button Content="EXPORTAR DIAGNÓSTICO DE EVENTOS" Height="34" MinWidth="260" Margin="0,0,10,10"
+                                                ToolTip="Exporta contagens e formatos dos eventos Photon; não inclui nomes, IDs nem valores"
+                                                Click="ExportImortaisEventDiagnostics_Click" />
+                                    </WrapPanel>
+                                    <WrapPanel>
+                                        <Button x:Name="ImortaisGuildDumpToggleButton" Content="GUILD DUMPS: DESLIGADO" Height="34" MinWidth="185"
+                                                Margin="0,0,10,10"
+                                                ToolTip="Cópia local de Might e Guild Challenge; Might também usa a telemetria normal"
+                                                Click="ImortaisGuildDumpToggle_Click" />
+                                        <Button Content="ABRIR PASTA DE DUMPS" Height="34" MinWidth="170" Margin="0,0,10,10"
+                                                Click="ImortaisOpenGuildDumps_Click" />
+                                        <Button x:Name="ImortaisDeathReviewToggleButton" Content="DEATH REVIEW: LIGADO" Height="34" MinWidth="205"
+                                                Margin="0,0,10,10"
+                                                ToolTip="Registra localmente dados da própria morte, pode ser desligado. Não envia relatórios ao War Room."
+                                                Click="ImortaisDeathReviewToggle_Click" />
+                                        <Button Content="ABRIR DEATH REVIEWS" Height="34" MinWidth="170" Margin="0,0,10,10"
+                                                Click="ImortaisOpenDeathReviewFolder_Click" />
+                                    </WrapPanel>
+                                    <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,4" Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}"
+                                               Text="Death Review salva apenas neste PC relatórios das suas mortes (até 30 JSONs), com nomes/IDs, dano, habilidades e equipamento. Nada é enviado automaticamente." />
+                                    <TextBlock Text="Captura local dos rankings de Might e Challenge; desligado por padrão." FontSize="11"
+                                               Foreground="{StaticResource SolidColorBrush.Text.3}" />
+
+                                    <TextBlock Text="CAPTURA VPN / EXITLAG / NOPING / WARP" Style="{StaticResource App.FilterLabel}" Margin="0,14,0,4" />
+                                    <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,7" Foreground="{StaticResource SolidColorBrush.Text.3}"
+                                               Text="Se utiliza VPN ou acelerador de rota, informe aqui. O modo registra somente contadores locais e evita recuperações automáticas baseadas em silêncio de rede. Não cria VPN nem garante decodificar tráfego criptografado." />
+                                    <WrapPanel>
+                                        <Button x:Name="ImortaisVpnAssistToggleButton" Content="USO VPN: NÃO" Height="34" MinWidth="150" Margin="0,0,10,0"
+                                                Click="ImortaisVpnAssistToggle_Click" />
+                                        <Button x:Name="ImortaisVpnRescanButton" Content="REEXAMINAR INTERFACES" Height="34" MinWidth="190"
+                                                Click="ImortaisVpnRescan_Click"
+                                                ToolTip="Somente quando solicitado: pede ao capturador Npcap reexaminar as interfaces. Pode interromper momentaneamente os eventos." />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="ImortaisVpnCaptureStatusText" Text="VPN: aguardando diagnóstico" TextWrapping="Wrap" Margin="0,6,0,0" FontSize="11"
+                                               Foreground="{StaticResource SolidColorBrush.Text.3}" />
+                                    <TextBlock x:Name="ImortaisBuildIdentityLabel" Text="BUILD: verificando..." Margin="0,10,0,0" FontWeight="SemiBold"
+                                               Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}" />
+                                </StackPanel>
                             </Border>
-                        </Grid>
+
+                            <TextBlock Margin="2,0,2,6" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource SolidColorBrush.Text.3}"
+                                       Text="Party, loot, dano, cura e mortes são observados passivamente. Nenhum CTA precisa estar aberto para usar o cliente; quando não houver CTA ativo, os eventos ficam sem vínculo de CTA." />
+                        </StackPanel>
                     </ScrollViewer>
                 </Grid>
             </TabItem>

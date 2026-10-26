@@ -123,11 +123,8 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
         }
     }
 
-    private static bool IsImortaisFamilyGuild(string guild)
-    {
-        var normalized = string.Concat((guild ?? string.Empty).Where(char.IsLetterOrDigit)).ToLowerInvariant();
-        return normalized is "imortais" or "imortais2" or "imortaisacademy";
-    }
+    // Guildas próprias informadas pelo War Room da guilda; sem resposta, a família IMORTAIS.
+    private static bool IsImortaisFamilyGuild(string guild) => ImortaisEventBridge.IsOwnGuild(guild);
 
     private static TrackingNotification SetKillNotification(string died, string diedPlayerGuild, string diedPlayerAlliance,
         string killedBy, string killedByGuild, string killedByAlliance, string clusterName)

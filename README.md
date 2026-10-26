@@ -1,6 +1,8 @@
-# IMORTAIS Combat Client
+# Guild Combat Client
 
-Cliente desktop da guilda **I M O R T A I S** para Albion Online, baseado no projeto open source **AlbionOnline-StatisticsAnalysis** e integrado ao **IMORTAIS War Room**.
+> Antigo **IMORTAIS Combat Client**. O mesmo app atende qualquer guilda com War Room: no pareamento o membro escolhe a guilda (IMORTAIS, CAVALEIROS ou endereço próprio) e o War Room informa quais guildas do Albion contam como "nós".
+
+Cliente desktop para Albion Online, criado pela guilda **I M O R T A I S**, baseado no projeto open source **AlbionOnline-StatisticsAnalysis** e integrado ao **IMORTAIS War Room**.
 
 > **Versão estável atual:** v0.6.8  
 > **Plataforma estável:** Windows 10/11 x64  

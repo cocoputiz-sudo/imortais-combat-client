@@ -24,6 +24,9 @@ public sealed class ImortaisTelemetryConfig
     public string? OutboxPath { get; set; } = DefaultOutboxPath;
     public int MaxOutboxEvents { get; set; } = DefaultMaxOutboxEvents;
     public long MaxOutboxBytes { get; set; } = DefaultMaxOutboxBytes;
+    // Informados pelo War Room da guilda (pareamento e cada envio). null = ainda não informado.
+    public string? GuildDisplayName { get; set; }
+    public List<string>? OwnGuildNames { get; set; }
 
     [System.Text.Json.Serialization.JsonExtensionData]
     public Dictionary<string, JsonElement>? AdditionalSettings { get; set; }

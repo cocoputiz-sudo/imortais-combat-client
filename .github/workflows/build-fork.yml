@@ -167,6 +167,12 @@ jobs:
           dotnet run --project tests/EndpointMigration.LogicTests/EndpointMigration.LogicTests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw "Endpoint migration failed" }
 
+      - name: Testar identidade de guilda (Guild Combat Client)
+        shell: pwsh
+        run: |
+          dotnet run --project tests/GuildIdentity.LogicTests/GuildIdentity.LogicTests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Guild identity tests failed" }
+
       - name: Compilar Combat Client Windows
         shell: pwsh
         run: |
