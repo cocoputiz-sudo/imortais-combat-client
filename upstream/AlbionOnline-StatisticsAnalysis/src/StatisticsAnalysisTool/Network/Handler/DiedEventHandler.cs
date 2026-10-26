@@ -5,10 +5,12 @@ using StatisticsAnalysisTool.Imortais;
 using StatisticsAnalysisTool.Imortais.Highlights;
 using StatisticsAnalysisTool.Imortais.DeathReview;
 using StatisticsAnalysisTool.Localization;
+using StatisticsAnalysisTool.Models;
 using StatisticsAnalysisTool.Models.NetworkModel;
 using StatisticsAnalysisTool.Network.Events;
 using StatisticsAnalysisTool.Network.Manager;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -77,6 +79,8 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
 
         if (value.IsLethal && relevantToImortais)
         {
+            var victimEntity = FindPlayer(value.DiedObjectId, value.Died);
+            var killerEntity = FindPlayer(value.KillerObjectId, value.KilledBy);
             ImortaisEventBridge.ObservePlayerDeath(
                 value.DiedObjectId,
                 value.Died,
@@ -85,7 +89,11 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
                 value.KilledBy,
                 value.KilledByGuild,
                 true,
-                ClusterController.GetCurrentClusterDisplayName());
+                ClusterController.GetCurrentClusterDisplayName(),
+                EquipmentNames(victimEntity?.CharacterEquipment),
+                EquipmentNames(killerEntity?.CharacterEquipment),
+                victimEntity?.Alliance,
+                killerEntity?.Alliance);
         }
 
         if (trackingController.DungeonController is { } dungeonController)
@@ -129,5 +137,42 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
         notification.SetClusterName(clusterName);
 
         return notification;
+    }
+
+    private PlayerGameObject? FindPlayer(long objectId, string? name)
+    {
+        try
+        {
+            var entity = objectId > 0 ? trackingController.EntityController.GetEntity(objectId) : null;
+            if (entity?.Value == null && !string.IsNullOrWhiteSpace(name))
+            {
+                entity = trackingController.EntityController.GetEntity(name);
+            }
+            return entity?.Value;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // Nomes dos itens equipados (ex.: T8_2H_HAMMER_UNDEAD@2). Falha ao resolver um item não impede o evento.
+    private static IReadOnlyDictionary<string, string?>? EquipmentNames(CharacterEquipment? equipment)
+    {
+        if (equipment == null) return null;
+        string? Name(Func<Item> get)
+        {
+            try { return get()?.UniqueName; } catch { return null; }
+        }
+        return new Dictionary<string, string?>
+        {
+            ["mainHand"] = Name(equipment.GetMainHand),
+            ["offHand"] = Name(equipment.GetOffHand),
+            ["head"] = Name(equipment.GetHead),
+            ["chest"] = Name(equipment.GetChest),
+            ["shoes"] = Name(equipment.GetShoes),
+            ["cape"] = Name(equipment.GetCape),
+            ["mount"] = Name(equipment.GetMount)
+        };
     }
 }
