@@ -868,7 +868,11 @@ public static class ImortaisEventBridge
         string killer,
         string? killerGuild,
         bool isLethal,
-        string? clusterName = null)
+        string? clusterName = null,
+        IReadOnlyDictionary<string, string?>? victimEquipment = null,
+        IReadOnlyDictionary<string, string?>? killerEquipment = null,
+        string? victimAlliance = null,
+        string? killerAlliance = null)
     {
         if (!isLethal || string.IsNullOrWhiteSpace(victim) || string.IsNullOrWhiteSpace(killer)) return;
 
@@ -886,9 +890,24 @@ public static class ImortaisEventBridge
                 ["killerGuild"] = string.IsNullOrWhiteSpace(killerGuild) ? null : killerGuild.Trim(),
                 ["isLethal"] = true,
                 ["cluster"] = string.IsNullOrWhiteSpace(clusterName) ? null : clusterName.Trim(),
-                ["source"] = "DiedEvent"
+                ["source"] = "DiedEvent",
+                // Equipamento visto pelo client (nomes dos itens): o War Room usa para a composição
+                // na hora e para estimar a Kill Fame até chegar o valor oficial do Albion.
+                ["victimEquipment"] = CompactEquipment(victimEquipment),
+                ["killerEquipment"] = CompactEquipment(killerEquipment),
+                ["victimAlliance"] = string.IsNullOrWhiteSpace(victimAlliance) ? null : victimAlliance.Trim(),
+                ["killerAlliance"] = string.IsNullOrWhiteSpace(killerAlliance) ? null : killerAlliance.Trim()
             }
         });
+    }
+
+    private static Dictionary<string, string>? CompactEquipment(IReadOnlyDictionary<string, string?>? equipment)
+    {
+        if (equipment == null) return null;
+        var output = equipment
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key) && !string.IsNullOrWhiteSpace(x.Value))
+            .ToDictionary(x => x.Key, x => x.Value!.Trim());
+        return output.Count == 0 ? null : output;
     }
 
     private static void AddActivity(string message)
