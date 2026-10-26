@@ -210,6 +210,13 @@ public static class ImortaisEventBridge
 
 
 
+    public static bool IsOwnGuild(string? guild) => GuildIdentity.IsOwnGuild(guild, _config.OwnGuildNames);
+
+    public static string CurrentGuildName =>
+        string.IsNullOrWhiteSpace(_config.GuildDisplayName) ? GuildIdentity.LabelForServer(_config.ServerUrl) : _config.GuildDisplayName!;
+
+    public static string CurrentServerUrl => _config.ServerUrl;
+
     public static void ReloadConfig()
     {
         _config = ImortaisTelemetryConfig.Load();
@@ -219,13 +226,20 @@ public static class ImortaisEventBridge
         EnsureStarted();
     }
 
-    public static async Task<(bool Success, string Message)> PairAsync(string code, string? playerName = null)
+    public static async Task<(bool Success, string Message)> PairAsync(string code, string? playerName = null, string? serverUrl = null)
     {
         code = (code ?? string.Empty).Trim();
         if (code.Length != 6 || !code.All(char.IsDigit))
             return (false, "O código deve ter 6 números.");
 
         var config = ImortaisTelemetryConfig.Load();
+        if (!string.IsNullOrWhiteSpace(serverUrl) && !string.Equals(serverUrl, config.ServerUrl, StringComparison.OrdinalIgnoreCase))
+        {
+            // Outra guilda: as guildas próprias da anterior não valem mais até o novo War Room responder.
+            config.ServerUrl = serverUrl;
+            config.GuildDisplayName = null;
+            config.OwnGuildNames = null;
+        }
         if (string.IsNullOrWhiteSpace(config.ServerUrl))
             return (false, "Servidor do War Room não configurado.");
 
@@ -258,6 +272,7 @@ public static class ImortaisEventBridge
                 && playerProp.ValueKind == JsonValueKind.String
                 && !string.IsNullOrWhiteSpace(playerProp.GetString()))
                 config.PlayerName = playerProp.GetString()!.Trim();
+            GuildIdentityResponse.Apply(config, doc.RootElement);
 
             ImortaisTelemetryConfig.Save(config);
             ReloadConfig();
@@ -1304,6 +1319,11 @@ public static class ImortaisEventBridge
                         var responseJson = await response.Content.ReadAsStringAsync(token);
                         using var responseDoc = JsonDocument.Parse(responseJson);
                         var root=responseDoc.RootElement;
+                        if (GuildIdentityResponse.Apply(_config, root))
+                        {
+                            try { ImortaisTelemetryConfig.Save(_config); }
+                            catch { /* Mantém a identidade em memória se o disco estiver só leitura. */ }
+                        }
                         if(guildBatch.Length>0)
                         {
                             var ok=root.TryGetProperty("ok",out var yes) && yes.ValueKind==JsonValueKind.True;

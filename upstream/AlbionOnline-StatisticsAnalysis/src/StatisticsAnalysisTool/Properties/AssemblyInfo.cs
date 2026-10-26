@@ -7,11 +7,11 @@ using System.Runtime.CompilerServices;
 // Allgemeine Informationen ÃƒÆ’Ã‚Â¼ber eine Assembly werden ÃƒÆ’Ã‚Â¼ber die folgenden
 // Attribute gesteuert. ÃƒÆ’Ã¢â‚¬Å¾ndern Sie diese Attributwerte, um die Informationen zu ÃƒÆ’Ã‚Â¤ndern,
 // die einer Assembly zugeordnet sind.
-[assembly: AssemblyTitle("IMORTAIS Combat Client")]
+[assembly: AssemblyTitle("Guild Combat Client")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("IMORTAIS")]
-[assembly: AssemblyProduct("IMORTAIS Combat Client")]
+[assembly: AssemblyProduct("Guild Combat Client")]
 [assembly: AssemblyCopyright("Copyright Ãƒâ€šÃ‚Â©  2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]

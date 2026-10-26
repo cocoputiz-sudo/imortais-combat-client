@@ -39,6 +39,7 @@ public partial class MainWindow
     public MainWindow(MainWindowViewModel mainWindowViewModel)
     {
         InitializeComponent();
+        InitGuildServerSelector();
         _applicationUptimeTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(1)
@@ -230,8 +231,20 @@ public partial class MainWindow
         UpdateImortaisVpnUi();
     }
 
+    // Guildas cadastradas no seletor; o texto também aceita o endereço https do War Room.
+    private void InitGuildServerSelector()
+    {
+        if (GuildServerComboBox == null) return;
+        GuildServerComboBox.Items.Clear();
+        foreach (var server in GuildIdentity.KnownServers)
+            GuildServerComboBox.Items.Add(server.Name);
+        GuildServerComboBox.Text = GuildIdentity.LabelForServer(ImortaisEventBridge.CurrentServerUrl);
+    }
+
     private void UpdateImortaisStatus()
     {
+        if (GuildHomeGuildNameText != null)
+            GuildHomeGuildNameText.Text = ImortaisEventBridge.CurrentGuildName;
         if (_mainWindowViewModel == null) return;
 
         var status = ImortaisEventBridge.GetStatus();
@@ -595,7 +608,14 @@ public partial class MainWindow
         try
         {
             var playerName = _mainWindowViewModel?.UserTrackingBindings?.Username;
-            var result = await ImortaisEventBridge.PairAsync(code, playerName);
+            var serverUrl = GuildIdentity.ResolveServerUrl(GuildServerComboBox?.Text);
+            if (serverUrl == null)
+            {
+                ImortaisPairingStatusText.Text = "Escolha a guilda ou informe o endereço https do War Room dela.";
+                ImortaisPairingStatusText.Foreground = Brushes.IndianRed;
+                return;
+            }
+            var result = await ImortaisEventBridge.PairAsync(code, playerName, serverUrl);
             ImortaisPairingStatusText.Text = result.Message;
             ImortaisPairingStatusText.Foreground = result.Success ? Brushes.LimeGreen : Brushes.IndianRed;
             if (result.Success)
@@ -616,7 +636,7 @@ public partial class MainWindow
         {
             _ = MessageBox.Show(
                 "Já existe uma verificação de atualização em andamento.",
-                "IMORTAIS Combat Client",
+                "Guild Combat Client",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
             return;
@@ -704,7 +724,7 @@ public partial class MainWindow
                 "Não grava vídeo por causa desta opção.\n\n" +
                 "Você pode desligar a qualquer momento no botão DEATH REVIEW. " +
                 "Deseja MANTER o Death Review ligado para o piloto?",
-                "IMORTAIS Combat Client - Aviso da atualização v0.6.4",
+                "Guild Combat Client - Aviso da atualização v0.6.4",
                 MessageBoxButton.YesNo, MessageBoxImage.Information);
 
             if (choice != MessageBoxResult.Yes)
@@ -786,7 +806,7 @@ public partial class MainWindow
         catch (Exception error)
         {
             MessageBox.Show("Falha ao abrir os relatórios: " + error.Message,
-                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+                "Guild Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -824,7 +844,7 @@ public partial class MainWindow
         catch (Exception error)
         {
             MessageBox.Show("Não foi possível salvar a opção de diagnóstico: " + error.Message,
-                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+                "Guild Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -843,7 +863,7 @@ public partial class MainWindow
         catch (Exception error)
         {
             MessageBox.Show("Não foi possível abrir a pasta de dumps: " + error.Message,
-                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+                "Guild Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -873,14 +893,14 @@ public partial class MainWindow
             MessageBox.Show(
                 "Diagnóstico de eventos exportado. Entre e saia de uma PT e saqueie um item antes de enviar o arquivo para análise. " +
                 "O JSON contém somente códigos, contagens e tipos/tamanhos dos parâmetros.",
-                "IMORTAIS Combat Client",
+                "Guild Combat Client",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
         catch (Exception error)
         {
             MessageBox.Show("Falha ao exportar diagnóstico de eventos: " + error.Message,
-                "IMORTAIS Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
+                "Guild Combat Client", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -998,7 +1018,7 @@ public partial class MainWindow
 
         _ = MessageBox.Show(
             "Diagnóstico copiado para a área de transferência.",
-            "IMORTAIS Combat Client",
+            "Guild Combat Client",
             MessageBoxButton.OK,
             MessageBoxImage.Information);
     }
