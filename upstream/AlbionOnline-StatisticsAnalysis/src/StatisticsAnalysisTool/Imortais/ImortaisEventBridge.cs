@@ -60,6 +60,9 @@ public static class ImortaisEventBridge
     // Destino escolhido pela guilda do personagem logado (ver GuildPairings).
     private static int _routingDirty = 1;
     private static volatile bool _routingPaused;
+    // Eventos do personagem novo capturados antes da troca de destino: esperam o War Room certo.
+    private static readonly ConcurrentQueue<ImortaisTelemetryEvent> HeldForRouting = new();
+    private const int MaxHeldForRouting = 5000;
 
     private static ImortaisTelemetryConfig LoadConfigWithPairings()
     {
@@ -274,6 +277,7 @@ public static class ImortaisEventBridge
         {
             if (!_routingPaused) AddActivity("ROTA · " + game + " sem pareamento · envio pausado");
             _routingPaused = true;
+            while (HeldForRouting.TryDequeue(out _)) { }
             return;
         }
         var wasPaused = _routingPaused;
@@ -281,6 +285,7 @@ public static class ImortaisEventBridge
         if (GuildPairings.SameServer(target.ServerUrl, _config.ServerUrl) && target.AgentKey == _config.AgentKey)
         {
             if (wasPaused) AddActivity("ROTA · " + game + " → " + GuildPairings.Label(target) + " · envio retomado");
+            ReleaseHeldEvents();
             return;
         }
         GuildPairings.Activate(_config, target);
@@ -291,6 +296,21 @@ public static class ImortaisEventBridge
         ResetOutboxState();
         SetCtaContext(null, null);
         AddActivity("ROTA · " + game + " → " + GuildPairings.Label(target));
+        ReleaseHeldEvents();
+    }
+
+    // Devolve à fila o que foi segurado na troca; agora o destino é o da guilda do personagem.
+    private static void ReleaseHeldEvents()
+    {
+        var count = 0;
+        while (HeldForRouting.TryDequeue(out var evt))
+        {
+            if (!BelongsToActiveDestination()) continue;
+            var sequence = Interlocked.Increment(ref _queueSequence);
+            Queue.Writer.TryWrite(new QueuedTelemetryEvent(sequence, evt));
+            count++;
+        }
+        if (count > 0) AddActivity("ROTA · " + count + " evento(s) da troca de personagem enviados ao War Room certo");
     }
 
     public static string CurrentGuildName =>
@@ -1039,7 +1059,17 @@ public static class ImortaisEventBridge
 
     private static void QueueEvent(ImortaisTelemetryEvent evt)
     {
-        if (!BelongsToActiveDestination()) return;
+        if (!BelongsToActiveDestination())
+        {
+            // Guilda do personagem mudou e o destino ainda não: segura para o War Room certo.
+            // Envio pausado (guilda sem pareamento): não manda para ninguém.
+            if (!_routingPaused && HeldForRouting.Count < MaxHeldForRouting)
+            {
+                HeldForRouting.Enqueue(evt);
+                Interlocked.Exchange(ref _routingDirty, 1);
+            }
+            return;
+        }
         var sequence = Interlocked.Increment(ref _queueSequence);
         Queue.Writer.TryWrite(new QueuedTelemetryEvent(sequence, evt));
     }
