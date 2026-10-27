@@ -4,10 +4,10 @@
 
 Cliente desktop para Albion Online, criado pela guilda **I M O R T A I S**, baseado no projeto open source **AlbionOnline-StatisticsAnalysis** e integrado ao **IMORTAIS War Room**.
 
-> **Versão estável atual:** v0.6.8  
+> **Versão estável atual:** v0.7.0  
 > **Plataforma estável:** Windows 10/11 x64  
 > **Runtime:** .NET 10 / WPF  
-> **Download Windows:** [Baixar instalador v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.6.8.exe)  
+> **Download Windows:** [Baixar instalador v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.7.0.exe)  
 > **Notas da versão:** [Release oficial v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.6.8)  
 > **War Room:** [imortais.macknacloud.com.br](https://imortais.macknacloud.com.br)
 
@@ -19,7 +19,7 @@ O Combat Client reaproveita a captura passiva e os parsers Photon do Statistics 
 
 A v0.6.8 passa a usar **https://imortais.macknacloud.com.br** nas instalações novas e migra automaticamente as configurações com o endereço HTTPS original do Railway. Preserva pareamento, identificação do dispositivo, preferências e fila de eventos; servidores personalizados permanecem como configurados.
 
-**Já tem o client instalado?** Use **VERIFICAR ATUALIZAÇÃO / ATUALIZAR AGORA** no aplicativo. Para instalar manualmente, [baixe o instalador oficial v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.6.8.exe).
+**Já tem o client instalado?** Use **VERIFICAR ATUALIZAÇÃO / ATUALIZAR AGORA** no aplicativo. Para instalar manualmente, [baixe o instalador oficial v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.7.0.exe).
 
 Esta release parte da v0.6.7 estável. Os ajustes experimentais de reconhecimento de VPN e Death Review v3 continuam em revisão e não fazem parte desta atualização. [Consulte as notas da v0.6.8](docs/releases/v0.6.8-debian-endpoint.md).
 
@@ -363,11 +363,11 @@ A release v0.5.9 e seus assets permanecem disponíveis para fallback manual. Se 
 
 ## Instalação
 
-Para jogadores, use o **[instalador oficial v0.6.8 para Windows x64](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.6.8.exe)**.
+Para jogadores, use o **[instalador oficial v0.6.8 para Windows x64](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.7.0.exe)**.
 
 Também estão disponíveis:
 
-- [Checksum SHA-256 do instalador](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.6.8.exe.sha256).
+- [Checksum SHA-256 do instalador](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-Setup-v0.7.0.exe.sha256).
 - [ZIP v0.6.8 Windows x64](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.6.8/IMORTAIS-Combat-Client-v0.6.8-win-x64.zip).
 - [Notas e arquivos da release v0.6.8](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.6.8).
 
