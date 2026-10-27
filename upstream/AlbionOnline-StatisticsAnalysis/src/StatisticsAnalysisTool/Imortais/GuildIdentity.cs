@@ -58,6 +58,21 @@ public static class GuildIdentity
         return known?.Name ?? (serverUrl ?? string.Empty).Trim();
     }
 
+    // Confirmador: a guilda do personagem no jogo é uma das guildas do War Room pareado?
+    public static GuildLink DescribeLink(string? gameGuild, IReadOnlyCollection<string>? ownGuilds, string? warRoomName)
+    {
+        var room = string.IsNullOrWhiteSpace(warRoomName) ? "WAR ROOM" : warRoomName!.Trim().ToUpperInvariant();
+        var game = (gameGuild ?? string.Empty).Trim();
+        if (game.Length == 0)
+            return new GuildLink(GuildLinkState.Waiting, "AGUARDANDO O JOGO INFORMAR SUA GUILDA");
+        if (ownGuilds != null && ownGuilds.Count == 0)
+            return new GuildLink(GuildLinkState.Unknown, $"{room} NÃO INFORMOU GUILDAS PRÓPRIAS · SÓ A PARTY CONTA");
+        if (IsOwnGuild(game, ownGuilds))
+            return new GuildLink(GuildLinkState.Match, $"✓ VINCULADO À GUILDA CERTA · {game.ToUpperInvariant()} → {room}");
+        return new GuildLink(GuildLinkState.Mismatch,
+            $"⚠ GUILDA DIFERENTE · NO JOGO: {game.ToUpperInvariant()} · PAREADO COM: {room} · PAREIE COM O WAR ROOM DA SUA GUILDA");
+    }
+
     public static IReadOnlyList<string>? CleanList(IEnumerable<string?>? names)
     {
         if (names == null) return null;
@@ -102,3 +117,11 @@ public static class GuildIdentityResponse
 }
 
 public sealed record KnownGuildServer(string Name, string Url);
+
+public enum GuildLinkState { Waiting, Unknown, Match, Mismatch }
+
+public sealed record GuildLink(GuildLinkState State, string Text)
+{
+    // null quando ainda não dá para afirmar (sem guilda no jogo ou servidor sem guildas próprias).
+    public bool? Linked => State switch { GuildLinkState.Match => true, GuildLinkState.Mismatch => false, _ => null };
+}

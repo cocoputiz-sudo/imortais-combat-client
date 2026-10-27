@@ -211,6 +211,10 @@ public static class ImortaisEventBridge
 
 
     public static bool IsOwnGuild(string? guild) => GuildIdentity.IsOwnGuild(guild, _config.OwnGuildNames);
+    private static string? _gameGuild;
+    // Guilda do personagem no jogo (vinda da tela), para o confirmador e o heartbeat.
+    public static void SetGameGuild(string? guild) => Volatile.Write(ref _gameGuild, string.IsNullOrWhiteSpace(guild) ? null : guild.Trim());
+    public static GuildLink CurrentGuildLink => GuildIdentity.DescribeLink(Volatile.Read(ref _gameGuild), _config.OwnGuildNames, CurrentGuildName);
 
     public static string CurrentGuildName =>
         string.IsNullOrWhiteSpace(_config.GuildDisplayName) ? GuildIdentity.LabelForServer(_config.ServerUrl) : _config.GuildDisplayName!;
@@ -1197,6 +1201,11 @@ public static class ImortaisEventBridge
             ["lastPartySnapshotAt"] = lastPartySnapshotAt,
             ["lastPartyMemberCount"] = lastPartyMemberCount
         };
+
+        var link = CurrentGuildLink;
+        var gameGuild = Volatile.Read(ref _gameGuild);
+        if (gameGuild != null) payload["gameGuild"] = gameGuild;
+        if (link.Linked.HasValue) payload["guildLinked"] = link.Linked.Value;
 
         var gameDetectedState = Volatile.Read(ref _gameDetectedState);
         if (gameDetectedState >= 0)
