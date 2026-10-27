@@ -19,6 +19,9 @@ public class JoinResponseHandler(TrackingController trackingController) : Respon
 
     protected override async Task OnActionAsync(JoinResponse value)
     {
+        // Antes de qualquer outro evento do personagem: a rajada de presença da guilda que chega
+        // no login precisa ir para o War Room da guilda NOVA (troca de personagem).
+        StatisticsAnalysisTool.Imortais.ImortaisEventBridge.SetGameGuild(value.GuildName);
         trackingController.CancelLogoutDetection();
         var hadActiveStatisticsSession = trackingController.StatisticController.HasActiveSession;
 
