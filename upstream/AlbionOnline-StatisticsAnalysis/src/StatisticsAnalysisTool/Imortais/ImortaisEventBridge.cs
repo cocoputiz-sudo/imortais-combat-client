@@ -56,7 +56,21 @@ public static class ImortaisEventBridge
     private const string PartySnapshotFingerprintKey = "party";
 
     private static Task? _worker;
-    private static ImortaisTelemetryConfig _config = ImortaisTelemetryConfig.Load();
+    private static ImortaisTelemetryConfig _config = LoadConfigWithPairings();
+    // Destino escolhido pela guilda do personagem logado (ver GuildPairings).
+    private static int _routingDirty = 1;
+    private static volatile bool _routingPaused;
+
+    private static ImortaisTelemetryConfig LoadConfigWithPairings()
+    {
+        var config = ImortaisTelemetryConfig.Load();
+        if (GuildPairings.Normalize(config))
+        {
+            try { ImortaisTelemetryConfig.Save(config); }
+            catch { /* Mantém a lista em memória se o disco estiver só leitura. */ }
+        }
+        return config;
+    }
     private static bool _warRoomConnected;
     private static DateTime? _lastSuccessfulContactUtc;
     private static string _lastError = string.Empty;
@@ -213,8 +227,71 @@ public static class ImortaisEventBridge
     public static bool IsOwnGuild(string? guild) => GuildIdentity.IsOwnGuild(guild, _config.OwnGuildNames);
     private static string? _gameGuild;
     // Guilda do personagem no jogo (vinda da tela), para o confirmador e o heartbeat.
-    public static void SetGameGuild(string? guild) => Volatile.Write(ref _gameGuild, string.IsNullOrWhiteSpace(guild) ? null : guild.Trim());
-    public static GuildLink CurrentGuildLink => GuildIdentity.DescribeLink(Volatile.Read(ref _gameGuild), _config.OwnGuildNames, CurrentGuildName);
+    public static void SetGameGuild(string? guild)
+    {
+        var value = string.IsNullOrWhiteSpace(guild) ? null : guild.Trim();
+        var previous = Interlocked.Exchange(ref _gameGuild, value);
+        if (!string.Equals(previous, value, StringComparison.OrdinalIgnoreCase)) Interlocked.Exchange(ref _routingDirty, 1);
+    }
+
+    public static GuildLink CurrentGuildLink
+    {
+        get
+        {
+            var game = Volatile.Read(ref _gameGuild);
+            if (_routingPaused && game != null)
+                return new GuildLink(GuildLinkState.Mismatch,
+                    $"⚠ SEM PAREAMENTO PARA A GUILDA {game.ToUpperInvariant()} · ENVIO PAUSADO · PAREIE COM O WAR ROOM DELA");
+            return GuildIdentity.DescribeLink(game, _config.OwnGuildNames, CurrentGuildName);
+        }
+    }
+
+    public static IReadOnlyList<string> PairedGuildLabels =>
+        _config.Pairings?.Select(GuildPairings.Label).ToArray() ?? Array.Empty<string>();
+
+    // Personagem numa guilda que não é a do destino ativo: não entra na fila
+    // (troca de destino pendente ou guilda sem pareamento).
+    private static bool BelongsToActiveDestination()
+    {
+        var game = Volatile.Read(ref _gameGuild);
+        if (game == null) return true;
+        if (_routingPaused) return false;
+        var own = _config.OwnGuildNames;
+        if (own != null && own.Count == 0) return true;
+        return GuildIdentity.IsOwnGuild(game, own);
+    }
+
+    // Roda no worker, depois de gravar a fila: tudo que já foi capturado fica com o destino anterior.
+    private static void ApplyGuildRoutingIfNeeded()
+    {
+        if (Interlocked.Exchange(ref _routingDirty, 0) == 0) return;
+        var game = Volatile.Read(ref _gameGuild);
+        if (game == null) return;
+        GuildPairings.Normalize(_config);
+        if (_config.Pairings!.Count == 0) { _routingPaused = false; return; }
+        var target = GuildPairings.SelectFor(_config, game);
+        if (target == null)
+        {
+            if (!_routingPaused) AddActivity("ROTA · " + game + " sem pareamento · envio pausado");
+            _routingPaused = true;
+            return;
+        }
+        var wasPaused = _routingPaused;
+        _routingPaused = false;
+        if (GuildPairings.SameServer(target.ServerUrl, _config.ServerUrl) && target.AgentKey == _config.AgentKey)
+        {
+            if (wasPaused) AddActivity("ROTA · " + game + " → " + GuildPairings.Label(target) + " · envio retomado");
+            return;
+        }
+        GuildPairings.Activate(_config, target);
+        try { ImortaisTelemetryConfig.Save(_config); }
+        catch { /* Destino novo vale na sessão mesmo sem gravar. */ }
+        _lastContextRefreshAttemptUtc = DateTime.MinValue;
+        lock (StatusLock) { _credentialMode = "unknown"; _rankingEligible = false; }
+        ResetOutboxState();
+        SetCtaContext(null, null);
+        AddActivity("ROTA · " + game + " → " + GuildPairings.Label(target));
+    }
 
     public static string CurrentGuildName =>
         string.IsNullOrWhiteSpace(_config.GuildDisplayName) ? GuildIdentity.LabelForServer(_config.ServerUrl) : _config.GuildDisplayName!;
@@ -223,7 +300,9 @@ public static class ImortaisEventBridge
 
     public static void ReloadConfig()
     {
-        _config = ImortaisTelemetryConfig.Load();
+        _config = LoadConfigWithPairings();
+        Interlocked.Exchange(ref _routingDirty, 1);
+        _routingPaused = false;
         _lastContextRefreshAttemptUtc = DateTime.MinValue;
         lock(StatusLock){_credentialMode="unknown";_rankingEligible=false;}
         ResetOutboxState();
@@ -237,6 +316,8 @@ public static class ImortaisEventBridge
             return (false, "O código deve ter 6 números.");
 
         var config = ImortaisTelemetryConfig.Load();
+        // Guarda o pareamento atual na lista antes de trocar de War Room: parear com outra guilda adiciona.
+        GuildPairings.Normalize(config);
         if (!string.IsNullOrWhiteSpace(serverUrl) && !string.Equals(serverUrl, config.ServerUrl, StringComparison.OrdinalIgnoreCase))
         {
             // Outra guilda: as guildas próprias da anterior não valem mais até o novo War Room responder.
@@ -277,6 +358,16 @@ public static class ImortaisEventBridge
                 && !string.IsNullOrWhiteSpace(playerProp.GetString()))
                 config.PlayerName = playerProp.GetString()!.Trim();
             GuildIdentityResponse.Apply(config, doc.RootElement);
+            var pairing = GuildPairings.Upsert(config, new GuildPairing
+            {
+                ServerUrl = config.ServerUrl,
+                AgentKey = config.AgentKey,
+                PlayerName = config.PlayerName,
+                GuildDisplayName = config.GuildDisplayName,
+                OwnGuildNames = config.OwnGuildNames?.ToList(),
+                PairedAtUtc = DateTime.UtcNow
+            });
+            GuildPairings.Activate(config, pairing);
 
             ImortaisTelemetryConfig.Save(config);
             ReloadConfig();
@@ -948,6 +1039,7 @@ public static class ImortaisEventBridge
 
     private static void QueueEvent(ImortaisTelemetryEvent evt)
     {
+        if (!BelongsToActiveDestination()) return;
         var sequence = Interlocked.Increment(ref _queueSequence);
         Queue.Writer.TryWrite(new QueuedTelemetryEvent(sequence, evt));
     }
@@ -1245,6 +1337,9 @@ public static class ImortaisEventBridge
                     continue;
                 }
 
+                ApplyGuildRoutingIfNeeded();
+                if (_routingPaused) continue;
+
                 if (!_config.Enabled
                     || string.IsNullOrWhiteSpace(_config.AgentKey)
                     || string.IsNullOrWhiteSpace(_config.ServerUrl))
@@ -1330,6 +1425,8 @@ public static class ImortaisEventBridge
                         var root=responseDoc.RootElement;
                         if (GuildIdentityResponse.Apply(_config, root))
                         {
+                            GuildPairings.SyncActive(_config);
+                            Interlocked.Exchange(ref _routingDirty, 1);
                             try { ImortaisTelemetryConfig.Save(_config); }
                             catch { /* Mantém a identidade em memória se o disco estiver só leitura. */ }
                         }

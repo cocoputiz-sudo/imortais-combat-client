@@ -8,6 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/GuildIdentity.cs" Link="GuildIdentity.cs" />
+    <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/GuildPairings.cs" Link="GuildPairings.cs" />
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisProductionEndpoint.cs" Link="ImortaisProductionEndpoint.cs" />
     <Compile Include="../../upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/ImortaisTelemetryConfig.cs" Link="ImortaisTelemetryConfig.cs" />
   </ItemGroup>

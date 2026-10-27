@@ -27,6 +27,8 @@ public sealed class ImortaisTelemetryConfig
     // Informados pelo War Room da guilda (pareamento e cada envio). null = ainda não informado.
     public string? GuildDisplayName { get; set; }
     public List<string>? OwnGuildNames { get; set; }
+    // Um pareamento por War Room; os campos acima são o destino ativo (escolhido pela guilda no jogo).
+    public List<GuildPairing>? Pairings { get; set; }
 
     [System.Text.Json.Serialization.JsonExtensionData]
     public Dictionary<string, JsonElement>? AdditionalSettings { get; set; }
@@ -91,4 +93,15 @@ public sealed class ImortaisTelemetryConfig
             if (File.Exists(temporary)) File.Delete(temporary);
         }
     }
+}
+
+public sealed class GuildPairing
+{
+    public string ServerUrl { get; set; } = string.Empty;
+    public string AgentKey { get; set; } = string.Empty;
+    public string PlayerName { get; set; } = string.Empty;
+    public string? GuildDisplayName { get; set; }
+    public List<string>? OwnGuildNames { get; set; }
+    public string? OutboxPath { get; set; }
+    public DateTime? PairedAtUtc { get; set; }
 }
