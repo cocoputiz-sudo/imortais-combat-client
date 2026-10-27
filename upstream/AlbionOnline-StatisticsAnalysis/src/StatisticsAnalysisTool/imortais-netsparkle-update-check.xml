@@ -5,10 +5,10 @@
     <description>Atualizações oficiais do Guild Combat Client.</description>
     <language>pt-BR</language>
     <item>
-      <title>Guild Combat Client v0.7.1</title>
-      <description><![CDATA[<a href="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.7.1">Ver notas da versão no GitHub</a>]]></description>
-      <pubDate>Tue, 27 Oct 2026 14:08:42 GMT</pubDate>
-      <enclosure url="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.7.1/IMORTAIS-Combat-Client-Setup-v0.7.1.exe" sparkle:version="0.7.1" sparkle:shortVersionString="0.7.1" sparkle:os="windows-x64" length="113682410" type="application/octet-stream" sparkle:edSignature="4oaJ4dmvxD/JtJZIguNuFObFkhvIpe6XpTxHVR4qQKvv5ISamtUGe9PnwpXzb9r/tsRqb3+hkPzSWEGavLFdCg==" sparkle:signature="4oaJ4dmvxD/JtJZIguNuFObFkhvIpe6XpTxHVR4qQKvv5ISamtUGe9PnwpXzb9r/tsRqb3+hkPzSWEGavLFdCg==" />
+      <title>Guild Combat Client v0.7.2</title>
+      <description><![CDATA[<a href="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.7.2">Ver notas da versão no GitHub</a>]]></description>
+      <pubDate>Tue, 27 Oct 2026 16:37:30 GMT</pubDate>
+      <enclosure url="https://github.com/cocoputiz-sudo/imortais-combat-client/releases/download/v0.7.2/IMORTAIS-Combat-Client-Setup-v0.7.2.exe" sparkle:version="0.7.2" sparkle:shortVersionString="0.7.2" sparkle:os="windows-x64" length="113673209" type="application/octet-stream" sparkle:edSignature="LndGMJpvu4Cmv/JLaO0peiAW+QZFik7cI2sLkLRSzxfw3Ze8qvdZ7GferW3vwYLxiuyJxuxJA8y1epLRcN8YCw==" sparkle:signature="LndGMJpvu4Cmv/JLaO0peiAW+QZFik7cI2sLkLRSzxfw3Ze8qvdZ7GferW3vwYLxiuyJxuxJA8y1epLRcN8YCw==" />
     </item>
   </channel>
 </rss>
