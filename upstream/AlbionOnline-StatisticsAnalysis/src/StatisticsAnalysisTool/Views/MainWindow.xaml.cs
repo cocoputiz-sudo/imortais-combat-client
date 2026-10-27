@@ -321,6 +321,14 @@ public partial class MainWindow
                 _ => Brushes.LightSlateGray
             };
         }
+        if (ImortaisPairingsText != null)
+        {
+            var paired = ImortaisEventBridge.PairedGuildLabels;
+            ImortaisPairingsText.Text = paired.Count == 0
+                ? string.Empty
+                : "PAREADO COM: " + string.Join(", ", paired.Select(x => x.ToUpperInvariant()))
+                  + (paired.Count > 1 ? " · O ENVIO SEGUE A GUILDA DO PERSONAGEM LOGADO" : " · PARA OUTRA GUILDA, ESCOLHA E ATIVE COM O CÓDIGO DELA");
+        }
         UpdateImortaisDiagnostics(status);
     }
 
@@ -972,6 +980,7 @@ public partial class MainWindow
         builder.AppendLine("GUILD COMBAT CLIENT - DIAGNÓSTICO");
         builder.AppendLine("Build: " + ImortaisBuildIdentity.Display);
         builder.AppendLine("War Room da guilda: " + ImortaisEventBridge.CurrentGuildName + " · " + ImortaisEventBridge.CurrentGuildLink.Text);
+        builder.AppendLine("Pareamentos: " + (ImortaisEventBridge.PairedGuildLabels.Count == 0 ? "nenhum" : string.Join(", ", ImortaisEventBridge.PairedGuildLabels)));
         builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
         builder.AppendLine($"Death Review local: {(DeathCombatReviewCapture.IsEnabled ? "ATIVADO" : "DESLIGADO")} · último relatório {DeathCombatReviewCapture.LastSavedPath ?? "nenhum"} · erro {DeathCombatReviewCapture.LastError ?? "nenhum"}");
         builder.AppendLine($"Guild Might: enviados {status.GuildMightSentAttempts} · aceitos pelo servidor {status.GuildMightServerAccepted} · rejeitados/erros {status.GuildMightRejectedAttempts} · pendentes {status.GuildMightPending}");

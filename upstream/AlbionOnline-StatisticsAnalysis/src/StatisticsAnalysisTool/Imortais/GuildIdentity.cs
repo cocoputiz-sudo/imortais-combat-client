@@ -68,7 +68,7 @@ public static class GuildIdentity
         if (ownGuilds != null && ownGuilds.Count == 0)
             return new GuildLink(GuildLinkState.Unknown, $"{room} NÃO INFORMOU GUILDAS PRÓPRIAS · SÓ A PARTY CONTA");
         if (IsOwnGuild(game, ownGuilds))
-            return new GuildLink(GuildLinkState.Match, $"✓ VINCULADO À GUILDA CERTA · {game.ToUpperInvariant()} → {room}");
+            return new GuildLink(GuildLinkState.Match, $"✓ VINCULADO À GUILDA CERTA · {game.ToUpperInvariant()} → ENVIANDO PARA {room}");
         return new GuildLink(GuildLinkState.Mismatch,
             $"⚠ GUILDA DIFERENTE · NO JOGO: {game.ToUpperInvariant()} · PAREADO COM: {room} · PAREIE COM O WAR ROOM DA SUA GUILDA");
     }

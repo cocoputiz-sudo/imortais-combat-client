@@ -30,6 +30,40 @@ Check(link.State == GuildLinkState.Waiting && link.Linked == null, "sem guilda n
 link = GuildIdentity.DescribeLink("Qualquer", Array.Empty<string>(), "CAVALEIROS");
 Check(link.State == GuildLinkState.Unknown && link.Linked == null, "servidor sem guildas próprias: indefinido");
 
+// Pareamentos por guilda: o destino segue a guilda do personagem logado.
+const string Imo = "https://imortais.macknacloud.com.br", Cav = "https://cavaleiros.macknacloud.com.br";
+var cfg = new ImortaisTelemetryConfig { ServerUrl = Imo, AgentKey = "k-imo", PlayerName = "BadMack",
+    OwnGuildNames = new List<string> { "IMORTAIS", "IMORTAIS ACADEMY", "IMORTAIS 2" }, OutboxPath = ImortaisTelemetryConfig.DefaultOutboxPath };
+Check(GuildPairings.Normalize(cfg) && cfg.Pairings!.Count == 1, "pareamento antigo vira o primeiro da lista");
+Check(cfg.Pairings![0].OutboxPath == ImortaisTelemetryConfig.DefaultOutboxPath, "primeiro pareamento mantém a fila original");
+Check(!GuildPairings.Normalize(cfg), "normalizar de novo não muda nada");
+var cavPairing = GuildPairings.Upsert(cfg, new GuildPairing { ServerUrl = Cav, AgentKey = "k-cav", PlayerName = "VickDigarista",
+    GuildDisplayName = "Cavaleiros Avalonianos", OwnGuildNames = new List<string> { "Cavaleiros Avalonianos" } });
+Check(cfg.Pairings!.Count == 2, "parear com outra guilda adiciona");
+Check(cavPairing.OutboxPath != null && cavPairing.OutboxPath != ImortaisTelemetryConfig.DefaultOutboxPath && cavPairing.OutboxPath.Contains("cavaleiros"), "fila própria da Cavaleiros");
+Check(GuildPairings.SelectFor(cfg, "Imortais Academy")?.AgentKey == "k-imo", "personagem da IMORTAIS ACADEMY vai para a IMORTAIS");
+Check(GuildPairings.SelectFor(cfg, "IMORTAIS 2")?.AgentKey == "k-imo", "qualquer personagem da família IMORTAIS vai para a IMORTAIS");
+Check(GuildPairings.SelectFor(cfg, "cavaleiros avalonianos")?.AgentKey == "k-cav", "personagem da Cavaleiros vai para a Cavaleiros");
+Check(GuildPairings.SelectFor(cfg, "ARCH") == null, "guilda sem pareamento: nenhum destino");
+Check(GuildPairings.SelectFor(cfg, null) == null, "sem guilda no jogo: nenhum destino");
+GuildPairings.Activate(cfg, GuildPairings.SelectFor(cfg, "Cavaleiros Avalonianos")!);
+Check(cfg.ServerUrl == Cav && cfg.AgentKey == "k-cav" && cfg.OutboxPath == cavPairing.OutboxPath && cfg.PlayerName == "VickDigarista", "ativar troca destino, chave e fila");
+Check(GuildPairings.Active(cfg)?.AgentKey == "k-cav", "ativo identificado");
+cfg.OwnGuildNames = new List<string> { "Cavaleiros Avalonianos", "Cavaleiros Academy" };
+GuildPairings.SyncActive(cfg);
+Check(cfg.Pairings!.First(p => p.AgentKey == "k-cav").OwnGuildNames!.Count == 2, "guildas novas do War Room ativo ficam no pareamento dele");
+Check(cfg.Pairings!.First(p => p.AgentKey == "k-imo").OwnGuildNames!.Count == 3, "o outro pareamento não muda");
+GuildPairings.Upsert(cfg, new GuildPairing { ServerUrl = Cav + "/", AgentKey = "k-cav2", OwnGuildNames = new List<string> { "Cavaleiros Avalonianos" } });
+Check(cfg.Pairings!.Count == 2 && cfg.Pairings.Any(p => p.AgentKey == "k-cav2") && cfg.Pairings.First(p => p.AgentKey == "k-cav2").OutboxPath == cavPairing.OutboxPath,
+    "parear de novo com o mesmo War Room substitui a chave e mantém a fila");
+Check(GuildPairings.Remove(cfg, Cav) && cfg.Pairings!.Count == 1, "remover pareamento");
+var legacy = new ImortaisTelemetryConfig { ServerUrl = Imo, AgentKey = "old", OwnGuildNames = null };
+GuildPairings.Normalize(legacy);
+Check(GuildPairings.SelectFor(legacy, "IMORTAIS")?.AgentKey == "old", "instalação antiga sem guildas informadas: família IMORTAIS");
+Check(GuildPairings.SelectFor(legacy, "Cavaleiros Avalonianos") == null, "instalação antiga não manda Cavaleiros para a IMORTAIS");
+var empty = new ImortaisTelemetryConfig { AgentKey = "" };
+Check(!GuildPairings.Normalize(empty) && empty.Pairings!.Count == 0, "sem chave: nenhum pareamento");
+
 // Seletor de guilda.
 Check(GuildIdentity.ResolveServerUrl("imortais") == "https://imortais.macknacloud.com.br", "nome conhecido");
 Check(GuildIdentity.ResolveServerUrl("CAVALEIROS") == "https://cavaleiros.macknacloud.com.br", "Cavaleiros conhecida");

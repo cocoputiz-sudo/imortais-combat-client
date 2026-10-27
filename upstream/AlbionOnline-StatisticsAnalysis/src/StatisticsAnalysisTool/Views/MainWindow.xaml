@@ -318,7 +318,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Ativação na guilda" Style="{StaticResource Dashboard.SectionTitle}" />
                                     <TextBlock x:Name="ImortaisPairingHelpText" Margin="0,6,0,10" TextWrapping="Wrap"
-                                               Text="Escolha a sua guilda (ou cole o endereço do War Room dela), gere um código de 6 dígitos no War Room e informe abaixo."
+                                               Text="Escolha a guilda (ou cole o endereço do War Room dela), gere um código de 6 dígitos no War Room e informe abaixo. Tem personagens em mais de uma guilda? Ative uma vez em cada: o client envia para a guilda do personagem logado."
                                                Foreground="{StaticResource SolidColorBrush.Text.2}" />
                                     <WrapPanel>
                                         <StackPanel Margin="0,0,12,0">
@@ -343,6 +343,8 @@
                                                Text="Verificando estado do pareamento..." Foreground="{StaticResource SolidColorBrush.Text.4}" />
                                     <TextBlock x:Name="ImortaisGuildLinkText" Margin="0,4,0,0" TextWrapping="Wrap" FontWeight="SemiBold"
                                                Text="AGUARDANDO O JOGO INFORMAR SUA GUILDA" Foreground="{StaticResource SolidColorBrush.Text.4}" />
+                                    <TextBlock x:Name="ImortaisPairingsText" Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Text="" Foreground="{StaticResource SolidColorBrush.Text.4}" />
                                 </StackPanel>
                             </Border>
 
