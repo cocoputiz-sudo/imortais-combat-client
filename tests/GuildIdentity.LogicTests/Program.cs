@@ -18,6 +18,18 @@ Check(GuildIdentity.IsOwnGuild("cavaleiros avalonianos", cav), "Cavaleiros é no
 Check(!GuildIdentity.IsOwnGuild("IMORTAIS", cav), "IMORTAIS é de fora na Cavaleiros");
 Check(!GuildIdentity.IsOwnGuild("IMORTAIS", Array.Empty<string>()), "lista vazia: nenhuma guilda própria");
 
+// Confirmador: guilda no jogo x War Room pareado.
+var link = GuildIdentity.DescribeLink("Cavaleiros Avalonianos", cav, "CAVALEIROS");
+Check(link.State == GuildLinkState.Match && link.Linked == true, "Cavaleiros no War Room da Cavaleiros: vinculado");
+link = GuildIdentity.DescribeLink("IMORTAIS", cav, "CAVALEIROS");
+Check(link.State == GuildLinkState.Mismatch && link.Linked == false && link.Text.Contains("IMORTAIS") && link.Text.Contains("CAVALEIROS"), "IMORTAIS no War Room da Cavaleiros: guilda diferente");
+link = GuildIdentity.DescribeLink("Imortais Academy", null, "IMORTAIS");
+Check(link.State == GuildLinkState.Match, "família IMORTAIS sem resposta do servidor: vinculado");
+link = GuildIdentity.DescribeLink("", cav, "CAVALEIROS");
+Check(link.State == GuildLinkState.Waiting && link.Linked == null, "sem guilda no jogo: aguardando");
+link = GuildIdentity.DescribeLink("Qualquer", Array.Empty<string>(), "CAVALEIROS");
+Check(link.State == GuildLinkState.Unknown && link.Linked == null, "servidor sem guildas próprias: indefinido");
+
 // Seletor de guilda.
 Check(GuildIdentity.ResolveServerUrl("imortais") == "https://imortais.macknacloud.com.br", "nome conhecido");
 Check(GuildIdentity.ResolveServerUrl("CAVALEIROS") == "https://cavaleiros.macknacloud.com.br", "Cavaleiros conhecida");

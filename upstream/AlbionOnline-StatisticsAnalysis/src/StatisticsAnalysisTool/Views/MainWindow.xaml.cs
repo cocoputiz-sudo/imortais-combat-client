@@ -309,6 +309,18 @@ public partial class MainWindow
                 ?Brushes.LimeGreen
                 :status.CredentialMode=="none"?Brushes.IndianRed:Brushes.Gold;
         }
+        ImortaisEventBridge.SetGameGuild(_mainWindowViewModel.UserTrackingBindings?.GuildName);
+        if (ImortaisGuildLinkText != null)
+        {
+            var link = ImortaisEventBridge.CurrentGuildLink;
+            ImortaisGuildLinkText.Text = status.Configured ? link.Text : "PAREIE O CLIENT PARA CONFIRMAR A GUILDA";
+            ImortaisGuildLinkText.Foreground = !status.Configured ? Brushes.LightSlateGray : link.State switch
+            {
+                GuildLinkState.Match => Brushes.LimeGreen,
+                GuildLinkState.Mismatch => Brushes.IndianRed,
+                _ => Brushes.LightSlateGray
+            };
+        }
         UpdateImortaisDiagnostics(status);
     }
 
