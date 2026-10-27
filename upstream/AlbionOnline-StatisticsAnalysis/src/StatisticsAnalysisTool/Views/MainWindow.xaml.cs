@@ -969,8 +969,9 @@ public partial class MainWindow
         var partyCount = Math.Max(0, _mainWindowViewModel?.PartyMemberNumber ?? 0);
         var builder = new StringBuilder();
 
-        builder.AppendLine("IMORTAIS COMBAT CLIENT - DIAGNÓSTICO");
+        builder.AppendLine("GUILD COMBAT CLIENT - DIAGNÓSTICO");
         builder.AppendLine("Build: " + ImortaisBuildIdentity.Display);
+        builder.AppendLine("War Room da guilda: " + ImortaisEventBridge.CurrentGuildName + " · " + ImortaisEventBridge.CurrentGuildLink.Text);
         builder.AppendLine($"Guild dumps locais: {(ImortaisEventBridge.IsGuildProbeLocalDiagnosticsEnabled ? "ATIVADOS" : "DESLIGADOS")}");
         builder.AppendLine($"Death Review local: {(DeathCombatReviewCapture.IsEnabled ? "ATIVADO" : "DESLIGADO")} · último relatório {DeathCombatReviewCapture.LastSavedPath ?? "nenhum"} · erro {DeathCombatReviewCapture.LastError ?? "nenhum"}");
         builder.AppendLine($"Guild Might: enviados {status.GuildMightSentAttempts} · aceitos pelo servidor {status.GuildMightServerAccepted} · rejeitados/erros {status.GuildMightRejectedAttempts} · pendentes {status.GuildMightPending}");
