@@ -51,7 +51,7 @@ Em **Dispositivos**, o War Room mostra a "Guilda no jogo" de cada PC e também f
 
 O client também consulta `GET /api/telemetry/context` (no máximo a cada 30 s) para saber o CTA ativo. O `ctaEventId` devolvido pelo servidor é a fonte de verdade.
 
-A lista de guildas que contam como "nós" (ex.: IMORTAIS, IMORTAIS ACADEMY e IMORTAIS 2) chega do War Room no pareamento e em cada envio.
+A lista de guildas que contam como "nós" (a guilda principal e as guildas irmãs, se houver) chega do War Room no pareamento e em cada envio.
 
 ---
 
@@ -91,7 +91,7 @@ A aba GUILD mostra o estado real:
 ```text
 WAR ROOM: CONECTADO
 ALBION: CAPTURANDO
-PERSONAGEM: BadMack
+PERSONAGEM: NomeDoPersonagem
 CTA: 19:20 · VINCULADO
 PARTY: 20 detectados
 TELEMETRIA: ENVIANDO / SINCRONIZADA
