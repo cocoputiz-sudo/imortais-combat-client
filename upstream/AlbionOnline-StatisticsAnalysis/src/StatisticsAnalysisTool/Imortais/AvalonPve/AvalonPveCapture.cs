@@ -79,6 +79,18 @@ public static class AvalonPveCapture
     private static void Publish(IReadOnlyList<AvalonPveWindow> windows)
     {
         foreach (var window in windows)
-            ImortaisEventBridge.DgavaPveWindow(window);
+        {
+            try
+            {
+                ImortaisEventBridge.DgavaPveWindow(window);
+            }
+            catch (Exception error)
+            {
+                // An experimental capture failure must never break the base combat
+                // meter, Photon packet handling or UI, or crash the timer thread.
+                System.Diagnostics.Debug.WriteLine(
+                    "Avalon PvE telemetry window discarded: " + error.GetType().Name);
+            }
+        }
     }
 }
