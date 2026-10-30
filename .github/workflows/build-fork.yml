@@ -210,6 +210,12 @@ jobs:
           dotnet run --project .\tests\DeathReview.LogicTests\DeathReview.LogicTests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw "Death Combat Timeline logic tests failed" }
 
+      - name: Testar evidencias DG Avaloniana (fail closed, mapa, mob)
+        shell: pwsh
+        run: |
+          dotnet run --project .\tests\AvalonPve.LogicTests\AvalonPve.LogicTests.csproj -c Release
+          if ($LASTEXITCODE -ne 0) { throw "Avalon PvE logic tests failed" }
+
       - name: Publicar executavel v0.7.2 autocontido (nao distribuido)
         shell: pwsh
         run: |
