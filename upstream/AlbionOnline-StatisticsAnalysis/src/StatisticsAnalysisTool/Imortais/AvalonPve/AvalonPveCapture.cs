@@ -12,9 +12,19 @@ public static class AvalonPveCapture
 {
     private static readonly AvalonPveObservationSession Session = new();
     private static readonly Timer FlushTimer = new(_ => Flush(), null, 5000, 5000);
+    private static readonly object JoinSync = new();
+    private static Guid? _joinGuid;
+    private static string? _joinCluster;
 
-    public static void OnClusterTransition(ClusterInfo? cluster)
+    public static void OnClusterTransition(ClusterInfo? cluster, Guid? joinMapGuid)
     {
+        // Only the GUID observed in THIS join packet can establish the instance.
+        // ClusterInfo.Guid may be stale when the incoming join omits its GUID.
+        lock (JoinSync)
+        {
+            _joinGuid = joinMapGuid is { } guid && guid != Guid.Empty ? guid : null;
+            _joinCluster = cluster?.Index;
+        }
         if (!ImortaisEventBridge.IsDgavaPveOptInEnabled)
         {
             Session.Clear();
@@ -39,14 +49,22 @@ public static class AvalonPveCapture
             Session.Clear();
             return;
         }
+        Guid? freshGuid;
+        lock (JoinSync)
+            freshGuid = string.Equals(_joinCluster, cluster.Index, StringComparison.Ordinal)
+                ? _joinGuid : null;
         Publish(Session.ChangeContext(
             cluster.MapType.ToString(), observedDungeonMode.ToString(),
-            cluster.Guid, cluster.Index));
+            freshGuid, cluster.Index));
         Publish(Session.ObserveDamage(player, targetObjectId, mobIndex,
             amount, causingSpellIndex, confirmedMobSpawn, DateTime.UtcNow));
     }
 
-    public static void OnCharacterTransition() => Session.Clear();
+    public static void OnCharacterTransition()
+    {
+        lock (JoinSync) { _joinGuid = null; _joinCluster = null; }
+        Session.Clear();
+    }
 
     private static void Flush()
     {

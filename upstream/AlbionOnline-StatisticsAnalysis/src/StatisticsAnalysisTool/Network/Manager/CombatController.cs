@@ -6,6 +6,7 @@ using StatisticsAnalysisTool.DamageMeter;
 using StatisticsAnalysisTool.Enumerations;
 using StatisticsAnalysisTool.GameFileData;
 using StatisticsAnalysisTool.Imortais;
+using StatisticsAnalysisTool.Imortais.AvalonPve;
 using StatisticsAnalysisTool.Models;
 using StatisticsAnalysisTool.Models.ItemsJsonModel;
 using StatisticsAnalysisTool.Models.NetworkModel;
@@ -124,6 +125,19 @@ public class CombatController
                 causerGameObjectValue.Name,
                 damageChangeValue,
                 ClusterController.GetCurrentClusterDisplayName());
+            // Separate, opt-in observations only when NewMob previously confirmed
+            // this target. The legacy isMobTarget heuristic is not enough.
+            if (ImortaisEventBridge.IsDgavaPveOptInEnabled)
+            {
+                var known = CombatEventTracker.GetKnownMobOrDefault(affectedId);
+                AvalonPveCapture.ObserveMobDamage(
+                    ClusterController.CurrentCluster,
+                    _trackingController.DungeonController.GetCurrentDungeonMode(),
+                    causerGameObjectValue.Name, affectedId, known?.MobIndex ?? 0,
+                    damageChangeValue, causingSpellIndex,
+                    affectedGameObject?.Value is not { ObjectType: GameObjectType.Player }
+                        && known is { IsProvisional: false, MobIndex: > 0 });
+            }
         }
 
         if (healthChangeType == HealthChangeType.Heal)

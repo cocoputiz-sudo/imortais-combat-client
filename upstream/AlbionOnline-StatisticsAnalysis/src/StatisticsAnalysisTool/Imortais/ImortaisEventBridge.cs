@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using StatisticsAnalysisTool.Imortais.AvalonPve;
 
 namespace StatisticsAnalysisTool.Imortais;
 
@@ -166,6 +167,38 @@ public static class ImortaisEventBridge
     public static void Start() => EnsureStarted();
 
     public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
+    public static bool IsDgavaPveOptInEnabled => _config.Enabled && _config.DgavaPveOptInEnabled;
+
+    // Does not grant a verified status, full coverage or any event correlation.
+    // Existing ingestion may not understand this new event; OFF by default until
+    // the server has a dedicated authenticated DG pipeline.
+    public static void DgavaPveWindow(AvalonPveWindow window)
+    {
+        if (!IsDgavaPveOptInEnabled) return;
+        Enqueue(new ImortaisTelemetryEvent
+        {
+            Type = "dgava_pve_window",
+            PlayerName = window.Actor,
+            Payload = new Dictionary<string, object?>
+            {
+                ["schemaVersion"] = 1,
+                ["windowId"] = window.WindowId,
+                ["dungeonInstanceId"] = window.DungeonInstanceId,
+                ["clusterIndex"] = window.ClusterIndex,
+                ["actor"] = window.Actor,
+                ["startedAtUtc"] = window.StartedAtUtc,
+                ["endedAtUtc"] = window.EndedAtUtc,
+                ["observedMs"] = window.ObservedMs,
+                ["mobDamageObserved"] = window.MobDamage,
+                ["targetKind"] = window.TargetKind,
+                ["hits"] = window.Hits,
+                ["sampleCount"] = window.Hits.Count,
+                ["coverage"] = window.Coverage,
+                ["evidence"] = window.Evidence
+            }
+        });
+    }
+
     // Passive evidence collection for DiedEvent coverage. This does NOT
     // publish highlights, send telemetry or alter gameplay behavior.
     public static void DiedEventLocalDiagnostic(
@@ -234,7 +267,11 @@ public static class ImortaisEventBridge
     {
         var value = string.IsNullOrWhiteSpace(guild) ? null : guild.Trim();
         var previous = Interlocked.Exchange(ref _gameGuild, value);
-        if (!string.Equals(previous, value, StringComparison.OrdinalIgnoreCase)) Interlocked.Exchange(ref _routingDirty, 1);
+        if (!string.Equals(previous, value, StringComparison.OrdinalIgnoreCase))
+        {
+            AvalonPveCapture.OnCharacterTransition();
+            Interlocked.Exchange(ref _routingDirty, 1);
+        }
     }
 
     public static GuildLink CurrentGuildLink
