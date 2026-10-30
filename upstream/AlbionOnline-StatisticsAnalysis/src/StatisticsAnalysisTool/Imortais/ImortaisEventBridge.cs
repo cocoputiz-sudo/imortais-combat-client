@@ -167,14 +167,33 @@ public static class ImortaisEventBridge
     public static void Start() => EnsureStarted();
 
     public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
-    public static bool IsDgavaPveOptInEnabled => _config.Enabled && _config.DgavaPveOptInEnabled;
+    public static bool IsDgavaPveOptInEnabled => _config.DgavaPveOptInEnabled;
+    private static readonly object DgavaPveDumpLock = new();
 
-    // Does not grant a verified status, full coverage or any event correlation.
-    // Existing ingestion may not understand this new event; OFF by default until
-    // the server has a dedicated authenticated DG pipeline.
+    // Local observation and network upload are two independent opt-ins.
+    // Partial Photon evidence never certifies a fee-waiver winner.
     public static void DgavaPveWindow(AvalonPveWindow window)
     {
         if (!IsDgavaPveOptInEnabled) return;
+        try
+        {
+            var folder = Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics", "AvalonPve");
+            lock (DgavaPveDumpLock)
+            {
+                Directory.CreateDirectory(folder);
+                var daily = Path.Combine(folder, $"dgava-pve-{DateTime.UtcNow:yyyyMMdd}.ndjson");
+                if (!File.Exists(daily) || new FileInfo(daily).Length < 8L * 1024 * 1024)
+                    File.AppendAllText(daily, JsonSerializer.Serialize(window) + "\n", Utf8NoBom);
+                foreach (var stale in Directory.GetFiles(folder, "dgava-pve-*.ndjson")
+                             .OrderByDescending(x => x, StringComparer.Ordinal).Skip(7))
+                    File.Delete(stale);
+            }
+        }
+        catch (Exception error)
+        {
+            System.Diagnostics.Debug.WriteLine("Avalon PvE local diagnostics failed: " + error.GetType().Name);
+        }
+        if (!_config.DgavaPveUploadEnabled || !_config.Enabled) return;
         Enqueue(new ImortaisTelemetryEvent
         {
             Type = "dgava_pve_window",

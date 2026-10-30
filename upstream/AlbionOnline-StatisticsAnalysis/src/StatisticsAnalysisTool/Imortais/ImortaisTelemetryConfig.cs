@@ -14,6 +14,8 @@ public sealed class ImortaisTelemetryConfig
     // DG Avalon PvE pilot is OFF on every existing device and install.
     // Windows are partial evidence only, never fee-waiver authorization.
     public bool DgavaPveOptInEnabled { get; set; } = false;
+    // Independent gate: local capture never permits network upload.
+    public bool DgavaPveUploadEnabled { get; set; } = false;
     // Opt-in: write raw decoded Photon guild probes locally instead of sending those probes.
     public bool GuildProbeLocalDiagnosticsEnabled { get; set; } = false;
 
