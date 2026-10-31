@@ -214,6 +214,7 @@ jobs:
         shell: pwsh
         run: |
           dotnet run --project .\tests\AvalonPve.LogicTests\AvalonPve.LogicTests.csproj -c Release
+          dotnet run --project .\tests\CombatTarget.LogicTests\CombatTarget.LogicTests.csproj -c Release
           if ($LASTEXITCODE -ne 0) { throw "Avalon PvE logic tests failed" }
 
       - name: Publicar executavel v0.7.2 autocontido (nao distribuido)
