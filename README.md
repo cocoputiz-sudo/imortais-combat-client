@@ -4,10 +4,10 @@ Cliente desktop para Albion Online que roda junto com o jogo e envia ao **War Ro
 
 > Antigo **IMORTAIS Combat Client**. Desde a v0.7.0 o mesmo app atende qualquer guilda com War Room.
 
-> **Versão estável atual:** v0.7.2  
+> **Versão estável atual:** v0.7.3  
 > **Plataforma estável:** Windows 10/11 x64  
 > **Runtime:** .NET 10 / WPF  
-> **Download Windows:** [Baixar instalador](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/latest/download/IMORTAIS-Combat-Client-Setup-v0.7.2.exe)  
+> **Download Windows:** [Baixar instalador](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/latest/download/IMORTAIS-Combat-Client-Setup-v0.7.3.exe)  
 > **Notas e arquivos:** [Release estável mais recente](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/latest)  
 > **War Rooms:** [IMORTAIS](https://imortais.macknacloud.com.br) · [CAVALEIROS AVALONIANOS](https://cavaleiros.macknacloud.com.br)
 
