@@ -12,6 +12,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
+using StatisticsAnalysisTool.Imortais.AvalonPve;
 
 namespace StatisticsAnalysisTool.Imortais;
 
@@ -166,6 +167,57 @@ public static class ImortaisEventBridge
     public static void Start() => EnsureStarted();
 
     public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
+    public static bool IsDgavaPveOptInEnabled => _config.DgavaPveOptInEnabled;
+    private static readonly object DgavaPveDumpLock = new();
+
+    // Local observation and network upload are two independent opt-ins.
+    // Partial Photon evidence never certifies a fee-waiver winner.
+    public static void DgavaPveWindow(AvalonPveWindow window)
+    {
+        if (!IsDgavaPveOptInEnabled) return;
+        try
+        {
+            var folder = Path.Combine(ImortaisTelemetryConfig.DirectoryPath, "Diagnostics", "AvalonPve");
+            lock (DgavaPveDumpLock)
+            {
+                Directory.CreateDirectory(folder);
+                var daily = Path.Combine(folder, $"dgava-pve-{DateTime.UtcNow:yyyyMMdd}.ndjson");
+                if (!File.Exists(daily) || new FileInfo(daily).Length < 8L * 1024 * 1024)
+                    File.AppendAllText(daily, JsonSerializer.Serialize(window) + "\n", Utf8NoBom);
+                foreach (var stale in Directory.GetFiles(folder, "dgava-pve-*.ndjson")
+                             .OrderByDescending(x => x, StringComparer.Ordinal).Skip(7))
+                    File.Delete(stale);
+            }
+        }
+        catch (Exception error)
+        {
+            System.Diagnostics.Debug.WriteLine("Avalon PvE local diagnostics failed: " + error.GetType().Name);
+        }
+        if (!_config.DgavaPveUploadEnabled || !_config.Enabled) return;
+        Enqueue(new ImortaisTelemetryEvent
+        {
+            Type = "dgava_pve_window",
+            PlayerName = window.Actor,
+            Payload = new Dictionary<string, object?>
+            {
+                ["schemaVersion"] = 1,
+                ["windowId"] = window.WindowId,
+                ["dungeonInstanceId"] = window.DungeonInstanceId,
+                ["clusterIndex"] = window.ClusterIndex,
+                ["actor"] = window.Actor,
+                ["startedAtUtc"] = window.StartedAtUtc,
+                ["endedAtUtc"] = window.EndedAtUtc,
+                ["observedMs"] = window.ObservedMs,
+                ["mobDamageObserved"] = window.MobDamage,
+                ["targetKind"] = window.TargetKind,
+                ["hits"] = window.Hits,
+                ["sampleCount"] = window.Hits.Count,
+                ["coverage"] = window.Coverage,
+                ["evidence"] = window.Evidence
+            }
+        });
+    }
+
     // Passive evidence collection for DiedEvent coverage. This does NOT
     // publish highlights, send telemetry or alter gameplay behavior.
     public static void DiedEventLocalDiagnostic(
@@ -234,7 +286,11 @@ public static class ImortaisEventBridge
     {
         var value = string.IsNullOrWhiteSpace(guild) ? null : guild.Trim();
         var previous = Interlocked.Exchange(ref _gameGuild, value);
-        if (!string.Equals(previous, value, StringComparison.OrdinalIgnoreCase)) Interlocked.Exchange(ref _routingDirty, 1);
+        if (!string.Equals(previous, value, StringComparison.OrdinalIgnoreCase))
+        {
+            AvalonPveCapture.OnCharacterTransition();
+            Interlocked.Exchange(ref _routingDirty, 1);
+        }
     }
 
     public static GuildLink CurrentGuildLink

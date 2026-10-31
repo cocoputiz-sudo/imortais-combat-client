@@ -4,6 +4,7 @@ using StatisticsAnalysisTool.DamageMeter;
 using StatisticsAnalysisTool.Enumerations;
 using StatisticsAnalysisTool.GameFileData;
 using StatisticsAnalysisTool.Imortais;
+using StatisticsAnalysisTool.Imortais.AvalonPve;
 using StatisticsAnalysisTool.Network.Manager;
 using StatisticsAnalysisTool.Properties;
 using StatisticsAnalysisTool.ViewModels;
@@ -60,6 +61,7 @@ public sealed class ClusterController(TrackingController trackingController, Mai
     {
         _snapshotLocationBeforeClusterChange = DamageMeterSnapshotLocationResolver.Resolve(CurrentCluster);
         CurrentCluster.SetJoinClusterInfo(index, sourceClusterIndex, mapGuid, mapType);
+        AvalonPveCapture.OnClusterTransition(CurrentCluster, mapGuid);
         CurrentCluster.Entered = DateTime.UtcNow;
         CurrentCluster.ClusterInfoFullyAvailable = true;
         mainWindowViewModel.MainStatusBindings.SetLocation(GetClusterDisplayName(CurrentCluster));

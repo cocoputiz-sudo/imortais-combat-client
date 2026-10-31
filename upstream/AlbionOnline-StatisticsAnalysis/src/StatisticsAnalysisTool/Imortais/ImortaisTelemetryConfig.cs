@@ -11,6 +11,11 @@ public sealed class ImortaisTelemetryConfig
     public const long DefaultMaxOutboxBytes = 50L * 1024 * 1024;
 
     public bool Enabled { get; set; } = false;
+    // DG Avalon PvE pilot is OFF on every existing device and install.
+    // Windows are partial evidence only, never fee-waiver authorization.
+    public bool DgavaPveOptInEnabled { get; set; } = false;
+    // Independent gate: local capture never permits network upload.
+    public bool DgavaPveUploadEnabled { get; set; } = false;
     // Opt-in: write raw decoded Photon guild probes locally instead of sending those probes.
     public bool GuildProbeLocalDiagnosticsEnabled { get; set; } = false;
 
