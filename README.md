@@ -45,9 +45,42 @@ Em **Dispositivos**, o War Room mostra a "Guilda no jogo" de cada PC e também f
 | `guild_presence_probe` | Presença e last-seen dos membros da guilda |
 | heartbeat | Estado do dispositivo e guilda do personagem |
 | combate e mortes | Kills, deaths, knockouts e placares por guilda; cada morte leva o equipamento e a aliança da vítima e do killer, para estimar o **Kill Fame** na hora e conferir com a API oficial |
-| `combat_delta` | Dano e cura por janela |
+| `combat_delta` | Dano e cura por janela; na v0.7.3, acrescenta classificação de alvo `player` / `mob` / `unknown`, sem alterar o valor antigo de `damage` |
+| `dgava_pve_window` | Trilha experimental opt-in de dano observado em mobs confirmados dentro de DG Avaloniana; desativada por padrão e **não certifica Top DPS** |
 | loot | Jogador, guilda, origem, item, quantidade, valor estimado e mapa |
 | `guild_might_probe` | Guild Might e Guild Challenge, observados passivamente (o client não cria requests) |
+
+### Novo na v0.7.3: distinguir dano PvP, PvE e desconhecido
+
+O medidor de dano **sempre acompanhou tanto o PvP quanto o PvE**. A v0.7.3 não cria outro medidor: ela enriquece o **mesmo** `combat_delta` com a natureza dos alvos observados, mantendo o campo `damage` antigo e o reset por mudança de mapa.
+
+| Informação do `combat_delta` | Interpretação |
+|---|---|
+| `damage` / `healing` | Totais legados preservados para compatibilidade com versões anteriores |
+| `damageByTarget.player` | Dano observado contra personagem jogador (PvP) |
+| `damageByTarget.mob` | Dano observado contra mob/NPC **confirmado** (PvE) |
+| `damageByTarget.unknown` | Dano cujo alvo não foi confirmado |
+| `targetClassificationVersion: 1` | Versão do contrato de classificação |
+| `targetClassificationEvidence: "passive_observed_not_complete"` | Classificação observacional, sem garantia de cobertura integral |
+
+O filtro local **“somente dano a jogadores”** continua afetando o medidor legado, mas não impede a observação da classificação. Por isso a soma de `damageByTarget` pode **diferir** do valor legado `damage`; não sobrescreva o total histórico com essa soma. Clientes antigos não enviam classificação, e o War Room não deve interpretá-los como PvP confirmado.
+
+**PvE não significa DG Avaloniana por si só:** é preciso identificar a atividade e a instância. Jogadores inimigos dentro de uma DG continuam alvos PvP; mobs em qualquer outro mapa continuam alvos PvE.
+
+Veja [documentação do contrato](docs/combat-target-classification.md) e [notas da release v0.7.3](docs/releases/v0.7.3-classificacao-alvos.md).
+
+### DG Avaloniana: operações no War Room e coleta experimental
+
+As duas guildas têm uma área operacional própria para organizar DGs Avalonianas: **20 combatentes + 2 Scouts**, editor de composições e inscrições por Discord com IP obrigatório. O acesso fica em **OPERAÇÃO → DG Avaloniana**, separado da composição de CTA:
+
+- [DG Avaloniana IMORTAIS](https://imortais.macknacloud.com.br/dgava) e [Editor](https://imortais.macknacloud.com.br/dgava?editor=1).
+- [DG Avaloniana CAV](https://cavaleiros.macknacloud.com.br/dgava) e [Editor](https://cavaleiros.macknacloud.com.br/dgava?editor=1).
+
+O Client possui `dgava_pve_window`, um **piloto de observação de dano contra mobs confirmados**. A coleta (`DgavaPveOptInEnabled`) e o envio (`DgavaPveUploadEnabled`) são duas escolhas independentes, ambas **desligadas por padrão**. O servidor recebe essas janelas somente quando o receptor específico está habilitado; a trilha fica separada de ZvZ/CTA e as evidências experimentais são registradas em quarentena.
+
+**Ainda não existe Top DPS automaticamente verificável.** A origem do dispositivo não identifica automaticamente o jogador que causou cada hit. Antes de qualquer isenção de fee faltam associar o personagem Discord/Albion, agrupar os andares da mesma expedição, deduplicar observações de vários dispositivos e comprovar a cobertura dos 20 participantes. Ausência de pacotes **não equivale a zero DPS**.
+
+Consulte [o piloto de telemetria da DG](docs/avalon-pve-telemetry-pilot.md) e o [acompanhamento técnico](https://github.com/cocoputiz-sudo/imortais-combat-client/issues/65).
 
 O client também consulta `GET /api/telemetry/context` (no máximo a cada 30 s) para saber o CTA ativo. O `ctaEventId` devolvido pelo servidor é a fonte de verdade.
 
@@ -194,7 +227,7 @@ A publicação roda no Windows autorizado, com as **chaves de assinatura já exi
 irm https://raw.githubusercontent.com/cocoputiz-sudo/imortais-combat-client/main/scripts/publi-icc-v0XX.ps1 | iex
 ```
 
-A v0.7.2 já foi publicada; não rode de novo o publicador dela. Depois de publicar, teste o **ATUALIZAR AGORA** a partir da versão anterior antes de anunciar.
+A **v0.7.3 já foi oficialmente publicada** com instalador Windows x64, SHA-256 e feed de atualização assinado com o mesmo par Ed25519 da série anterior. O CI confirmou o upgrade `v0.7.2 → v0.7.3` preservando pareamento e configurações. Acesse a [release v0.7.3](https://github.com/cocoputiz-sudo/imortais-combat-client/releases/tag/v0.7.3) e, se já usa a versão anterior, clique em **ATUALIZAR AGORA**. Não execute o publicador antigo de v0.7.2/v0.7.3 uma segunda vez nem sobrescreva a mesma tag.
 
 ---
 
@@ -233,8 +266,10 @@ Ferramentas de terceiros não são suportadas oficialmente pela Sandbox Interact
 
 ## Roadmap
 
-### Entregue
+### Entregue (versão oficial v0.7.3)
 - Telemetria de party, presença, combate, loot e Guild Might; outbox persistente; contexto automático de CTA.
+- Classificação adicional de dano observado em players/mobs/alvos desconhecidos sem substituir o medidor ou o `combat_delta` legado.
+- Corrigido o vínculo do observador pareado na trilha experimental de DG; piloto permanece desativado por padrão.
 - Updater Ed25519 e diagnóstico central.
 - Highlights de abates, abates em massa e morte.
 - Mortes com equipamento e aliança (Kill Fame no Battle Report).
@@ -242,6 +277,8 @@ Ferramentas de terceiros não são suportadas oficialmente pela Sandbox Interact
 - Death Review local.
 
 ### Próximos passos
+- Homologar em uma DG real a identidade dos participantes, os andares, os mobs, os eventos PvP e a deduplicação entre observadores. Só depois liberar os resultados de Top DPS/fee.
+- Verificar em sessão real de PvP e PvE a classificação player/mob/unknown da v0.7.3.
 - Death Combat Review: identificar casts inimigos e skills usadas (Q, W, E, peito, capacete, botas, poção).
 - Highlights sem gravar o mesmo trecho várias vezes quando abate, abate em massa e morte se sobrepõem.
 - Regear automático no War Room a partir das mortes enviadas.
