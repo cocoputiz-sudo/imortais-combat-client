@@ -197,7 +197,7 @@ public static class ImortaisEventBridge
         Enqueue(new ImortaisTelemetryEvent
         {
             Type = "dgava_pve_window",
-            PlayerName = window.Actor,
+            PlayerName = _config.PlayerName, // paired observer, not the actor from party
             Payload = new Dictionary<string, object?>
             {
                 ["schemaVersion"] = 1,
@@ -1007,6 +1007,36 @@ public static class ImortaisEventBridge
             _ => new CombatAccumulator { Player = player.Trim(), Cluster = cluster, Damage = amount },
             (_, current) => { Interlocked.Add(ref current.Damage, amount); return current; });
         EnsureStarted();
+    }
+
+    // Target classification is added to the SAME existing accumulator.
+    // This never alters the previous "damage" metric or the local meter.
+    public static void ClassifiedDamage(string player, int amount, string kind, string? clusterName = null)
+    {
+        if (!_config.Enabled || amount <= 0 || string.IsNullOrWhiteSpace(player)) return;
+        if (kind is not ("player" or "mob" or "unknown")) return;
+        var cluster = string.IsNullOrWhiteSpace(clusterName) ? string.Empty : clusterName.Trim();
+        var name = player.Trim();
+        var key = string.Concat(cluster, (char)31, name);
+        Combat.AddOrUpdate(key,
+            _ =>
+            {
+                var entry = new CombatAccumulator { Player = name, Cluster = cluster };
+                AddTargetAmount(entry, amount, kind);
+                return entry;
+            },
+            (_, entry) => { AddTargetAmount(entry, amount, kind); return entry; });
+        EnsureStarted();
+    }
+
+    private static void AddTargetAmount(CombatAccumulator entry, int amount, string kind)
+    {
+        switch (kind)
+        {
+            case "player": Interlocked.Add(ref entry.PlayerTargetDamage, amount); break;
+            case "mob": Interlocked.Add(ref entry.MobTargetDamage, amount); break;
+            default: Interlocked.Add(ref entry.UnknownTargetDamage, amount); break;
+        }
     }
 
     public static void Healing(string player, int amount, string? clusterName = null)
@@ -2014,20 +2044,33 @@ public static class ImortaisEventBridge
             if (!Combat.TryRemove(pair.Key, out var acc)) continue;
             var damage = Interlocked.Read(ref acc.Damage);
             var healing = Interlocked.Read(ref acc.Healing);
-            if (damage <= 0 && healing <= 0) continue;
+            var playerTarget = Interlocked.Read(ref acc.PlayerTargetDamage);
+            var mobTarget = Interlocked.Read(ref acc.MobTargetDamage);
+            var unknownTarget = Interlocked.Read(ref acc.UnknownTargetDamage);
+            if (damage <= 0 && healing <= 0 && playerTarget + mobTarget + unknownTarget <= 0) continue;
 
+            var payload = new Dictionary<string, object?>
+            {
+                ["player"] = acc.Player,
+                ["damage"] = damage,
+                ["healing"] = healing,
+                ["cluster"] = string.IsNullOrWhiteSpace(acc.Cluster) ? null : acc.Cluster,
+                ["windowMs"] = Math.Max(250, _config.BatchIntervalMs)
+            };
+            if (playerTarget + mobTarget + unknownTarget > 0)
+            {
+                payload["targetClassificationVersion"] = 1;
+                payload["targetClassificationEvidence"] = "passive_observed_not_complete";
+                payload["damageByTarget"] = new Dictionary<string, long>
+                {
+                    ["player"] = playerTarget, ["mob"] = mobTarget, ["unknown"] = unknownTarget
+                };
+            }
             QueueEvent(new ImortaisTelemetryEvent
             {
                 Type = "combat_delta",
                 PlayerName = acc.Player,
-                Payload = new Dictionary<string, object?>
-                {
-                    ["player"] = acc.Player,
-                    ["damage"] = damage,
-                    ["healing"] = healing,
-                    ["cluster"] = string.IsNullOrWhiteSpace(acc.Cluster) ? null : acc.Cluster,
-                    ["windowMs"] = Math.Max(250, _config.BatchIntervalMs)
-                }
+                Payload = payload
             });
         }
     }
@@ -2038,6 +2081,9 @@ public static class ImortaisEventBridge
     {
         public string Player = string.Empty;
         public string Cluster = string.Empty;
+        public long PlayerTargetDamage;
+        public long MobTargetDamage;
+        public long UnknownTargetDamage;
         public long Damage;
         public long Healing;
     }

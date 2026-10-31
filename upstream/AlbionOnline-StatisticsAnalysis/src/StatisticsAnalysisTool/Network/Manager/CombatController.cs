@@ -82,15 +82,35 @@ public class CombatController
 
         var affectedGameObject = _trackingController.EntityController?.GetEntity(affectedId);
 
-        if (_mainWindowViewModel.DamageMeterBindings.OnlyDamageToPlayersCounts && affectedGameObject?.Value is not { ObjectType: GameObjectType.Player })
-        {
-            return Task.CompletedTask;
-        }
-
         if (causerGameObject?.Value is not { ObjectType: GameObjectType.Player } || !_trackingController.EntityController!.IsEntityInParty(causerGameObject.Value.Key))
         {
             return Task.CompletedTask;
         }
+
+        // Classify the original HealthUpdate before applying the optional UI filter.
+        // A missing/ambiguous target is unknown, never automatically a mob.
+        if (healthChangeType == HealthChangeType.Damage)
+        {
+            var observedAmount = (int)Math.Round(healthChange.ToPositiveFromNegativeOrZero(), MidpointRounding.AwayFromZero);
+            if (observedAmount > 0)
+            {
+                var isPlayerTarget = affectedGameObject?.Value is { ObjectType: GameObjectType.Player };
+                var knownMob = isPlayerTarget ? null : CombatEventTracker.GetKnownMobOrDefault(affectedId);
+                var confirmedMob = !isPlayerTarget && knownMob is { IsProvisional: false, MobIndex: > 0 };
+                ImortaisEventBridge.ClassifiedDamage(causerGameObjectValue.Name, observedAmount,
+                    CombatTargetClassifier.Classify(isPlayerTarget, confirmedMob),
+                    ClusterController.GetCurrentClusterDisplayName());
+                if (ImortaisEventBridge.IsDgavaPveOptInEnabled)
+                    AvalonPveCapture.ObserveMobDamage(ClusterController.CurrentCluster,
+                        _trackingController.DungeonController.GetCurrentDungeonMode(),
+                        causerGameObjectValue.Name, affectedId, knownMob?.MobIndex ?? 0,
+                        observedAmount, causingSpellIndex, confirmedMob);
+            }
+        }
+        // Preserve legacy damage-meter and combat_delta semantics for the visual filter.
+        if (_mainWindowViewModel.DamageMeterBindings.OnlyDamageToPlayersCounts &&
+            affectedGameObject?.Value is not { ObjectType: GameObjectType.Player })
+            return Task.CompletedTask;
 
         var contentType = GetCurrentContentType();
         var contentStats = causerGameObjectValue.GetOrCreateDamageMeterContentStats(contentType);
@@ -125,19 +145,6 @@ public class CombatController
                 causerGameObjectValue.Name,
                 damageChangeValue,
                 ClusterController.GetCurrentClusterDisplayName());
-            // Separate, opt-in observations only when NewMob previously confirmed
-            // this target. The legacy isMobTarget heuristic is not enough.
-            if (ImortaisEventBridge.IsDgavaPveOptInEnabled)
-            {
-                var known = CombatEventTracker.GetKnownMobOrDefault(affectedId);
-                AvalonPveCapture.ObserveMobDamage(
-                    ClusterController.CurrentCluster,
-                    _trackingController.DungeonController.GetCurrentDungeonMode(),
-                    causerGameObjectValue.Name, affectedId, known?.MobIndex ?? 0,
-                    damageChangeValue, causingSpellIndex,
-                    affectedGameObject?.Value is not { ObjectType: GameObjectType.Player }
-                        && known is { IsProvisional: false, MobIndex: > 0 });
-            }
         }
 
         if (healthChangeType == HealthChangeType.Heal)
