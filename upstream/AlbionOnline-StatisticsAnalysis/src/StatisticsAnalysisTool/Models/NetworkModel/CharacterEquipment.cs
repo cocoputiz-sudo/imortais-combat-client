@@ -81,7 +81,8 @@ public class CharacterEquipment
             {
                 SlotType = spell.SlotType,
                 Value = spell.Value,
-                ItemIndex = spell.ItemIndex
+                ItemIndex = spell.ItemIndex,
+                Key = spell.Key
             }).ToList() ?? []
         };
     }

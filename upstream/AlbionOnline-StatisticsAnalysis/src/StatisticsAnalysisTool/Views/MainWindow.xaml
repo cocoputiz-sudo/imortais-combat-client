@@ -348,6 +348,29 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- Top DPS da DG Avaloniana: um único consentimento liga a captura e o envio -->
+                            <Border Style="{StaticResource Dashboard.Section}" Padding="16,12,16,14" Margin="0,0,0,10">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                                        <TextBlock Text="Top DPS · DG Avaloniana" Style="{StaticResource Dashboard.SectionTitle}" />
+                                        <TextBlock Margin="0,7,0,0" TextWrapping="Wrap"
+                                                   Text="Envia ao War Room o dano que este PC vê a sua party causar em mobs dentro da DG Avaloniana. O War Room junta os PCs, não soma o mesmo golpe duas vezes e apura o maior DPS ao encerrar a DG. Só dano em mobs de dungeon de Avalon; nada de vídeo, morte ou casts."
+                                                   Foreground="{StaticResource SolidColorBrush.Text.2}" />
+                                        <TextBlock x:Name="ImortaisTopDpsStatusText" Margin="0,7,0,0" TextWrapping="Wrap" FontSize="11"
+                                                   Text="Apuração desligada neste PC."
+                                                   Foreground="{StaticResource SolidColorBrush.Text.4}" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" x:Name="ImortaisTopDpsCheckBox" VerticalAlignment="Center"
+                                              Content="Participar da apuração do Top DPS"
+                                              ToolTip="Liga a captura de dano em mobs na DG Avaloniana e o envio ao War Room pareado."
+                                              Click="ImortaisTopDps_Click" />
+                                </Grid>
+                            </Border>
+
                             <!-- Highlights -->
                             <Border Style="{StaticResource Dashboard.Section}" Padding="16,12,16,14" Margin="0,0,0,10">
                                 <Grid>
@@ -464,7 +487,7 @@
                                                 Click="ImortaisOpenDeathReviewFolder_Click" />
                                     </WrapPanel>
                                     <TextBlock TextWrapping="Wrap" FontSize="11" Margin="0,0,0,4" Foreground="{StaticResource SolidColorBrush.Accent.Blue.2}"
-                                               Text="Death Review salva apenas neste PC relatórios das suas mortes (até 30 JSONs), com nomes/IDs, dano, habilidades e equipamento. Nada é enviado automaticamente." />
+                                               Text="Death Review salva apenas neste PC relatórios das suas mortes (até 30). Cada morte tem um .txt com quem bateu em você, a tecla usada (Q, W, E, R, D, F, poção) e o nome da habilidade, além do JSON completo. Nada é enviado automaticamente." />
                                     <TextBlock Text="Captura local dos rankings de Might e Challenge; desligado por padrão." FontSize="11"
                                                Foreground="{StaticResource SolidColorBrush.Text.3}" />
 

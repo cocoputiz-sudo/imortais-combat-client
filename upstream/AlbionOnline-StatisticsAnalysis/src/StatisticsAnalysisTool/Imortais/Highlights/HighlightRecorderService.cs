@@ -423,6 +423,7 @@ internal sealed class HighlightRecorderService : IDisposable
                 snapshotBytes,
                 saveAsMass));
             snapshot=null;
+            lock(_gate)_coalescer.MarkSaved(plan);
             EnsureSavePump();
             return true;
         }

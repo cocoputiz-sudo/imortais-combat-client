@@ -53,7 +53,9 @@ internal static class DeathCombatReviewCapture
 
     public static void OnOwnLethalDeath(
         string victim, long victimObjectId, string killer, long killerObjectId,
-        string? cluster, CharacterEquipment? equipment)
+        string? cluster, CharacterEquipment? equipment,
+        Func<long, CharacterEquipment?>? enemyEquipment = null,
+        Func<int, string?>? itemName = null)
     {
         if (!IsEnabled) return;
         var snapshot = Timeline.FreezeAtDeath(
@@ -64,6 +66,18 @@ internal static class DeathCombatReviewCapture
             snapshot.DeathUtc, snapshot.VictimObjectId,
             snapshot.IncomingHealthChanges.Select(x => x.CausingSpellIndex).ToArray());
         snapshot = snapshot with { SkillEvidence = skillEvidence };
+        try
+        {
+            snapshot = snapshot with
+            {
+                EnemyCasts = EnemyCastSummary.Build(
+                    snapshot.IncomingHealthChanges, snapshot.KillerObjectId,
+                    index => GameFileData.SpellData.GetUniqueName(index),
+                    unique => GameFileData.SpellData.GetLocalizationName(unique),
+                    id => ToLoadout(enemyEquipment?.Invoke(id), itemName))
+            };
+        }
+        catch (Exception ex) { Volatile.Write(ref _lastError, "Resumo de casts: " + ex.Message); }
 
         // Bound queued I/O. Never serialize or touch the filesystem inside packet handlers.
         if (Interlocked.Increment(ref _pending) > 2)
@@ -94,6 +108,17 @@ internal static class DeathCombatReviewCapture
             equipment.Shoes, equipment.Cape, equipment.Potion, equipment.BuffFood, spells);
     }
 
+    private static EnemyLoadout? ToLoadout(CharacterEquipment? equipment, Func<int, string?>? itemName)
+    {
+        if (equipment is null) return null;
+        var spells = (equipment.ActiveSpells ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x.Key) && x.Value >= 0)
+            .Select(x => new EnemySpellSlot(x.Key, x.Value)).ToArray();
+        string? weapon = null;
+        try { weapon = equipment.MainHand > 0 ? itemName?.Invoke(equipment.MainHand) : null; } catch { weapon = null; }
+        return new EnemyLoadout(weapon, spells);
+    }
+
     private static async Task PersistAsync(DeathCombatSnapshot snapshot)
     {
         await Writer.WaitAsync().ConfigureAwait(false);
@@ -108,6 +133,9 @@ internal static class DeathCombatReviewCapture
             await File.WriteAllTextAsync(temp, json).ConfigureAwait(false);
             File.Move(temp, path);
             temp = null;
+            // Readable summary next to the JSON: who hit you, with which button and skill.
+            try { await File.WriteAllTextAsync(Path.Combine(Folder, stem + ".txt"), EnemyCastSummary.Format(snapshot, snapshot.EnemyCasts ?? [])).ConfigureAwait(false); }
+            catch { /* the JSON report is the source of truth */ }
             Volatile.Write(ref _lastSavedPath, path);
             Volatile.Write(ref _lastError, null);
 
@@ -115,7 +143,7 @@ internal static class DeathCombatReviewCapture
             foreach (var old in Directory.GetFiles(Folder, "death-review-*.json")
                          .OrderByDescending(File.GetLastWriteTimeUtc).Skip(30))
             {
-                try { File.Delete(old); } catch { /* retention retry on next save */ }
+                try { File.Delete(old); File.Delete(Path.ChangeExtension(old, ".txt")); } catch { /* retention retry on next save */ }
             }
         }
         finally

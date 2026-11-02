@@ -225,7 +225,8 @@ internal sealed class HighlightClipPlan
         HighlightTrigger firstTrigger,
         TimeSpan preRoll,
         TimeSpan postRoll,
-        TimeSpan maxDuration)
+        TimeSpan maxDuration,
+        long notBeforeQpc100Ns=0)
     {
         if(preRoll<TimeSpan.Zero)throw new ArgumentOutOfRangeException(nameof(preRoll));
         if(postRoll<TimeSpan.Zero)throw new ArgumentOutOfRangeException(nameof(postRoll));
@@ -235,7 +236,9 @@ internal sealed class HighlightClipPlan
         SelectedTrigger=firstTrigger;
         FirstEventQpc100Ns=firstTrigger.Qpc100Ns;
         LastEventQpc100Ns=firstTrigger.Qpc100Ns;
-        StartQpc100Ns=Math.Max(0,firstTrigger.Qpc100Ns-preRoll.Ticks);
+        // Never start before the end of the last SAVED clip: the same footage is not saved twice.
+        StartQpc100Ns=Math.Max(Math.Max(0,firstTrigger.Qpc100Ns-preRoll.Ticks),Math.Min(notBeforeQpc100Ns,firstTrigger.Qpc100Ns));
+        MergeGap100Ns=preRoll.Ticks;
         HardEndQpc100Ns=checked(StartQpc100Ns+maxDuration.Ticks);
         EndQpc100Ns=Math.Min(
             checked(firstTrigger.Qpc100Ns+postRoll.Ticks),
@@ -250,26 +253,38 @@ internal sealed class HighlightClipPlan
     public bool MassAbate=>SelectedTrigger.Kind!=HighlightTriggerKind.Death && TriggerCount>1;
     public long FirstEventQpc100Ns{get;}
     public long LastEventQpc100Ns{get;private set;}
-    public long StartQpc100Ns{get;}
+    public long StartQpc100Ns{get;private set;}
     public long EndQpc100Ns{get;private set;}
     public long HardEndQpc100Ns{get;}
     public long PostRoll100Ns{get;}
+    // A new event this close to the previous one would repeat its pre-roll footage in another
+    // file (kill, then mass kill, then death): it joins the same clip instead.
+    public long MergeGap100Ns{get;}
     public int TriggerCount{get;private set;}
     public TimeSpan PlannedDuration=>TimeSpan.FromTicks(Math.Max(0,EndQpc100Ns-StartQpc100Ns));
+    // The clip waits until no event can still join it (merge gap) or it reached the cap.
+    public long ReadyAtQpc100Ns=>Math.Max(EndQpc100Ns,Math.Min(checked(LastEventQpc100Ns+MergeGap100Ns),HardEndQpc100Ns));
+
+    // Called when the clip is about to be saved: skip footage an earlier saved clip already has.
+    public void ClampStart(long savedUntilQpc100Ns)
+    {
+        if(savedUntilQpc100Ns>StartQpc100Ns)StartQpc100Ns=Math.Min(savedUntilQpc100Ns,FirstEventQpc100Ns);
+    }
 
     public bool CanCoalesce(HighlightTrigger trigger)
-        =>trigger.Qpc100Ns>=LastEventQpc100Ns
-          && trigger.Qpc100Ns<=EndQpc100Ns
-          && trigger.Qpc100Ns<=HardEndQpc100Ns;
+        =>trigger.Qpc100Ns>=StartQpc100Ns
+          && trigger.Qpc100Ns<=HardEndQpc100Ns
+          && trigger.Qpc100Ns<=Math.Max(EndQpc100Ns,checked(LastEventQpc100Ns+MergeGap100Ns));
 
     public void Coalesce(HighlightTrigger trigger)
     {
         if(!CanCoalesce(trigger))throw new InvalidOperationException("Trigger fora da janela de coalescência.");
-        LastEventQpc100Ns=trigger.Qpc100Ns;
+        // Events may arrive slightly out of order; the clip keeps the latest moment.
+        LastEventQpc100Ns=Math.Max(LastEventQpc100Ns,trigger.Qpc100Ns);
         if(trigger.Kind==HighlightTriggerKind.Death)SelectedTrigger=trigger;
-        EndQpc100Ns=Math.Min(
+        EndQpc100Ns=Math.Max(EndQpc100Ns,Math.Min(
             checked(trigger.Qpc100Ns+PostRoll100Ns),
-            HardEndQpc100Ns);
+            HardEndQpc100Ns));
         TriggerCount++;
     }
 }
@@ -302,9 +317,18 @@ internal sealed class HighlightClipCoalescer
     }
 
     public int Count=>_plans.Count;
+    // End of the last clip that was actually saved; footage before it is never saved again.
+    public long SavedUntilQpc100Ns{get;private set;}
+    public int SkippedAlreadySaved{get;private set;}
 
     public bool Add(HighlightTrigger trigger)
     {
+        // The moment is already inside a saved clip: no new file for it.
+        if(trigger.Qpc100Ns<=SavedUntilQpc100Ns)
+        {
+            SkippedAlreadySaved++;
+            return true;
+        }
         if(_plans.Count>0)
         {
             var last=_plans[^1];
@@ -315,13 +339,19 @@ internal sealed class HighlightClipCoalescer
             }
         }
 
-        _plans.Add(new HighlightClipPlan(trigger,_preRoll,_postRoll,_maxDuration));
+        _plans.Add(new HighlightClipPlan(trigger,_preRoll,_postRoll,_maxDuration,SavedUntilQpc100Ns));
         return false;
+    }
+
+    public void MarkSaved(HighlightClipPlan plan)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        SavedUntilQpc100Ns=Math.Max(SavedUntilQpc100Ns,plan.EndQpc100Ns);
     }
 
     public bool TryDequeueReady(long nowQpc100Ns,out HighlightClipPlan? plan)
     {
-        if(_plans.Count==0||_plans[0].EndQpc100Ns>nowQpc100Ns)
+        if(_plans.Count==0||_plans[0].ReadyAtQpc100Ns>nowQpc100Ns)
         {
             plan=null;
             return false;
@@ -329,6 +359,7 @@ internal sealed class HighlightClipCoalescer
 
         plan=_plans[0];
         _plans.RemoveAt(0);
+        plan.ClampStart(SavedUntilQpc100Ns);
         return true;
     }
 

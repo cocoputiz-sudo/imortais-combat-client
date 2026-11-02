@@ -265,7 +265,8 @@ static void TestHighlightCoalescence()
     var one=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
     True(!one.Add(Trigger(HighlightTriggerKind.Abate,100)),"primeiro evento cria clipe");
     Eq(one.Count,1,"um evento deve gerar um clipe");
-    True(one.TryDequeueReady(TimeSpan.FromSeconds(115).Ticks,out var onePlan),"clipe único deve ficar pronto após pós-roll");
+    True(!one.TryDequeueReady(TimeSpan.FromSeconds(130).Ticks,out _),"clipe espera a janela em que outro evento ainda entraria");
+    True(one.TryDequeueReady(TimeSpan.FromSeconds(145).Ticks,out var onePlan),"clipe único fica pronto 45 s após o evento");
     Eq(onePlan!.TriggerCount,1,"clipe único deve conter um gatilho");
 
     var three=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
@@ -273,13 +274,21 @@ static void TestHighlightCoalescence()
     True(three.Add(Trigger(HighlightTriggerKind.Abate,105)),"evento em +5 s deve coalescer");
     True(three.Add(Trigger(HighlightTriggerKind.Abate,110)),"evento em +10 s deve coalescer");
     Eq(three.Count,1,"três eventos em 10 s devem formar um clipe");
-    True(three.TryDequeueReady(TimeSpan.FromSeconds(125).Ticks,out var threePlan),"clipe coalescido deve terminar 15 s após último evento");
+    True(three.TryDequeueReady(TimeSpan.FromSeconds(155).Ticks,out var threePlan),"clipe coalescido fica pronto 45 s após o último evento");
+    Eq(threePlan!.EndQpc100Ns,TimeSpan.FromSeconds(125).Ticks,"vídeo termina 15 s após o último evento");
     Eq(threePlan!.TriggerCount,3,"clipe deve registrar três gatilhos");
 
     var separated=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
     separated.Add(Trigger(HighlightTriggerKind.Abate,100));
-    True(!separated.Add(Trigger(HighlightTriggerKind.Abate,140)),"evento 40 s depois deve abrir outro clipe");
-    Eq(separated.Count,2,"eventos separados por 40 s devem gerar dois clipes");
+    True(separated.Add(Trigger(HighlightTriggerKind.Abate,140)),"evento 40 s depois entra no mesmo clipe (repetiria o pré-roll)");
+    Eq(separated.Count,1,"eventos a 40 s formam um clipe só");
+    var apart=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    apart.Add(Trigger(HighlightTriggerKind.Abate,100));
+    True(!apart.Add(Trigger(HighlightTriggerKind.Abate,150)),"evento 50 s depois abre outro clipe");
+    True(apart.TryDequeueReady(TimeSpan.FromSeconds(145).Ticks,out var first),"primeiro clipe pronto");
+    apart.MarkSaved(first!);
+    True(apart.TryDequeueReady(TimeSpan.FromSeconds(195).Ticks,out var second),"segundo clipe pronto");
+    True(second!.StartQpc100Ns>=first.EndQpc100Ns,"segundo clipe começa onde o salvo terminou: nada repetido");
 
     var capped=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
     for(var s=100;s<=170;s+=10)capped.Add(Trigger(HighlightTriggerKind.Abate,s));
@@ -303,7 +312,7 @@ static void TestPersonalMassKillBurstCoalescence()
     }
 
     Eq(burst.Count,1,"mass kill pessoal curta não pode criar vários clipes");
-    True(burst.TryDequeueReady(TimeSpan.FromSeconds(117).Ticks,out var plan),"burst deve finalizar 15 s após o último abate");
+    True(burst.TryDequeueReady(TimeSpan.FromSeconds(147).Ticks,out var plan),"burst fica pronto 45 s após o último abate");
     Eq(plan!.TriggerCount,20,"os 20 abates devem pertencer ao mesmo clipe");
     Console.WriteLine("✅ mass kill pessoal: 20 abates em 1,9 s => 1 clipe x20");
 }
@@ -377,18 +386,18 @@ static void TestDeathPriorityAndFilename()
     clips.Add(Trigger(HighlightTriggerKind.Abate,100,"Enemy1","BadMack"));
     clips.Add(Trigger(HighlightTriggerKind.Abate,103,"Enemy2","BadMack"));
     clips.Add(Trigger(HighlightTriggerKind.Death,107,"BadMack","Killer"));
-    True(clips.TryDequeueReady(TimeSpan.FromSeconds(122).Ticks,out var clip),"clipe pronto depois do pós-roll da morte");
+    True(clips.TryDequeueReady(TimeSpan.FromSeconds(152).Ticks,out var clip),"clipe pronto depois da janela da morte");
     Eq(clip!.TriggerCount,3,"morte não deve criar duplicata na mesma janela");
     Eq(clip.SelectedTrigger.Kind,HighlightTriggerKind.Death,"morte tem prioridade sobre massa e abate");
     True(HighlightFileNaming.BuildFileName(clip.SelectedTrigger,clip.TriggerCount,new DateTime(2026,10,10)).Contains("_MORTE_por_Killer_x3"),"deve nomear pela morte real");
     var single=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
     single.Add(Trigger(HighlightTriggerKind.Death,100,"BadMack","Enemy"));
-    True(single.TryDequeueReady(TimeSpan.FromSeconds(115).Ticks,out var lone),"morte única salva");
+    True(single.TryDequeueReady(TimeSpan.FromSeconds(145).Ticks,out var lone),"morte única salva");
     Eq(lone!.SelectedTrigger.Kind,HighlightTriggerKind.Death,"morte única identifica jogador");
     var reversed=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
     reversed.Add(Trigger(HighlightTriggerKind.Death,100,"BadMack","Enemy"));
     reversed.Add(Trigger(HighlightTriggerKind.Abate,103,"Enemy2","BadMack"));
-    True(reversed.TryDequeueReady(TimeSpan.FromSeconds(118).Ticks,out var third),"clipe reverso");
+    True(reversed.TryDequeueReady(TimeSpan.FromSeconds(148).Ticks,out var third),"clipe reverso");
     Eq(third!.SelectedTrigger.Kind,HighlightTriggerKind.Death,"abate posterior não rebaixa a prioridade da morte");
     Console.WriteLine("✅ morte > abates em massa > abate: coalescência e arquivo");
 }
@@ -408,7 +417,7 @@ static void TestMassIsOptIn()
     var clips=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
     clips.Add(Trigger(HighlightTriggerKind.Abate,100,"Enemy1","BadMack"));
     clips.Add(Trigger(HighlightTriggerKind.Abate,103,"Enemy2","BadMack"));
-    True(clips.TryDequeueReady(TimeSpan.FromSeconds(118).Ticks,out var plan),"clipe de dois abates");
+    True(clips.TryDequeueReady(TimeSpan.FromSeconds(148).Ticks,out var plan),"clipe de dois abates");
     True(plan!.MassAbate,"dois abates podem ser classificados como massa");
     True(HighlightAutoSavePolicy.ShouldSave(plan,true,false,false),"opção original de abates permanece ativa");
     True(!HighlightAutoSavePolicy.SaveAsMass(plan,false),"não classificar massa desmarcada");
@@ -423,6 +432,31 @@ static void TestMassIsOptIn()
 }
 TestMassIsOptIn();
 TestDeathPriorityAndFilename();
+TestNoTripleSave();
+static void TestNoTripleSave()
+{
+    // Abate, abate em massa e morte em sequência: um arquivo só, nomeado pela morte.
+    var clips=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    True(!clips.Add(Trigger(HighlightTriggerKind.Abate,100,"Enemy1","BadMack")),"abate abre o clipe");
+    for(var i=0;i<5;i++)True(clips.Add(new HighlightTrigger(HighlightTriggerKind.Abate,"Mass"+i,"BadMack",TimeSpan.FromSeconds(125).Ticks+i*1_000_000)),"abate em massa entra no mesmo clipe");
+    True(clips.Add(Trigger(HighlightTriggerKind.Death,150,"BadMack","Killer")),"morte entra no mesmo clipe");
+    Eq(clips.Count,1,"abate + massa + morte = um clipe");
+    True(clips.TryDequeueReady(TimeSpan.FromSeconds(175).Ticks,out var clip),"pronto no teto de 120 s");
+    Eq(clip!.SelectedTrigger.Kind,HighlightTriggerKind.Death,"arquivo vai para Mortes");
+    Eq(clip.TriggerCount,7,"todos os eventos no mesmo arquivo");
+    True(clip.PlannedDuration<=TimeSpan.FromSeconds(120),"teto respeitado");
+    clips.MarkSaved(clip);
+    // Evento atrasado de um momento que já está no arquivo salvo não gera outro arquivo.
+    True(clips.Add(Trigger(HighlightTriggerKind.Abate,160,"Late","BadMack")),"momento já salvo é absorvido");
+    Eq(clips.Count,0,"nenhum clipe novo para momento já salvo");
+    Eq(clips.SkippedAlreadySaved,1,"contado como já salvo");
+    // Evento fora de ordem dentro do clipe ainda aberto entra nele.
+    var order=new HighlightClipCoalescer(TimeSpan.FromSeconds(45),TimeSpan.FromSeconds(15),TimeSpan.FromSeconds(120));
+    order.Add(Trigger(HighlightTriggerKind.Death,110,"BadMack","Killer"));
+    True(order.Add(Trigger(HighlightTriggerKind.Abate,108,"Enemy","BadMack")),"abate processado depois da morte, mas anterior a ela, entra no mesmo clipe");
+    Eq(order.Count,1,"sem segundo arquivo por ordem de chegada");
+    Console.WriteLine("✅ highlights sem duplicar: abate + massa + morte = 1 arquivo; momento já salvo não repete");
+}
 TestHighlightCoalescence();
 TestPersonalMassKillBurstCoalescence();
 TestBoundedAdmissionCounter();
