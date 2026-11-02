@@ -115,8 +115,8 @@ var zvz = new DeathCombatTimeline(TimeSpan.FromSeconds(45), 2048);
 zvz.Observe(new IncomingHealthChange(zvzDeath.AddMilliseconds(-104),
     42299, 44556, "ObservedSource", -337, 165, 2905, "Magic"));
 var zvzSnapshot = zvz.FreezeAtDeath(zvzDeath, "LocalCharacter", 42299, "KillerCredit", 40687, "Test", null);
-Check(zvzSnapshot is not null && zvzSnapshot.SchemaVersion == 2 && zvzSnapshot.TerminalEvidence is not null,
-    "forensic v2 must be explicit, additive and serializable");
+Check(zvzSnapshot is not null && zvzSnapshot.SchemaVersion == 3 && zvzSnapshot.TerminalEvidence is not null,
+    "forensic v3 must be explicit, additive and serializable");
 Check(zvzSnapshot.TerminalEvidence.TerminalHealthObservationStatus == "positive_health_before_death"
       && zvzSnapshot.TerminalEvidence.LastObservedHealth == 165,
     "positive observed HP before Died must not be converted to an invented zero-HP hit");
@@ -172,3 +172,76 @@ Check(nextLife.TotalCastPacketsObserved == 0
       && (nextLife.CastCoverageBySecond?.Count ?? 0) == 0,
     "a new life may not inherit forensic casts from a previous death");
 Console.WriteLine("PASS: 45-second sparse casts under 36,000 packet ZvZ burst and truthful HP/last-hit reporting");
+
+
+// Forensic v3: independent HP continuity, not a made-up damage or healing total.
+// One delta-only packet MUST be accumulated before the next absolute HP value.
+var hpClock = new DateTime(2026, 10, 15, 12, 0, 0, DateTimeKind.Utc);
+var hpEvidence = DeathCombatTimeline.AnalyzeHealthContinuity(new[]
+{
+    new IncomingHealthChange(hpClock, 314, 9, null, -100, 900, 1, "Damage"),
+    new IncomingHealthChange(hpClock.AddMilliseconds(50), 314, 9, null, -50, null, 2, "Damage"),
+    new IncomingHealthChange(hpClock.AddMilliseconds(80), 314, 9, null, -100, 750, 3, "Damage"),
+    new IncomingHealthChange(hpClock.AddMilliseconds(120), 314, 0, null, 0, 1400, 0, "Unknown"),
+    new IncomingHealthChange(hpClock.AddMilliseconds(140), 314, 9, null, -50, null, 4, "Damage")
+});
+Check(hpEvidence.AbsoluteHealthObservations == 3 && hpEvidence.ComparableTransitions == 2,
+    "only absolute HP readings may anchor continuity transitions");
+Check(hpEvidence.UnexplainedTransitions == 1 && hpEvidence.Findings.Count == 1,
+    "delta-only updates must not cause false gaps, but unexplained jumps must be visible");
+Check(Math.Abs(hpEvidence.Findings[0].UnexplainedDifference - 650) < 0.001
+      && hpEvidence.Findings[0].DeltaEventsIncluded == 1
+      && hpEvidence.Findings[0].EvidenceStatus == "unexplained_by_observed_deltas",
+    "HP jump should report the residual, not call it damage or healing");
+Check(hpEvidence.UnpairedDeltaEvents == 1 && !hpEvidence.FindingsTruncated,
+    "trailing updates without an absolute HP reading must remain unpaired");
+Check(DeathCombatTimeline.AnalyzeHealthContinuity(Array.Empty<IncomingHealthChange>()).Status
+      == "no_absolute_health_observed",
+    "empty capture must not claim continuity");
+
+var preciseHp = DeathCombatTimeline.AnalyzeHealthContinuity(new[]
+{
+    new IncomingHealthChange(hpClock, 314, 9, null, 0, 477.86, 0, "Unknown"),
+    new IncomingHealthChange(hpClock.AddMilliseconds(77), 314, 9, null, -0.1, 477.8, 1, "Unknown")
+});
+Check(preciseHp.UnexplainedTransitions == 0,
+    "sub-HP rounding differences must not be called unexplained damage");
+
+var manyGaps = new List<IncomingHealthChange>
+{
+    new(hpClock, 314, 0, null, 0, 1000, 0, "Unknown")
+};
+for (var i = 1; i <= 80; i++)
+    manyGaps.Add(new IncomingHealthChange(
+        hpClock.AddMilliseconds(i * 5), 314, 0, null, 0, 1000 + 10 * i, 0, "Unknown"));
+var capped = DeathCombatTimeline.AnalyzeHealthContinuity(manyGaps, maxFindings: 10);
+Check(capped.UnexplainedTransitions == 80 && capped.Findings.Count == 10
+      && capped.FindingsTruncated,
+    "full anomaly count must be retained with a bounded 10-finding detail budget");
+
+var nextVictim = new DeathCombatTimeline(TimeSpan.FromSeconds(45), 100);
+nextVictim.Observe(new IncomingHealthChange(hpClock.AddSeconds(-2),
+    11, 91, null, -5, 19.05, 6, "Unknown"));
+var deathReport = nextVictim.FreezeAtDeath(hpClock, "Local", 11, "KillerCredit", 92, null, null);
+Check(deathReport?.HealthContinuity is not null
+      && deathReport.HealthContinuity.Status == "insufficient_comparable_health_observations"
+      && deathReport.TerminalEvidence?.KillerHadObservedNegativeDelta == false,
+    "one terminal HP and unmatched killer credit must never invent a final blow");
+
+var serializedV3 = System.Text.Json.JsonSerializer.Serialize(deathReport,
+    new System.Text.Json.JsonSerializerOptions
+    {
+        PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase
+    });
+using (var parsedV3 = System.Text.Json.JsonDocument.Parse(serializedV3))
+{
+    var reportRoot = parsedV3.RootElement;
+    Check(reportRoot.GetProperty("schemaVersion").GetInt32() == 3
+          && reportRoot.TryGetProperty("healthContinuity", out var continuityJson)
+          && continuityJson.GetProperty("status").GetString() ==
+             "insufficient_comparable_health_observations"
+          && reportRoot.TryGetProperty("terminalEvidence", out _)
+          && reportRoot.TryGetProperty("incomingHealthChanges", out _),
+        "serialized forensic v3 must add health continuity without removing old fields");
+}
+Console.WriteLine("PASS: forensic v3 HP gaps, multi-delta transitions, rounding, budgets and unknown killer");
