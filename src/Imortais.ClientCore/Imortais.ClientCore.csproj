@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Shared telemetry core of the Guild Combat Client, compiled for Linux (and any OS) from the
+    SAME source files as the Windows client. Pairing, multi-guild routing, outbox, heartbeat and
+    every War Room payload are therefore identical on Windows and Linux. Do not fork these files:
+    platform-specific code goes into *.Windows.cs (excluded here) or into the Linux app.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <OutputType>Library</OutputType>
+    <RootNamespace>StatisticsAnalysisTool.Imortais</RootNamespace>
+    <AssemblyName>Imortais.ClientCore</AssemblyName>
+    <NoWarn>$(NoWarn);CS8632;CS1998</NoWarn>
+  </PropertyGroup>
+  <PropertyGroup>
+    <Core>..\..\upstream\AlbionOnline-StatisticsAnalysis\src\StatisticsAnalysisTool\Imortais</Core>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(Core)\ImortaisEventBridge.cs" Link="Core\ImortaisEventBridge.cs" />
+    <Compile Include="$(Core)\GuildPairings.cs" Link="Core\GuildPairings.cs" />
+    <Compile Include="$(Core)\GuildIdentity.cs" Link="Core\GuildIdentity.cs" />
+    <Compile Include="$(Core)\ImortaisTelemetryConfig.cs" Link="Core\ImortaisTelemetryConfig.cs" />
+    <Compile Include="$(Core)\ImortaisTelemetryEvent.cs" Link="Core\ImortaisTelemetryEvent.cs" />
+    <Compile Include="$(Core)\ImortaisProductionEndpoint.cs" Link="Core\ImortaisProductionEndpoint.cs" />
+    <Compile Include="$(Core)\ImortaisCredentialPresentation.cs" Link="Core\ImortaisCredentialPresentation.cs" />
+    <Compile Include="$(Core)\ImortaisBuildIdentity.cs" Link="Core\ImortaisBuildIdentity.cs" />
+    <Compile Include="$(Core)\CombatTargetClassifier.cs" Link="Core\CombatTargetClassifier.cs" />
+    <Compile Include="$(Core)\AvalonPve\AvalonPveObservationSession.cs" Link="Core\AvalonPve\AvalonPveObservationSession.cs" />
+    <Compile Include="$(Core)\AvalonPve\AvalonPveCapture.cs" Link="Core\AvalonPve\AvalonPveCapture.cs" />
+  </ItemGroup>
+</Project>
