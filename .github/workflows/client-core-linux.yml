@@ -1,0 +1,34 @@
+name: Client core (Linux)
+
+# The telemetry core shared by the Windows and Linux clients, built and exercised on Ubuntu.
+on:
+  pull_request:
+    paths:
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/**"
+      - "src/Imortais.ClientCore/**"
+      - "tests/**"
+      - ".github/workflows/client-core-linux.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  core:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Núcleo compartilhado compila no Linux
+        run: dotnet build src/Imortais.ClientCore/Imortais.ClientCore.csproj -c Release
+      - name: Núcleo envia ao War Room no Linux (servidor local de teste)
+        run: dotnet run --project tests/ClientCore.LogicTests/ClientCore.LogicTests.csproj -c Release
+      - name: Suítes lógicas portáveis
+        run: |
+          for t in AvalonPve CombatTarget GuildIdentity DeathReview Highlights; do
+            dotnet run --project tests/$t.LogicTests/$t.LogicTests.csproj -c Release
+          done
