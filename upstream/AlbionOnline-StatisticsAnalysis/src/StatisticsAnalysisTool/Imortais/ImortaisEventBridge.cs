@@ -168,6 +168,16 @@ public static class ImortaisEventBridge
 
     public static bool IsGuildProbeLocalDiagnosticsEnabled => _config.GuildProbeLocalDiagnosticsEnabled;
     public static bool IsDgavaPveOptInEnabled => _config.DgavaPveOptInEnabled;
+    // Top DPS (DG Avaloniana): one user consent turns on BOTH local capture and upload.
+    public static bool IsTopDpsParticipationEnabled => _config.DgavaPveOptInEnabled && _config.DgavaPveUploadEnabled;
+    public static bool IsPaired => _config.Enabled && !string.IsNullOrWhiteSpace(_config.AgentKey);
+    public static void SetTopDpsParticipation(bool enabled)
+    {
+        _config.DgavaPveOptInEnabled = enabled;
+        _config.DgavaPveUploadEnabled = enabled;
+        try { ImortaisTelemetryConfig.Save(_config); }
+        catch { /* the switch still works for this session if telemetry.json is read-only */ }
+    }
     private static readonly object DgavaPveDumpLock = new();
 
     // Local observation and network upload are two independent opt-ins.

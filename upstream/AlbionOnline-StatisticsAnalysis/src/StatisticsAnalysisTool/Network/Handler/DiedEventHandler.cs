@@ -1,4 +1,5 @@
 using StatisticsAnalysisTool.Cluster;
+using StatisticsAnalysisTool.Common;
 using StatisticsAnalysisTool.EventLogging;
 using StatisticsAnalysisTool.EventLogging.Notification;
 using StatisticsAnalysisTool.Imortais;
@@ -55,7 +56,9 @@ public class DiedEventHandler(TrackingController trackingController) : EventPack
                     : null;
                 DeathCombatReviewCapture.OnOwnLethalDeath(
                     reviewVictimName, reviewVictimId, value.KilledBy, value.KillerObjectId,
-                    ClusterController.GetCurrentClusterDisplayName(), equipped);
+                    ClusterController.GetCurrentClusterDisplayName(), equipped,
+                    id => trackingController.EntityController.GetEntity(id)?.Value.CharacterEquipment,
+                    index => ItemController.GetItemByIndex(index)?.LocalizedName);
             }
 
             // Death outranks a personal kill: never emit both for the same lethal event.

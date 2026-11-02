@@ -130,6 +130,7 @@ public partial class MainWindow
 
         var settings = SettingsController.CurrentSettings;
         ImortaisHighlightFpsCombo.SelectedIndex = NormalizeHighlightFps(settings.ImortaisHighlightFps) == 30 ? 0 : 1;
+        UpdateImortaisTopDpsUi();
         _albionGameProcessMonitor.SetMonitoringEnabled(AlbionGameProcessMonitor.IsMonitoringRequired(settings));
         if (settings.IsImortaisBackgroundRecordingEnabled)
         {
@@ -549,6 +550,25 @@ public partial class MainWindow
             UpdateImortaisBackgroundRecordingUi();
             ImortaisBackgroundRecordingButton.IsEnabled = true;
         }
+    }
+
+    private void ImortaisTopDps_Click(object sender, RoutedEventArgs e)
+    {
+        ImortaisEventBridge.SetTopDpsParticipation(ImortaisTopDpsCheckBox?.IsChecked == true);
+        UpdateImortaisTopDpsUi();
+    }
+
+    private void UpdateImortaisTopDpsUi()
+    {
+        var on = ImortaisEventBridge.IsTopDpsParticipationEnabled;
+        if (ImortaisTopDpsCheckBox != null) ImortaisTopDpsCheckBox.IsChecked = on;
+        if (ImortaisTopDpsStatusText == null) return;
+        ImortaisTopDpsStatusText.Text = !on
+            ? "Apuração desligada neste PC."
+            : ImortaisEventBridge.IsPaired
+                ? "Apuração ligada: dano em mobs da DG Avaloniana será enviado ao War Room da guilda do personagem."
+                : "Apuração ligada, mas este PC ainda não está ativado em uma guilda: nada é enviado.";
+        ImortaisTopDpsStatusText.Foreground = on && ImortaisEventBridge.IsPaired ? Brushes.LimeGreen : (System.Windows.Media.Brush)FindResource("SolidColorBrush.Text.4");
     }
 
     private async void ImortaisAutoSaveOption_Click(object sender,RoutedEventArgs e)

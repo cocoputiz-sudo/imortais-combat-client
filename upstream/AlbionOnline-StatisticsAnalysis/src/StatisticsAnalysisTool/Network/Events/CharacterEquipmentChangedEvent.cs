@@ -68,14 +68,14 @@ public class CharacterEquipmentChangedEvent
         }
 
         SelectedSpellIndices = Array.AsReadOnly((int[])spells.Clone());
-        AddSpell(SlotType.MainHand, GetSpellValue(spells, 0));
-        AddSpell(SlotType.MainHand, GetSpellValue(spells, 1));
-        AddSpell(SlotType.MainHand, GetSpellValue(spells, 2));
-        AddSpell(SlotType.Armor, GetSpellValue(spells, 3));
-        AddSpell(SlotType.Head, GetSpellValue(spells, 4));
-        AddSpell(SlotType.Shoes, GetSpellValue(spells, 5));
-        AddSpell(SlotType.Potion, GetSpellValue(spells, 12));
-        AddSpell(SlotType.Food, GetSpellValue(spells, 13));
+        AddSpell(SlotType.MainHand, GetSpellValue(spells, 0), "Q");
+        AddSpell(SlotType.MainHand, GetSpellValue(spells, 1), "W");
+        AddSpell(SlotType.MainHand, GetSpellValue(spells, 2), "E");
+        AddSpell(SlotType.Armor, GetSpellValue(spells, 3), "R (peito)");
+        AddSpell(SlotType.Head, GetSpellValue(spells, 4), "D (capacete)");
+        AddSpell(SlotType.Shoes, GetSpellValue(spells, 5), "F (botas)");
+        AddSpell(SlotType.Potion, GetSpellValue(spells, 12), "Poção");
+        AddSpell(SlotType.Food, GetSpellValue(spells, 13), "Comida");
     }
 
     private static bool TryGetValues(IReadOnlyDictionary<byte, object> parameters, byte key, out int[] values)
@@ -110,7 +110,7 @@ public class CharacterEquipmentChangedEvent
         return spells.Count > index ? spells[index] : -1;
     }
 
-    private void AddSpell(SlotType slotType, int spellValue)
+    private void AddSpell(SlotType slotType, int spellValue, string key = null)
     {
         if (slotType != SlotType.Unknown && spellValue != -1)
         {
@@ -118,7 +118,8 @@ public class CharacterEquipmentChangedEvent
             {
                 SlotType = slotType,
                 Value = spellValue,
-                ItemIndex = GetItemIndexBySlotType(slotType)
+                ItemIndex = GetItemIndexBySlotType(slotType),
+                Key = key
             });
         }
     }

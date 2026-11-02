@@ -172,3 +172,37 @@ Check(nextLife.TotalCastPacketsObserved == 0
       && (nextLife.CastCoverageBySecond?.Count ?? 0) == 0,
     "a new life may not inherit forensic casts from a previous death");
 Console.WriteLine("PASS: 45-second sparse casts under 36,000 packet ZvZ burst and truthful HP/last-hit reporting");
+
+// Enemy casts: who hit me, with which button and skill.
+{
+    var death = new DateTime(2026, 11, 1, 23, 0, 0, DateTimeKind.Utc);
+    IncomingHealthChange CastHit(double secondsBefore, long source, string name, double delta, int spell)
+        => new(death.AddSeconds(-secondsBefore), 500, source, name, delta, 100, spell, "Damage");
+    var changes = new[]
+    {
+        CastHit(9, 77, "Inimigo", -300, 1001), CastHit(8, 77, "Inimigo", -300, 1001), CastHit(3, 77, "Inimigo", -900, 1003),
+        CastHit(2, 88, "Outro", -150, 2000), CastHit(1, 77, "Inimigo", -50, 3000), CastHit(0.5, 99, "Desconhecido", -80, 4000),
+        CastHit(4, 500, "Eu", -10, 1), // self damage never counts as enemy
+    };
+    var gear = new Dictionary<long, EnemyLoadout>
+    {
+        [77] = new("Machado Quebra-Reinos", new[] { new EnemySpellSlot("Q", 1001), new EnemySpellSlot("W", 1002), new EnemySpellSlot("E", 1003), new EnemySpellSlot("R (peito)", 1004) }),
+    };
+    var names = new Dictionary<int, string> { [1001] = "SPELL_Q", [1003] = "SPELL_E", [2000] = "AUTO_ATTACK_SWORD", [3000] = "POTION_POISON", [4000] = "" };
+    var sources = EnemyCastSummary.Build(changes, 77, i => names.TryGetValue(i, out var n) ? n : "", u => u == "SPELL_E" ? "Golpe Cósmico" : u, id => gear.TryGetValue(id, out var g) ? g : null);
+    Check(sources.Count == 3 && sources[0].SourceObjectId == 77 && sources[0].IsKiller, "killer comes first, self excluded");
+    Check(sources[0].Weapon == "Machado Quebra-Reinos" && sources[0].Damage == 1550 && sources[0].Hits == 4, "killer totals");
+    var e = sources[0].Casts.First(c => c.SpellIndex == 1003);
+    Check(e.Key == "E" && e.SpellName == "Golpe Cósmico" && e.KeySource == "equipamento", "E resolved from equipment slots");
+    Check(sources[0].Casts.First(c => c.SpellIndex == 1001) is { Key: "Q", Hits: 2, Damage: 600 }, "Q grouped");
+    Check(sources[0].Casts.First(c => c.SpellIndex == 3000).Key == "Poção", "potion by name when not in slots");
+    Check(sources.First(s => s.SourceObjectId == 88).Casts[0].Key == "Ataque básico", "auto attack by name");
+    var unknown = sources.First(s => s.SourceObjectId == 99).Casts[0];
+    Check(unknown.Key == EnemyCastSummary.KeyUnknown && unknown.SpellName == "habilidade #4000", "unknown stays unknown, never guessed");
+    var castSnapshot = new DeathCombatSnapshot(2, "test", death, "Eu", 500, "Inimigo", 77, "Martlock", 45, false, false, false, null, changes, EnemyCasts: sources);
+    var text = EnemyCastSummary.Format(castSnapshot, sources);
+    Check(text.Contains("★ Inimigo · Machado Quebra-Reinos") && text.Contains("[E] Golpe Cósmico: 1x, 900 de dano") && text.Contains("tecla ?"), "readable summary");
+    var noGear = EnemyCastSummary.Build(changes, 77, _ => throw new Exception("data not loaded"), u => u, _ => throw new Exception("boom"));
+    Check(noGear.Count == 3 && noGear[0].Casts.All(c => c.Key != null), "resolver failures never break the report");
+    Console.WriteLine("PASS: Death Review identifica quem bateu, tecla (Q/W/E/R/D/F/poção) e habilidade, sem chutar");
+}

@@ -50,7 +50,9 @@ internal sealed record DeathCombatSnapshot(
     ObservedEquipment? EquipmentAtDeath,
     IReadOnlyList<IncomingHealthChange> IncomingHealthChanges,
     SkillEvidenceSnapshot? SkillEvidence = null,
-    DeathTerminalEvidence? TerminalEvidence = null);
+    DeathTerminalEvidence? TerminalEvidence = null,
+    // Who hit the player and with which button/skill (local report only).
+    IReadOnlyList<EnemyCastSource>? EnemyCasts = null);
 
 /// <summary>
 /// Thread-safe, RAM-only, victim-scoped bounded timeline. No disk or network I/O.
