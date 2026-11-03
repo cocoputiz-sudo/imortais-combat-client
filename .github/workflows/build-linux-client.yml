@@ -1,0 +1,76 @@
+name: Linux client
+
+# Builds and tests the Linux client (same telemetry core as Windows) on every PR that touches it.
+# Publishing a Linux release is manual (workflow_dispatch from main) and always a PRE-release,
+# so GitHub's "latest" release stays the Windows one used by the Windows README links.
+on:
+  pull_request:
+    paths:
+      - "src/Imortais.LinuxClient/**"
+      - "src/Imortais.LinuxClient.ContractTests/**"
+      - "src/Imortais.ClientCore/**"
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/**"
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Network/EventCodes.cs"
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Network/OperationCodes.cs"
+      - "scripts/build-linux-deb.sh"
+      - ".github/workflows/build-linux-client.yml"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versão Linux a publicar (ex.: 1.0.1). Precisa ser igual a MainWindow.Version."
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+      - name: Dependências de captura (como num Ubuntu comum, sem libpcap-dev)
+        run: sudo apt-get update && sudo apt-get install -y libpcap0.8t64 libcap2-bin
+      - name: Testes de contrato (pacote do jogo -> núcleo -> War Room)
+        run: dotnet run --project src/Imortais.LinuxClient.ContractTests/Imortais.LinuxClient.ContractTests.csproj -c Release
+      - name: Núcleo compartilhado
+        run: dotnet run --project tests/ClientCore.LogicTests/ClientCore.LogicTests.csproj -c Release
+      - name: Versão do pacote
+        id: version
+        run: |
+          app="$(grep -oP 'public const string Version = "\K[0-9.]+' src/Imortais.LinuxClient/MainWindow.cs)"
+          want="${{ github.event.inputs.version }}"
+          if [ -n "$want" ] && [ "$want" != "$app" ]; then echo "Versão pedida $want difere de MainWindow.Version $app" >&2; exit 1; fi
+          echo "version=$app" >> "$GITHUB_OUTPUT"
+      - name: Gerar .deb
+        run: bash scripts/build-linux-deb.sh "${{ steps.version.outputs.version }}"
+      - name: Instalar o .deb e conferir permissões de captura
+        run: |
+          DEB="dist/linux/IMORTAIS-Combat-Client-v${{ steps.version.outputs.version }}-linux-x64.deb"
+          ( cd dist/linux && sha256sum -c "$(basename "$DEB").sha256" )
+          sudo apt-get install -y "./$DEB"
+          getcap /opt/imortais-combat-client/IMORTAIS-Combat-Client | grep -q cap_net_raw
+          test -x /usr/bin/imortais-combat-client
+          test -f /usr/share/applications/imortais-combat-client.desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guild-combat-client-linux-${{ steps.version.outputs.version }}
+          path: |
+            dist/linux/*.deb
+            dist/linux/*.sha256
+      - name: Publicar pre-release Linux (manual, só da main)
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.version.outputs.version }}"
+          gh release create "v${V}-linux" dist/linux/*.deb dist/linux/*.sha256 \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Guild Combat Client Linux v${V}" \
+            --notes "Cliente Linux (Ubuntu 22.04/24.04, amd64) com o mesmo núcleo de envio do Windows. Instale abrindo o .deb no instalador do Ubuntu. Guia: docs/LINUX-CLIENT.md"

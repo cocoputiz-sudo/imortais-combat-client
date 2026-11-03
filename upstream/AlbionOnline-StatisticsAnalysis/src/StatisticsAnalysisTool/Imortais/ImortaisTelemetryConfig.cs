@@ -38,9 +38,18 @@ public sealed class ImortaisTelemetryConfig
     [System.Text.Json.Serialization.JsonExtensionData]
     public Dictionary<string, JsonElement>? AdditionalSettings { get; set; }
 
-    public static string DirectoryPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "IMORTAIS Combat Client");
+    public static string DirectoryPath => Path.Combine(DataRoot(), "IMORTAIS Combat Client");
+
+    // GetFolderPath returns "" when the folder does not exist yet (a fresh Linux user may have
+    // no ~/.local/share). Create it, and never fall back to a path relative to the current folder.
+    internal static string DataRoot()
+    {
+        var root = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.Create);
+        if (!string.IsNullOrWhiteSpace(root) && Path.IsPathRooted(root)) return root;
+        var home = Environment.GetEnvironmentVariable("HOME");
+        if (!string.IsNullOrWhiteSpace(home) && Path.IsPathRooted(home)) return Path.Combine(home, ".local", "share");
+        return Path.Combine(Path.GetTempPath(), "guild-combat-client-" + Environment.UserName);
+    }
 
     public static string FilePath => Path.Combine(DirectoryPath, "telemetry.json");
     public static string DefaultOutboxPath => Path.Combine(DirectoryPath, "outbox.ndjson");

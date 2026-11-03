@@ -29,4 +29,10 @@
     <Compile Include="$(Core)\AvalonPve\AvalonPveObservationSession.cs" Link="Core\AvalonPve\AvalonPveObservationSession.cs" />
     <Compile Include="$(Core)\AvalonPve\AvalonPveCapture.cs" Link="Core\AvalonPve\AvalonPveCapture.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- The Linux app migrates the alpha pairing with the core's own writer (same file format). -->
+    <InternalsVisibleTo Include="IMORTAIS-Combat-Client" />
+    <InternalsVisibleTo Include="ClientCore.LogicTests" />
+    <InternalsVisibleTo Include="Imortais.LinuxClient.ContractTests" />
+  </ItemGroup>
 </Project>
