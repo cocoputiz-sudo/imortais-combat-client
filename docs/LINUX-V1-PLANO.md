@@ -8,6 +8,10 @@ A alpha Linux (PRs #29, #39, #40, #57) é uma reimplementação separada (v0.2.0
 
 **O Linux passa a usar o mesmo núcleo do Windows.** `src/Imortais.ClientCore` compila, sem cópia, os mesmos arquivos do Windows (`ImortaisEventBridge`, pareamentos, identidade da guilda, configuração, fila, classificação de alvos, captura PvE). Tudo o que chega ao War Room sai do mesmo código nos dois sistemas.
 
+## Situação (02/11/2026)
+
+Etapas 1 a 5 concluídas: versão 1.0.0 gerada, instalada e aberta num Ubuntu 24.04 limpo como usuário comum, com captura ativa. Falta a etapa 6 (teste em jogo real). Ver `docs/LINUX-CLIENT.md`.
+
 ## Etapas
 
 1. **Núcleo compartilhado** (este PR). O núcleo compila para Linux e um teste o executa no Ubuntu contra um War Room local: heartbeat, mapa, party, combate com PvP/PvE, token, e recusa de personagem de outra guilda. A parte Windows da captura PvE virou um adaptador (`AvalonPveCapture.Windows.cs`), sem mudar o comportamento no Windows.
