@@ -167,15 +167,16 @@ if (OperatingSystem.IsLinux() && Imortais.LinuxClient.Services.NativeLibraries.C
 // Data folder: never relative to the current folder, even when ~/.local/share does not exist yet.
 var freshHome = Path.Combine(Path.GetTempPath(), "gcc-fresh-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(freshHome);
-var savedXdg = Environment.GetEnvironmentVariable("XDG_DATA_HOME");
+string[] xdgVars = ["XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_STATE_HOME"];
+var savedXdg = xdgVars.ToDictionary(v => v, Environment.GetEnvironmentVariable);
 var savedHome = Environment.GetEnvironmentVariable("HOME");
-Environment.SetEnvironmentVariable("XDG_DATA_HOME", null);
+foreach (var v in xdgVars) Environment.SetEnvironmentVariable(v, null);
 Environment.SetEnvironmentVariable("HOME", freshHome);
 var root = ImortaisTelemetryConfig.DataRoot();
 Require(Path.IsPathRooted(root) && root.StartsWith(freshHome, StringComparison.Ordinal), "data folder under HOME even when missing: " + root);
 Require(Path.IsPathRooted(LinuxPaths.ConfigDirectory) && LinuxPaths.ConfigDirectory.StartsWith(freshHome, StringComparison.Ordinal), "config folder under HOME");
 Environment.SetEnvironmentVariable("HOME", savedHome);
-Environment.SetEnvironmentVariable("XDG_DATA_HOME", savedXdg);
+foreach (var (v, value) in savedXdg) Environment.SetEnvironmentVariable(v, value);
 Directory.Delete(freshHome, true);
 
 // ---- 6) Anonymous diagnostics ------------------------------------------------------------------
