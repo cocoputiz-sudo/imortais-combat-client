@@ -78,7 +78,7 @@ As duas guildas têm uma área operacional própria para organizar DGs Avalonian
 
 O Client possui `dgava_pve_window`, um **piloto de observação de dano contra mobs confirmados**. A coleta (`DgavaPveOptInEnabled`) e o envio (`DgavaPveUploadEnabled`) são duas escolhas independentes, ambas **desligadas por padrão**. O servidor recebe essas janelas somente quando o receptor específico está habilitado; a trilha fica separada de ZvZ/CTA e as evidências experimentais são registradas em quarentena.
 
-**Ainda não existe Top DPS automaticamente verificável.** A origem do dispositivo não identifica automaticamente o jogador que causou cada hit. Antes de qualquer isenção de fee faltam associar o personagem Discord/Albion, agrupar os andares da mesma expedição, deduplicar observações de vários dispositivos e comprovar a cobertura dos 20 participantes. Ausência de pacotes **não equivale a zero DPS**.
+**Top DPS (na `main`, entra na v0.7.4):** a aba GUILD ganhou a opção **Participar da apuração do Top DPS**, desligada por padrão. Com ela ligada, o Client envia as janelas de dano em mobs confirmados da DG; o **War Room apura o Top DPS no servidor** e o premia ao encerrar a DG. O Client nunca manda placar nem vencedor. Cada War Room liga a recepção separadamente. Ausência de pacotes **não equivale a zero DPS**: quem não participa da apuração simplesmente não aparece.
 
 Consulte [o piloto de telemetria da DG](docs/avalon-pve-telemetry-pilot.md) e o [acompanhamento técnico](https://github.com/cocoputiz-sudo/imortais-combat-client/issues/65).
 
@@ -98,6 +98,7 @@ Experimental e **desligado por padrão**.
   - `Abates em Massa` (desmarcado por padrão);
   - `Mortes` (desmarcado por padrão).
 - Abate pessoal salva **45 s antes e 15 s depois**. Abates próximos viram um clipe só (teto de 120 s por arquivo).
+- Na `main` (v0.7.4): quando abate, abate em massa e morte se sobrepõem, o PC grava **um arquivo só**, em vez de três com o mesmo trecho.
 - Nomes: `AAAA-MM-DD_HH-mm-ss_ABATE_<vitima>.mp4`, `..._ABATES_EM_MASSA.mp4`, `..._MORTE_por_<killer>.mp4`.
 - Quota padrão de **10 GiB** (somando as subpastas); o salvamento para se não sobrar pelo menos 1 GiB livre.
 - No Windows 10 a captura pode mostrar a borda amarela do sistema.
@@ -111,7 +112,7 @@ Relatório **local** da própria morte, para estudar o uso de defensivas.
 - Vem pré-habilitado depois da ciência inicial.
 - Guarda os últimos 45 s de dano recebido e o equipamento conhecido em `%LOCALAPPDATA%\IMORTAIS Combat Client\Diagnostics\DeathReview\` (últimos 30 arquivos). O botão **ABRIR DEATH REVIEWS** abre a pasta.
 - **NÃO há envio automático** de morte, vídeo ou dados de casts para o War Room nem para qualquer outro lugar.
-- Limite atual: o índice de magia registrado ainda não é o nome da skill (Q, W, E, peito, capacete, botas, poção). Identificar isso é a próxima etapa.
+- Na `main` (v0.7.4): o relatório ganha um `.txt` com quem bateu, a tecla (Q, W, E, R, D, F, poção) e o nome da habilidade, quando o jogo informa.
 
 Detalhes em [docs/death-combat-review-phase1.md](docs/death-combat-review-phase1.md).
 
@@ -187,7 +188,9 @@ Cada dispositivo usa token próprio. **Nunca distribua a chave mestre de ingest�
 
 ## Linux
 
-Há uma linha nativa para Linux em validação no Ubuntu, separada da release Windows. Ela **não faz parte da release estável**. Os PRs #29, #39, #40, #54, #55 e #57 aguardam essa decisão.
+A versão Linux usa o **mesmo núcleo do Windows** (`src/Imortais.ClientCore`, já na `main`): pareamento por guilda, roteamento pela guilda do personagem e fila de envio. O **Cliente Linux 1.0.0** (`.deb` para Ubuntu 22.04/24.04, captura sem sudo) está no PR #72, aguardando o teste com o Albion real. Ele envia mapa, guilda, party, presença, dano/cura, mortes relevantes e abates; Highlights, Death Review, Top DPS, equipamento na morte, nome de loot e Guild Might continuam só no Windows. Plano: [docs/LINUX-V1-PLANO.md](docs/LINUX-V1-PLANO.md).
+
+Quando o #72 entrar, a pré-release `v1.0.0-linux` sai pelo workflow **Linux client**; a release mais recente continua sendo a do Windows. Os PRs antigos de Linux (#29, #39, #40, #57) ficam substituídos por ele.
 
 ---
 
@@ -276,14 +279,20 @@ Ferramentas de terceiros não são suportadas oficialmente pela Sandbox Interact
 - Várias guildas: pareamento por guilda, troca automática pelo personagem, confirmador de guilda e guilda já no login.
 - Death Review local.
 
-### Próximos passos
-- Homologar em uma DG real a identidade dos participantes, os andares, os mobs, os eventos PvP e a deduplicação entre observadores. Só depois liberar os resultados de Top DPS/fee.
-- Verificar em sessão real de PvP e PvE a classificação player/mob/unknown da v0.7.3.
-- Death Combat Review: identificar casts inimigos e skills usadas (Q, W, E, peito, capacete, botas, poção).
+### Na `main`, entra na v0.7.4 (ainda sem release)
+- Opção **Participar da apuração do Top DPS** (aba GUILD), com apuração no War Room.
 - Highlights sem gravar o mesmo trecho várias vezes quando abate, abate em massa e morte se sobrepõem.
+- Death Review com `.txt` de quem bateu, tecla e habilidade.
+- Núcleo de telemetria compartilhado com o Linux.
+
+### Próximos passos
+- Publicar a v0.7.4.
+- Testar o Cliente Linux 1.0.0 (PR #72) com o Albion real e publicar a pré-release.
+- Verificar em DG e CTA reais a classificação player/mob/unknown e a apuração do Top DPS.
+- Diagnóstico mostrando a exceção interna de TLS (antivírus que intercepta HTTPS impede o envio).
 - Regear automático no War Room a partir das mortes enviadas.
 - Assinatura Authenticode.
-- Decisão sobre a versão Linux.
+- Decidir os PRs #54 (Death Review v3) e #55 (reconhecimento de VPN).
 
 ---
 
