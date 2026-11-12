@@ -60,6 +60,9 @@ internal static class VpnCaptureAssistDiagnostics
     private static long _probeConfirmed;
     private static long _probeReverted;
     private static string? _selectedAdapter;
+    private static int _loopbackOpen;
+    private static long _loopbackPhotonPackets;
+    private static readonly Dictionary<string, (string Description, bool Supported)> LinkTypes = new(StringComparer.OrdinalIgnoreCase);
 
     public static void ObserveCandidate(string adapter)
     {
@@ -84,6 +87,34 @@ internal static class VpnCaptureAssistDiagnostics
     public static void ObserveSelectedAdapter(string? adapter)
     {
         lock (Gate) _selectedAdapter = adapter;
+    }
+
+    public static void ObserveLoopbackCapture(bool open) => Interlocked.Exchange(ref _loopbackOpen, open ? 1 : 0);
+    public static void ObserveLoopbackPhoton() => Interlocked.Increment(ref _loopbackPhotonPackets);
+
+    public static void ObserveLinkType(string adapter, string description, bool supported)
+    {
+        if (string.IsNullOrWhiteSpace(adapter)) return;
+        lock (Gate)
+        {
+            if (LinkTypes.ContainsKey(adapter) || LinkTypes.Count < 12)
+                LinkTypes[adapter] = (description, supported);
+        }
+    }
+
+    /// <summary>Local-only summary of capture paths beyond plain Ethernet.</summary>
+    public static string DescribeCapturePaths()
+    {
+        int nonEthernet, unsupported;
+        lock (Gate)
+        {
+            nonEthernet = LinkTypes.Count;
+            unsupported = LinkTypes.Values.Count(x => !x.Supported);
+        }
+        return $"loopback {(Volatile.Read(ref _loopbackOpen) == 1 ? "ABERTO (USO VPN)" : "fechado")}"
+            + $" · pacotes Photon via loopback {Interlocked.Read(ref _loopbackPhotonPackets)}"
+            + $" · adaptadores sem Ethernet com tráfego {nonEthernet}"
+            + (unsupported > 0 ? $" · tipo de enlace não suportado {unsupported}" : "");
     }
 
     public static void ObserveNetworkChange() => Interlocked.Increment(ref _networkChanges);

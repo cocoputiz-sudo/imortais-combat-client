@@ -6,6 +6,7 @@ on:
     paths:
       - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Imortais/**"
       - "src/Imortais.ClientCore/**"
+      - "upstream/AlbionOnline-StatisticsAnalysis/src/StatisticsAnalysisTool/Network/PacketProviders/CaptureLinkLayer.cs"
       - "tests/**"
       - ".github/workflows/client-core-linux.yml"
   workflow_dispatch:
@@ -29,6 +30,6 @@ jobs:
         run: dotnet run --project tests/ClientCore.LogicTests/ClientCore.LogicTests.csproj -c Release
       - name: Suítes lógicas portáveis
         run: |
-          for t in AvalonPve CombatTarget GuildIdentity DeathReview Highlights; do
+          for t in AvalonPve CombatTarget GuildIdentity DeathReview Highlights CaptureLinkLayer; do
             dotnet run --project tests/$t.LogicTests/$t.LogicTests.csproj -c Release
           done

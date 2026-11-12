@@ -284,6 +284,7 @@ Ferramentas de terceiros não são suportadas oficialmente pela Sandbox Interact
 - Highlights sem gravar o mesmo trecho várias vezes quando abate, abate em massa e morte se sobrepõem.
 - Death Review com `.txt` de quem bateu, tecla e habilidade.
 - Núcleo de telemetria compartilhado com o Linux.
+- Captura com VPN: leitura de adaptadores sem cabeçalho Ethernet (WireGuard, WARP, NordLynx) e piloto de loopback para aceleradores (ExitLag, NoPing), este só com `USO VPN: SIM`. Detalhes nas [notas da v0.7.4](docs/releases/v0.7.4-vpn-topdps-highlights.md).
 
 ### Próximos passos
 - Publicar a v0.7.4.
@@ -292,7 +293,8 @@ Ferramentas de terceiros não são suportadas oficialmente pela Sandbox Interact
 - Diagnóstico mostrando a exceção interna de TLS (antivírus que intercepta HTTPS impede o envio).
 - Regear automático no War Room a partir das mortes enviadas.
 - Assinatura Authenticode.
-- Decidir os PRs #54 (Death Review v3) e #55 (reconhecimento de VPN).
+- Decidir o PR #54 (Death Review v3). O #55 (reconhecimento de VPN) foi substituído pela captura com VPN da v0.7.4.
+- Coletar o diagnóstico de um jogador com ExitLag e de um com WARP/WireGuard na v0.7.4 para confirmar o caminho de captura.
 
 ---
 
