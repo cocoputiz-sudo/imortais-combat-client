@@ -1,7 +1,6 @@
 #nullable enable
 
 using BinaryFormat;
-using BinaryFormat.EthernetFrame;
 using BinaryFormat.IPv4;
 using BinaryFormat.Udp;
 using Libpcap;
@@ -11,6 +10,7 @@ using StatisticsAnalysisTool.Common.UserSettings;
 using StatisticsAnalysisTool.Imortais;
 using System;
 using System.Buffers.Binary;
+using System.Runtime.CompilerServices;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -45,6 +45,7 @@ public class LibpcapPacketProvider : PacketProvider
     private bool _vpnCachedGameProcessPresent;
     private readonly Dictionary<IPv4FragmentKey, IPv4FragmentBuffer> _ipv4Fragments = new();
     private readonly NpcapCaptureDiagnostics _captureDiagnostics = new();
+    private readonly ConditionalWeakTable<Pcap, StrongBox<int>> _linkTypes = new();
     private DateTime _lastValidPacketUtc = DateTime.MinValue;
     private DateTime _lastRecoveryFailureLogUtc = DateTime.MinValue;
     private DateTime _nextAdapterLeaseCheckUtc = DateTime.MinValue;
@@ -53,6 +54,10 @@ public class LibpcapPacketProvider : PacketProvider
     private bool _captureRecoveryPending;
 
     public const string DefaultPacketFilter = "((ip and ((udp and (port 5055 or port 5056 or port 5058)) or (ip[6:2] & 0x3fff != 0))) or (ip6 and (udp and (port 5055 or port 5056 or port 5058))))";
+    // Loopback is opened only with USO VPN: SIM. A local accelerator may relay the
+    // game on any port there, so the loopback adapter takes all UDP and each
+    // datagram must pass the strict Photon structure check before decoding.
+    public const string LoopbackPacketFilter = "udp";
     private const string LegacyDefaultPacketFilter = "(ip or ip6) and (udp and (port 5055 or port 5056 or port 5058))";
     private const int MaxIPv4PayloadLength = 65535;
     private const int MaxPendingIPv4FragmentPackages = 256;
@@ -173,6 +178,8 @@ public class LibpcapPacketProvider : PacketProvider
 
         var filter = GetEffectiveFilter();
         bool hasFilter = !string.IsNullOrWhiteSpace(filter);
+        var openLoopback = SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled;
+        var loopbackPcaps = new List<DevicePcap>();
 
         var configuredDevices = SettingsController.CurrentSettings.NetworkDevices ?? new List<NetworkDeviceSettingsObject>();
 
@@ -193,7 +200,8 @@ public class LibpcapPacketProvider : PacketProvider
                 continue;
             }
 
-            if (device.Flags.HasFlag(PcapDeviceFlags.Loopback))
+            var isLoopback = device.Flags.HasFlag(PcapDeviceFlags.Loopback);
+            if (isLoopback && !openLoopback)
             {
                 if (logDeviceDetails)
                 {
@@ -203,7 +211,7 @@ public class LibpcapPacketProvider : PacketProvider
                 continue;
             }
 
-            if (!device.Flags.HasFlag(PcapDeviceFlags.Up))
+            if (!isLoopback && !device.Flags.HasFlag(PcapDeviceFlags.Up))
             {
                 if (logDeviceDetails)
                 {
@@ -221,10 +229,17 @@ public class LibpcapPacketProvider : PacketProvider
                         i, device.Name, device.Description, device.Type, device.Flags);
                 }
 
+                DevicePcap? openedPcap = null;
                 dispatcher.OpenDevice(device, pcap =>
                 {
                     pcap.NonBlocking = true;
+                    openedPcap = pcap;
                 });
+
+                if (isLoopback && openedPcap is not null)
+                {
+                    loopbackPcaps.Add(openedPcap);
+                }
 
                 if (hasFilter)
                 {
@@ -257,9 +272,69 @@ public class LibpcapPacketProvider : PacketProvider
             }
         }
 
+        ApplyLoopbackFilter(loopbackPcaps, hasFilter, logDeviceDetails);
         return opened;
     }
 
+
+    private static void ApplyLoopbackFilter(List<DevicePcap> loopbackPcaps, bool hasFilter, bool logDeviceDetails)
+    {
+        var open = 0;
+        foreach (var pcap in loopbackPcaps)
+        {
+            try
+            {
+                // Must run after the shared dispatcher filter, which is
+                // re-applied to every adapter each time one is opened.
+                if (hasFilter)
+                {
+                    pcap.Filter = LoopbackPacketFilter;
+                }
+
+                open++;
+                if (logDeviceDetails)
+                {
+                    Log.Information("Npcap: loopback opened for VPN assist ({Name}), filter: {Filter}", pcap.Name, hasFilter ? LoopbackPacketFilter : "<none>");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Npcap: loopback filter could not be applied ({Name}); keeping shared filter", pcap.Name);
+                open++;
+            }
+        }
+
+        VpnCaptureAssistDiagnostics.ObserveLoopbackCapture(open > 0);
+    }
+
+    private int GetLinkType(Pcap pcap)
+    {
+        if (_linkTypes.TryGetValue(pcap, out var cached))
+        {
+            return cached.Value;
+        }
+
+        int linkType;
+        try
+        {
+            linkType = (int) pcap.DataLink;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Npcap: could not read link type of {Device}; assuming Ethernet", pcap.Name);
+            linkType = CaptureLinkLayer.DltEthernet;
+        }
+
+        _linkTypes.AddOrUpdate(pcap, new StrongBox<int>(linkType));
+        if (linkType != CaptureLinkLayer.DltEthernet)
+        {
+            var description = CaptureLinkLayer.Describe(linkType);
+            VpnCaptureAssistDiagnostics.ObserveLinkType(pcap.Name, description, CaptureLinkLayer.IsSupported(linkType));
+            Log.Information("Npcap: adapter({Device}) link type {LinkType} ({Description})", pcap.Name, linkType, description);
+        }
+
+        return linkType;
+    }
 
     private void Dispatch(Pcap pcap, ref Packet packet)
     {
@@ -276,22 +351,23 @@ public class LibpcapPacketProvider : PacketProvider
             return;
         }
 
-        // L2 (Ethernet)
-        var ethReader = new BinaryFormatReader(packet.Data);
-        var eth = new L2EthernetFrameShape();
-        if (!ethReader.TryReadL2EthernetFrame(ref eth))
+        // L2: Ethernet, IP without Ethernet (Wintun/WireGuard/WARP), loopback or Linux cooked.
+        var linkType = GetLinkType(pcap);
+        if (!CaptureLinkLayer.TryGetNetworkLayer(linkType, packet.Data, out var etherType, out var l3))
         {
-            _captureDiagnostics.RecordMalformedPacket();
+            if (!CaptureLinkLayer.IsSupported(linkType) || packet.Data.Length < 14)
+            {
+                _captureDiagnostics.RecordMalformedPacket();
+            }
+
             return;
         }
 
-        ushort etherType = (ushort) ((packet.Data[12] << 8) | packet.Data[13]);
-
-        ReadOnlySpan<byte> l3 = eth.Payload;
+        var viaLoopback = linkType is CaptureLinkLayer.DltNull or CaptureLinkLayer.DltLoop;
 
         if (etherType == 0x0800) // IPv4
         {
-            if (TryHandleIPv4Fragment(l3, pcap))
+            if (TryHandleIPv4Fragment(l3, pcap, viaLoopback))
             {
                 return;
             }
@@ -307,7 +383,7 @@ public class LibpcapPacketProvider : PacketProvider
             switch ((ProtocolType) ip4.Protocol)
             {
                 case ProtocolType.Udp:
-                    HandleUdp(ip4.Payload, pcap, GetIPv4SourceAddress(l3));
+                    HandleUdp(ip4.Payload, pcap, GetIPv4SourceAddress(l3), viaLoopback);
                     return;
 
                 case ProtocolType.Tcp:
@@ -329,7 +405,7 @@ public class LibpcapPacketProvider : PacketProvider
             switch ((ProtocolType) nextHeader)
             {
                 case ProtocolType.Udp:
-                    HandleUdp(ip6Payload, pcap, GetIPv6SourceAddress(l3));
+                    HandleUdp(ip6Payload, pcap, GetIPv6SourceAddress(l3), viaLoopback);
                     return;
 
                 case ProtocolType.Tcp:
@@ -341,7 +417,7 @@ public class LibpcapPacketProvider : PacketProvider
         }
     }
 
-    private bool TryHandleIPv4Fragment(ReadOnlySpan<byte> bytes, Pcap pcap)
+    private bool TryHandleIPv4Fragment(ReadOnlySpan<byte> bytes, Pcap pcap, bool viaLoopback)
     {
         if (!TryReadIPv4Header(bytes, out var header))
         {
@@ -364,7 +440,7 @@ public class LibpcapPacketProvider : PacketProvider
             return true;
         }
 
-        HandleReassembledIPv4Payload(header.Protocol, reassembledPayload, pcap, sourceIp);
+        HandleReassembledIPv4Payload(header.Protocol, reassembledPayload, pcap, sourceIp, viaLoopback);
         return true;
     }
 
@@ -422,12 +498,12 @@ public class LibpcapPacketProvider : PacketProvider
         }
     }
 
-    private void HandleReassembledIPv4Payload(byte protocol, byte[] payload, Pcap pcap, string sourceIp)
+    private void HandleReassembledIPv4Payload(byte protocol, byte[] payload, Pcap pcap, string sourceIp, bool viaLoopback)
     {
         switch ((ProtocolType) protocol)
         {
             case ProtocolType.Udp:
-                HandleUdp(payload, pcap, sourceIp);
+                HandleUdp(payload, pcap, sourceIp, viaLoopback);
                 return;
 
             case ProtocolType.Tcp:
@@ -557,7 +633,7 @@ public class LibpcapPacketProvider : PacketProvider
         return true;
     }
 
-    private void HandleUdp(ReadOnlySpan<byte> l4Payload, Pcap pcap, string sourceIp)
+    private void HandleUdp(ReadOnlySpan<byte> l4Payload, Pcap pcap, string sourceIp, bool viaLoopback)
     {
         var udpReader = new BinaryFormatReader(l4Payload);
         var udp = new UdpPacketShape();
@@ -567,14 +643,30 @@ public class LibpcapPacketProvider : PacketProvider
             return;
         }
 
-        bool isPhotonPort = PhotonPorts.Udp.Contains(udp.SourcePort) || PhotonPorts.Udp.Contains(udp.DestinationPort);
-        bool looksPhoton = isPhotonPort || LooksLikePhoton(udp.Payload);
+        bool looksPhoton;
+        if (viaLoopback)
+        {
+            // Loopback ports say nothing about the game: require the full Photon structure.
+            looksPhoton = PhotonDatagramSignature.IsWellFormed(udp.Payload);
+        }
+        else
+        {
+            bool isPhotonPort = PhotonPorts.Udp.Contains(udp.SourcePort) || PhotonPorts.Udp.Contains(udp.DestinationPort);
+            looksPhoton = isPhotonPort || LooksLikePhoton(udp.Payload);
+        }
+
         if (!looksPhoton || udp.Payload.Length == 0)
         {
             return;
         }
 
-        var isAlbionGameData = _albionServerDetectionService.TryDetectFromSourceIp(sourceIp);
+        // A relayed datagram on loopback has 127.0.0.1 as source, so the Albion
+        // server cannot be recognised by IP there; the strict check stands in.
+        var isAlbionGameData = viaLoopback || _albionServerDetectionService.TryDetectFromSourceIp(sourceIp);
+        if (viaLoopback)
+        {
+            VpnCaptureAssistDiagnostics.ObserveLoopbackPhoton();
+        }
         if (SettingsController.CurrentSettings.IsImortaisVpnCaptureAssistEnabled)
         {
             VpnCaptureAssistDiagnostics.ObserveCandidate(pcap.Name);
@@ -714,6 +806,16 @@ public class LibpcapPacketProvider : PacketProvider
     {
         VpnCaptureAssistDiagnostics.ObserveNetworkChange();
         Interlocked.Exchange(ref _captureRefreshRequested, 1);
+    }
+
+    // Toggling USO VPN opens or closes the loopback adapter; reopen once, without
+    // counting it as a user rescan or a network change.
+    public static bool RequestCaptureReopenForSettingsChange()
+    {
+        var provider = Volatile.Read(ref _runningInstance);
+        if (provider is null || !provider.IsRunning) return false;
+        Interlocked.Exchange(ref provider._captureRefreshRequested, 1);
+        return true;
     }
 
     // User-initiated only. The existing worker performs a bounded reopen,
